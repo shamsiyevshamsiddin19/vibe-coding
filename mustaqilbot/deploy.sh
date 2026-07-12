@@ -6,9 +6,7 @@ set -e
 PROJ=/opt/mustaqilbot
 BOT_SERVICE=mustaqilbot
 DB_USER=mustaqil
-# DB parolni muhit o'zgaruvchisidan oling (sir kodda saqlanmasin):
-#   export DB_PASS="your_password" && bash deploy.sh
-DB_PASS="${DB_PASS:-change_this_password}"
+DB_PASS="Mustaqil_Pg2026!"
 DB_NAME=mustaqilbot
 
 echo "=== 1. Papka yaratish ==="

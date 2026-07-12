@@ -33,6 +33,7 @@ _MIGRATIONS = (
     "REFERENCES users(id)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_videos INTEGER "
     "DEFAULT 0 NOT NULL",
+    "ALTER TABLE payments ADD COLUMN IF NOT EXISTS meta VARCHAR(2000)",
 )
 
 

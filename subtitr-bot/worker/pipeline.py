@@ -13,6 +13,7 @@ from typing import Awaitable, Callable
 
 from config import settings
 from worker import docgen, substyle
+from worker.clean import clean_segments
 from worker.correct import correct_segments
 from worker.cues import build_cues, compute_layout
 from worker.ffmpeg_utils import (
@@ -126,6 +127,14 @@ async def process_video(
     if not segments:
         raise RuntimeError("Nutq aniqlanmadi (video ovozsiz yoki juda qisqa)")
 
+    # Whisper "gallyutsinatsiyasi"ni tozalash (soxta subtitr-krediti, SFX
+    # captionlari, ketma-ket takror) — subtitr ham, lug'at ham toza bo'lsin.
+    # Idempotent: keshdan kelgan (allaqachon toza) transkripsiyaga zarari yo'q.
+    if settings.clean_transcription:
+        segments, words = clean_segments(segments, words)
+        if not segments:
+            raise RuntimeError("Nutq aniqlanmadi (video ovozsiz yoki juda qisqa)")
+
     if source_lang and source_lang != "auto":
         eff_src = _norm_lang(source_lang)
     else:
@@ -235,7 +244,9 @@ async def process_video(
         raise RuntimeError(f"Noma'lum rejim: {mode}")
 
     await progress("🎬 Subtitr videoga kuydirılmoqda...")
-    await asyncio.to_thread(burn_subtitles, in_path, paths["ass"], paths["out"])
+    await asyncio.to_thread(
+        burn_subtitles, in_path, paths["ass"], paths["out"], height
+    )
     _write_name(paths["out"], slug)
     return paths["out"], "video"
 

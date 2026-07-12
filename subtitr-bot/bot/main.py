@@ -8,8 +8,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from aiogram import Bot, Dispatcher, F
-from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram import Dispatcher, F
 from aiogram.types import (
     BotCommand,
     BotCommandScopeAllGroupChats,
@@ -17,6 +16,7 @@ from aiogram.types import (
 )
 
 from config import settings
+from tg_session import make_bot
 from bot.handlers import admin, donate, feedback, inline, start, subscribe, tts, video
 from web.server import start_web
 from db.base import init_db
@@ -32,9 +32,11 @@ async def main() -> None:
     settings.validate()
     await init_db()
 
-    # Uzunroq timeout — katta tayyor videolarni Telegramga yuklash uchun
-    session = AiohttpSession(timeout=settings.bot_request_timeout)
-    bot = Bot(token=settings.bot_token, session=session)
+    # Uzunroq timeout — katta tayyor videolarni Telegramga yuklash uchun.
+    # local_bot_api sozlangan bo'lsa — o'z serverimizdagi telegram-bot-api (2GB).
+    bot = make_bot()
+    if settings.local_bot_api:
+        logger.info("Local Bot API server ishlatilmoqda: %s", settings.local_bot_api)
     await start_web(bot)  # Click webhooklari uchun bot kerak
 
     # Bot username — Mini App Profil bo'limidagi obuna/donat tugmalari uchun

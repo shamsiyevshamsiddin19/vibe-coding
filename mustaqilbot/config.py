@@ -166,7 +166,7 @@ settings = Settings()
 DOC_TYPES = {
     "tezis": {
         "emoji": "📋", "label": "Tezis", "format": "docx",
-        "unit": "bet", "cmin": 1, "cmax": 6, "cdef": 2,
+        "unit": "bet", "cmin": 2, "cmax": 6, "cdef": 3,
         "per_unit": 2000, "min_price": 4000,
         "desc": ("Ilmiy konferentsiya uchun qisqa ish. Tarkibi: annotatsiya, "
                  "kalit so'zlar, kirish, asosiy natijalar, xulosa, 3-5 manba.\n"
@@ -174,39 +174,39 @@ DOC_TYPES = {
     },
     "mustaqil": {
         "emoji": "📝", "label": "Mustaqil ish", "format": "docx",
-        "unit": "bet", "cmin": 3, "cmax": 20, "cdef": 8,
-        "per_unit": 900, "min_price": 5000,
+        "unit": "bet", "cmin": 6, "cmax": 20, "cdef": 10,
+        "per_unit": 900, "min_price": 5400,
         "desc": ("Talaba mustaqil bajaradigan ish. Tarkibi: kirish, asosiy qism "
                  "(2-3 bo'lim), xulosa, 5+ manba.\n"
                  "📐 Qoida: 5-10 bet, fan o'qituvchisi talabiga mos."),
     },
     "referat": {
         "emoji": "📄", "label": "Referat", "format": "docx",
-        "unit": "bet", "cmin": 5, "cmax": 35, "cdef": 12,
-        "per_unit": 800, "min_price": 6000,
+        "unit": "bet", "cmin": 8, "cmax": 35, "cdef": 12,
+        "per_unit": 800, "min_price": 6400,
         "desc": ("Mavzu bo'yicha to'liq sharh. Tarkibi: mundarija, kirish, asosiy "
                  "qism (3-4 bo'lim), xulosa, 10+ manba (APA).\n"
                  "📐 Qoida: 10-15 bet, Times New Roman 14, 1.5 interval."),
     },
     "maqola": {
         "emoji": "📰", "label": "Ilmiy maqola", "format": "docx",
-        "unit": "bet", "cmin": 5, "cmax": 25, "cdef": 8,
-        "per_unit": 1000, "min_price": 7000,
+        "unit": "bet", "cmin": 6, "cmax": 25, "cdef": 8,
+        "per_unit": 1000, "min_price": 6000,
         "desc": ("Ilmiy jurnal uchun maqola. Tarkibi: UDK, annotatsiya, kalit "
                  "so'zlar, kirish, metodologiya, natijalar, xulosa, adabiyotlar (GOST).\n"
                  "📐 Qoida: 5-15 bet, ilmiy uslub, manbalar bilan."),
     },
     "slayd": {
         "emoji": "📊", "label": "Slayd (taqdimot)", "format": "pptx",
-        "unit": "slayd", "cmin": 6, "cmax": 40, "cdef": 14,
-        "per_unit": 500, "min_price": 5000,
+        "unit": "slayd", "cmin": 8, "cmax": 40, "cdef": 14,
+        "per_unit": 500, "min_price": 4000,
         "desc": ("PowerPoint taqdimot (PPTX). Har slaydda sarlavha + 4-6 nuqta, "
                  "muqova va xulosa slaydlari bilan.\n"
                  "📐 Qoida: 10-20 slayd, mavzuga mos, mantiqiy ketma-ketlik."),
     },
     "kurs": {
         "emoji": "📚", "label": "Kurs ishi", "format": "docx",
-        "unit": "bet", "cmin": 15, "cmax": 65, "cdef": 30,
+        "unit": "bet", "cmin": 20, "cmax": 65, "cdef": 30,
         "per_unit": 750, "min_price": 15000,
         "desc": ("To'liq kurs ishi. Tarkibi: mundarija, kirish, 3 bob (nazariy, "
                  "tahliliy, takliflar), xulosa, 20+ manba, ilovalar.\n"
@@ -214,16 +214,16 @@ DOC_TYPES = {
     },
     "diplom": {
         "emoji": "🎓", "label": "Diplom ishi", "format": "docx",
-        "unit": "bet", "cmin": 40, "cmax": 100, "cdef": 60,
-        "per_unit": 700, "min_price": 30000,
+        "unit": "bet", "cmin": 45, "cmax": 100, "cdef": 60,
+        "per_unit": 700, "min_price": 31500,
         "desc": ("Bitiruv malakaviy ishi (BMI). Tarkibi: annotatsiya, mundarija, "
                  "kirish, 3 bob, xulosa, 30+ manba (GOST), ilovalar.\n"
                  "📐 Qoida: 50-80 bet, to'liq ilmiy apparat bilan."),
     },
     "krasword": {
         "emoji": "🎯", "label": "Krossvord", "format": "png+docx",
-        "unit": "so'z", "cmin": 12, "cmax": 60, "cdef": 25,
-        "per_unit": 250, "min_price": 4000,
+        "unit": "so'z", "cmin": 15, "cmax": 60, "cdef": 25,
+        "per_unit": 250, "min_price": 3750,
         "desc": ("Mavzu bo'yicha krossvord (PNG rasm + DOCX). So'zlar va tariflar.\n"
                  "📐 Qoida: 20-40 so'z, 3-12 harf, mavzuga oid."),
     },

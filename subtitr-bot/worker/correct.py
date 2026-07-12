@@ -76,7 +76,7 @@ def _openai_raw(payload: str, system_prompt: str) -> str:
 
 def _providers():
     return [
-        ("gemini", bool(settings.gemini_api_key), _gemini_raw),
+        ("gemini", aiclient.gemini_available(), _gemini_raw),
         ("claude", aiclient.claude_available(), aiclient.claude_generate),
         ("openai", aiclient.openai_available(), _openai_raw),
     ]

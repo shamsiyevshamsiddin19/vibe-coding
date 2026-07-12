@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 _MODEL = "gemini-2.5-flash-preview-tts"
 _SAMPLE_RATE = 24000
-MAX_CHARS = 800
+MAX_CHARS = 5000
 
 # Kunlik so'rov limiti (Google bepul tarif: gemini-2.5-flash-preview-tts uchun
 # BUTUN LOYIHAGA 10 ta/kun — juda tor). Xato matnida "RESOURCE_EXHAUSTED" yoki

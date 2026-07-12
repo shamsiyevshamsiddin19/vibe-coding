@@ -1,0 +1,11 @@
+.env
+.env.local
+*.sql
+*.sql.gz
+*.db
+*.sqlite3
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.log

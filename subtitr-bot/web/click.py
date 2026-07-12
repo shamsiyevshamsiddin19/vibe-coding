@@ -9,6 +9,7 @@ Har bir so'rovda imzo (md5 sign_string) tekshiriladi.
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 
 from aiogram import Bot
@@ -147,6 +148,27 @@ def make_complete_handler(bot: Bot):
                     )
                 except Exception:
                     logger.warning("Donat xabarini yuborib bo'lmadi: %s", user.telegram_id)
+        elif order.plan == "longvideo":
+            # Uzun video (45+ daqiqa) — bitta martalik to'lov: obuna EMAS,
+            # saqlangan meta bilan videoni to'g'ridan-to'g'ri navbatga qo'yamiz.
+            await mark_payment_paid(order.id, click_trans_id)
+            try:
+                meta = json.loads(order.meta or "{}")
+                from bot.handlers.video import submit_long_video_job
+
+                await submit_long_video_job(bot, meta)
+            except Exception:
+                logger.exception("Uzun video ishga tushmadi (payment=%s)", order.id)
+                user = await get_user_by_id(order.user_id)
+                if user:
+                    try:
+                        await bot.send_message(
+                            user.telegram_id,
+                            "⚠️ To'lov qabul qilindi, lekin videoni navbatga "
+                            "qo'yishda xatolik bo'ldi. Admin bilan bog'laning.",
+                        )
+                    except Exception:
+                        pass
         else:
             # Obuna: to'lovni belgilash + tarifni faollashtirish
             await mark_payment_paid(order.id, click_trans_id)

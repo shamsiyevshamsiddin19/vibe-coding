@@ -13,7 +13,7 @@ except ImportError:
 
 class Settings:
     # Telegram
-    BOT_TOKEN = os.getenv("BOT_TOKEN", "8931398295:AAHq37WO3Tswsn-2UrdcWzpySdNRAcr_ERs")
+    BOT_TOKEN = os.getenv("BOT_TOKEN", "")
     BOT_USERNAME = os.getenv("BOT_USERNAME", "tez_quizbot")
 
     _admins = os.getenv("ADMIN_IDS", "").replace(" ", "")

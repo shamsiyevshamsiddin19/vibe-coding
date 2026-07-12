@@ -235,16 +235,22 @@ _ICONS = {
     "bookopen": "<path d='M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z'/><path d='M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z'/>",
     # bot-almashtirgich ikonkalari
     "film": "<rect x='2' y='4' width='20' height='16' rx='2'/><path d='M2 9h20M2 15h20M7 4v16M17 4v16'/>",
+    "quiz": "<circle cx='12' cy='12' r='10'/><path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3'/><line x1='12' y1='17' x2='12.01' y2='17'/>",
+    "cart": "<circle cx='9' cy='21' r='1'/><circle cx='20' cy='21' r='1'/><path d='M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6'/>",
+    "chart": "<line x1='18' y1='20' x2='18' y2='10'/><line x1='12' y1='20' x2='12' y2='4'/><line x1='6' y1='20' x2='6' y2='14'/>",
     "pencil": "<path d='M12 20h9'/><path d='M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z'/>",
     "grid": "<rect x='3' y='3' width='7' height='7' rx='1'/><rect x='14' y='3' width='7' height='7' rx='1'/><rect x='3' y='14' width='7' height='7' rx='1'/><rect x='14' y='14' width='7' height='7' rx='1'/>",
 }
 
 # bot-almashtirgich: (href, ikonka, nom)
 _BOTS = [
-    ("/admin", "film", "Subtitr"),
-    ("/sessiya/admin", "book", "Sessiya"),
-    ("/mustaqil/admin", "pencil", "Mustaqil"),
-    ("/tatulms/admin", "cap", "TATU LMS"),
+    ("/admin", "film", "Subtitr bot"),
+    ("/sessiya/admin", "book", "Sessiya bot"),
+    ("/mustaqil/admin", "pencil", "Mustaqil bot"),
+    ("/tatulms/admin", "cap", "TATU LMS bot"),
+    ("/quiz/admin", "quiz", "Quiz bot"),
+    ("/wstore/admin", "cart", "wstore market"),
+    ("/site/admin", "chart", "Portfolio"),
 ]
 
 _RANK_MODES = [

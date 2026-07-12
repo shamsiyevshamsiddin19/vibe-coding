@@ -49,6 +49,10 @@ class Payment(Base):
     click_trans_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=utcnow)
     paid_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime, nullable=True)
+    # Uzun video (45+ daqiqa) bir martalik to'lovi uchun: video havolasi/file_id,
+    # rejim, til va h.k. JSON holida — to'lov tasdiqlangach (webhook) shu
+    # ma'lumot bilan video avtomatik navbatga qo'yiladi (plan="longvideo").
+    meta: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
 
 
 class Donation(Base):

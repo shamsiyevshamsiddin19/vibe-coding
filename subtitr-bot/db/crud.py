@@ -216,9 +216,13 @@ async def get_user_by_id(user_id: int) -> User | None:
         return await session.get(User, user_id)
 
 
-async def create_payment(user_id: int, plan: str, amount: int) -> int:
+async def create_payment(
+    user_id: int, plan: str, amount: int, meta: str | None = None
+) -> int:
     async with async_session() as session:
-        payment = Payment(user_id=user_id, plan=plan, amount=amount, status="pending")
+        payment = Payment(
+            user_id=user_id, plan=plan, amount=amount, status="pending", meta=meta
+        )
         session.add(payment)
         await session.commit()
         await session.refresh(payment)

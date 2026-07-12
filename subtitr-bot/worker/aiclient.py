@@ -38,6 +38,28 @@ _OPENAI_DEAD_S = 30 * 60
 _openai_dead_until = 0.0
 _CLAUDE_DEAD_S = 30 * 60
 _claude_dead_until = 0.0
+# Gemini bepul tarif KUNLIK kvotasi tugasa (RESOURCE_EXHAUSTED / PerDay) —
+# 60 daqiqa o'lik deb belgilaymiz. Aks holda har bo'lak avval Gemini'ni sinab,
+# 429 da 15-30s kutib, keyin Claude'ga o'tardi — uzun kinoda juda sekin.
+_GEMINI_DEAD_S = 60 * 60
+_gemini_dead_until = 0.0
+
+
+def _is_daily_quota(exc: Exception) -> bool:
+    """429 xatosi KUNLIK kvota tugashimi (per-minute limit emas)."""
+    s = str(exc).lower()
+    return (
+        "resource_exhausted" in s
+        or "perday" in s
+        or "per day" in s
+        or "free_tier" in s
+        or "quotavalue" in s
+    )
+
+
+def gemini_available() -> bool:
+    """Gemini ishlatsa bo'ladimi (kalit bor va kunlik-kvota oynasida emas)."""
+    return bool(settings.gemini_api_key) and time.monotonic() >= _gemini_dead_until
 
 # Claude javobi uchun yetarli chegara: eng katta oyna (50 qator tuzatish yoki
 # 100 so'zlik lug'at JSON'i) ~6K token atrofida chiqadi.
@@ -84,6 +106,7 @@ def gemini_generate(
     if max_output_tokens:
         cfg["max_output_tokens"] = max_output_tokens
 
+    global _gemini_dead_until
     for attempt in range(_ATTEMPTS):
         usage.bump("gemini")  # har urinish — haqiqiy so'rov (RPD hisobiga kiradi)
         try:
@@ -93,6 +116,16 @@ def gemini_generate(
                 config=types.GenerateContentConfig(**cfg),
             )
         except Exception as exc:
+            # KUNLIK kvota tugagan bo'lsa — 60 daqiqa o'lik deb belgilab, DARHOL
+            # chiqamiz (kutmaymiz): keyingi bo'laklar to'g'ridan-to'g'ri Claude'ga.
+            if _is_daily_quota(exc):
+                _gemini_dead_until = time.monotonic() + _GEMINI_DEAD_S
+                logger.warning(
+                    "Gemini KUNLIK kvotasi tugagan — %d daqiqa qayta urinilmaydi "
+                    "(tarjima Claude/OpenAI bilan davom etadi)",
+                    _GEMINI_DEAD_S // 60,
+                )
+                raise
             wait = _retry_wait(exc, attempt)
             if wait is None or attempt == _ATTEMPTS - 1:
                 raise

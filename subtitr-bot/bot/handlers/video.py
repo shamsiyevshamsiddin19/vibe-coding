@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import html
+import json
 import logging
 import os
 import time
@@ -22,13 +23,17 @@ from aiogram.types import (
     FSInputFile,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    InputMediaPhoto,
     Message,
 )
 
 from config import settings
 from bot.keyboards import (
+    ALL_MODES,
     language_keyboard,
-    mode_keyboard,
+    mode_card_keyboard,
+    mode_caption,
+    mode_photo_path,
     target_lang_keyboard,
     transcript_lang_keyboard,
 )
@@ -47,6 +52,7 @@ from db.crud import (
     get_effective_settings,
     get_effective_tariff,
     get_or_create_user,
+    get_user_by_id,
 )
 from access import check_can_process
 
@@ -68,6 +74,29 @@ def _store_reuse(info: dict) -> str:
         for k in list(_REUSE)[:100]:
             _REUSE.pop(k, None)
     return token
+
+
+def _mode_head(is_long: bool, duration: int) -> str:
+    """Rejim tanlash xabari boshi — uzun video bo'lsa to'lov haqida ogohlantirish."""
+    if not is_long:
+        return "✅ <b>Video qabul qilindi!</b>\n\n"
+    minutes = duration // 60
+    price_str = f"{settings.price_long_video:,}".replace(",", " ")
+    return (
+        "✅ <b>Video qabul qilindi!</b>\n\n"
+        f"⏱ Bu video <b>{minutes} daqiqa</b> — {settings.long_video_minutes} "
+        "daqiqadan katta.\n"
+        f"💳 Bunday uzun videolar <b>bitta video uchun bir martalik "
+        f"{price_str} so'm</b> to'lov bilan ishlanadi.\n\n"
+        "Avval rejimni tanlang — keyin to'lov havolasi beriladi 👇\n\n"
+    )
+
+
+def _long_badge(is_long: bool) -> str:
+    """Navigatsiya paytida (keyingi/oldingi rejim) qisqa eslatma."""
+    if not is_long:
+        return ""
+    return "💳 <i>Uzun video — bir martalik to'lov talab qilinadi</i>\n\n"
 
 
 def _est_time(duration: float, mode: str) -> str:
@@ -191,11 +220,19 @@ async def on_video(message: Message, state: FSMContext) -> None:
 
     user = await get_or_create_user(message.from_user.id, message.from_user.username)
 
-    # Davomiylik + kunlik limit (rejimsiz)
-    ok, reason = await check_can_process(user, duration, mode="")
-    if not ok:
-        await message.reply(reason)
-        return
+    # 45+ daqiqalik video — oylik/kunlik limitga kirmaydi, bitta martalik
+    # to'lov bilan ishlanadi (tarifdan qat'i nazar). Bloklangan user baribir rad etiladi.
+    is_long = duration > settings.long_video_minutes * 60
+    if is_long:
+        if user.is_blocked:
+            await message.reply("⛔ Hisobingiz bloklangan. Muammo bo'lsa admin bilan bog'laning.")
+            return
+    else:
+        # Davomiylik + kunlik limit (rejimsiz)
+        ok, reason = await check_can_process(user, duration, mode="")
+        if not ok:
+            await message.reply(reason)
+            return
 
     size_mb = (video.file_size or 0) / (1024 * 1024)
     if size_mb > settings.max_upload_mb:
@@ -215,12 +252,14 @@ async def on_video(message: Message, state: FSMContext) -> None:
         file_id=video.file_id,
         duration=duration,
         user_db_id=user.id,
+        is_long=is_long,
     )
     await state.set_state(VideoFlow.waiting_mode)
-    await message.reply(
-        "✅ <b>Video qabul qilindi!</b>\n\n"
-        "Kerakli <b>rejimni tanlang</b> 👇",
-        reply_markup=mode_keyboard(tariff.modes),
+    allowed = [m for m in ALL_MODES if m in tariff.modes]
+    await message.reply_photo(
+        FSInputFile(mode_photo_path(allowed[0])),
+        caption=_mode_head(is_long, duration) + mode_caption(allowed[0], 0, len(allowed)),
+        reply_markup=mode_card_keyboard(allowed, 0),
         parse_mode="HTML",
     )
 
@@ -265,23 +304,31 @@ async def on_url(message: Message, state: FSMContext) -> None:
         return
 
     duration = info["duration"]
-    ok, reason = await check_can_process(user, duration, mode="")
-    if not ok:
-        await status.edit_text(reason)
-        return
+    is_long = duration > settings.long_video_minutes * 60
+    if not is_long:
+        ok, reason = await check_can_process(user, duration, mode="")
+        if not ok:
+            await status.edit_text(reason)
+            return
 
     tariff = await get_effective_tariff(effective_plan(user))
     await state.update_data(
-        source_type=source, url=url, duration=duration, user_db_id=user.id
+        source_type=source, url=url, duration=duration, user_db_id=user.id,
+        is_long=is_long,
     )
     await state.set_state(VideoFlow.waiting_mode)
 
     title = info.get("title") or ""
     head = f"🎬 <b>{html.escape(title)}</b>\n\n" if title else ""
-    await status.edit_text(
-        head + "✅ <b>Video tayyor!</b>\n\n"
-        "Kerakli <b>rejimni tanlang</b> 👇",
-        reply_markup=mode_keyboard(tariff.modes),
+    allowed = [m for m in ALL_MODES if m in tariff.modes]
+    try:
+        await status.delete()
+    except Exception:
+        pass
+    await message.answer_photo(
+        FSInputFile(mode_photo_path(allowed[0])),
+        caption=head + _mode_head(is_long, duration) + mode_caption(allowed[0], 0, len(allowed)),
+        reply_markup=mode_card_keyboard(allowed, 0),
         parse_mode="HTML",
     )
 
@@ -344,6 +391,34 @@ async def _offer_subscription(call: CallbackQuery, mode: str) -> None:
     )
 
 
+@router.callback_query(VideoFlow.waiting_mode, F.data.startswith("modenav:"))
+async def on_mode_nav(call: CallbackQuery, state: FSMContext) -> None:
+    """"Oldingi/Keyingi rejim" — kartani (rasm+tavsif) almashtiradi."""
+    try:
+        idx = int(call.data.split(":", 1)[1])
+    except ValueError:
+        await call.answer()
+        return
+
+    user = await get_or_create_user(call.from_user.id, call.from_user.username)
+    tariff = await get_effective_tariff(effective_plan(user))
+    allowed = [m for m in ALL_MODES if m in tariff.modes]
+    idx = idx % len(allowed)
+    mode = allowed[idx]
+
+    data = await state.get_data()
+    is_long = bool(data.get("is_long"))
+    caption = _long_badge(is_long) + mode_caption(mode, idx, len(allowed))
+    media = InputMediaPhoto(
+        media=FSInputFile(mode_photo_path(mode)), caption=caption, parse_mode="HTML"
+    )
+    try:
+        await call.message.edit_media(media=media, reply_markup=mode_card_keyboard(allowed, idx))
+    except Exception:
+        pass
+    await call.answer()
+
+
 @router.callback_query(VideoFlow.waiting_mode, F.data.startswith("mode:"))
 async def on_mode(call: CallbackQuery, state: FSMContext, bot: Bot) -> None:
     """Rejim tanlandi — ruxsat tekshirib, til so'raymiz yoki obuna taklif qilamiz."""
@@ -357,13 +432,17 @@ async def on_mode(call: CallbackQuery, state: FSMContext, bot: Bot) -> None:
         await _offer_subscription(call, mode)
         return
 
-    # Limit (bepul: har rejimga oyiga 3 ta, oyiga jami 10 ta)
     data0 = await state.get_data()
-    ok_lim, reason = await check_can_process(user, data0.get("duration", 0), mode=mode)
-    if not ok_lim:
-        await call.answer()
-        await call.message.answer(reason, parse_mode="HTML", disable_web_page_preview=True)
-        return
+    is_long = bool(data0.get("is_long"))
+
+    # Limit (bepul: har rejimga oyiga 3 ta, oyiga jami 10 ta) — uzun (to'lovli)
+    # video oddiy limitlarga kirmaydi, shuning uchun bu tekshiruv o'tkaziladi.
+    if not is_long:
+        ok_lim, reason = await check_can_process(user, data0.get("duration", 0), mode=mode)
+        if not ok_lim:
+            await call.answer()
+            await call.message.answer(reason, parse_mode="HTML", disable_web_page_preview=True)
+            return
 
     await state.update_data(modes=[mode])
     await state.set_state(VideoFlow.waiting_lang)
@@ -371,12 +450,21 @@ async def on_mode(call: CallbackQuery, state: FSMContext, bot: Bot) -> None:
     # AUDIO — til so'ralmaydi (faqat ovoz ajratiladi), darrov ishga tushiramiz
     if mode == "audio":
         await call.answer()
-        await call.message.edit_reply_markup(reply_markup=None)
-        await _launch_job(call, state, bot, "none")
+        try:
+            await call.message.edit_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        if is_long:
+            await _offer_long_video_payment(call, state, "none")
+        else:
+            await _launch_job(call, state, bot, "none")
         return
 
     await call.answer()
-    await call.message.edit_reply_markup(reply_markup=None)
+    try:
+        await call.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
 
     if mode == "transcript":
         await call.message.answer(
@@ -398,9 +486,14 @@ async def on_mode(call: CallbackQuery, state: FSMContext, bot: Bot) -> None:
 
 @router.callback_query(VideoFlow.waiting_lang, F.data.startswith("lang:"))
 async def on_language(call: CallbackQuery, state: FSMContext, bot: Bot) -> None:
-    """Til tanlandi — videoni yuklab, Celery worker'ga topshiramiz."""
+    """Til tanlandi — uzun (to'lovli) video bo'lsa to'lov havolasi, aks holda
+    videoni yuklab Celery worker'ga topshiramiz."""
     lang = call.data.split(":", 1)[1]
-    await _launch_job(call, state, bot, lang)
+    data = await state.get_data()
+    if data.get("is_long"):
+        await _offer_long_video_payment(call, state, lang)
+    else:
+        await _launch_job(call, state, bot, lang)
 
 
 async def _launch_job(
@@ -427,6 +520,115 @@ async def _launch_job(
         )
         return
 
+    await call.answer()
+    try:
+        await call.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+
+    await _submit_job(
+        bot, chat_id=call.message.chat.id, user_tg_id=user_tg_id,
+        source_type=source_type, file_id=file_id, url=url, duration=duration,
+        user_db_id=user_db_id, modes=modes, lang=lang,
+    )
+
+
+async def _offer_long_video_payment(
+    call: CallbackQuery, state: FSMContext, lang: str
+) -> None:
+    """45+ daqiqalik video — bitta martalik Click to'lov havolasini beradi.
+
+    To'lov tasdiqlangach (web/click.py webhook) video avtomatik navbatga
+    qo'yiladi — foydalanuvchi qayta hech narsa qilishi shart emas."""
+    data = await state.get_data()
+    source_type = data.get("source_type", "upload")
+    file_id = data.get("file_id")
+    url = data.get("url")
+    duration = data.get("duration", 0)
+    user_db_id = data.get("user_db_id")
+    modes = data.get("modes") or ["original"]
+    mode = modes[0]
+    user_tg_id = call.from_user.id
+    await state.clear()
+
+    if not user_db_id or not (file_id or url):
+        await call.answer(
+            "❌ Video topilmadi, iltimos videoni qaytadan yuboring.", show_alert=True
+        )
+        return
+
+    await call.answer()
+    try:
+        await call.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+
+    if not settings.click_configured:
+        await call.message.answer(
+            "💳 Uzun videolar uchun to'lov tizimi hozircha sozlanmagan.\n"
+            "Admin bilan bog'laning: /help",
+        )
+        return
+
+    amount = settings.price_long_video
+    meta = json.dumps({
+        "source_type": source_type, "file_id": file_id, "url": url,
+        "duration": duration, "user_db_id": user_db_id, "mode": mode,
+        "lang": lang, "telegram_id": user_tg_id,
+    })
+    payment_id = await create_payment(user_db_id, "longvideo", amount, meta=meta)
+    pay_url = settings.click_pay_url(f"SUBT{payment_id}", amount)
+    amount_str = f"{amount:,}".replace(",", " ")
+    minutes = duration // 60
+
+    kb = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=f"💳 To'lash — {amount_str} so'm", url=pay_url),
+    ]])
+    await call.message.answer(
+        f"⏱ Bu video <b>{minutes} daqiqa</b> — {settings.long_video_minutes} "
+        "daqiqadan katta.\n\n"
+        f"💳 Bunday uzun videolar <b>bitta video uchun bir martalik "
+        f"{amount_str} so'm</b> to'lov bilan ishlanadi.\n\n"
+        "Quyidagi tugmani bosing — Click ilovasida to'lang.\n"
+        "To'lov tugagach video <b>avtomatik</b> navbatga qo'yiladi va tayyor "
+        "bo'lganda shu yerga yuboriladi ✅",
+        reply_markup=kb, parse_mode="HTML",
+    )
+
+
+async def submit_long_video_job(bot: Bot, meta: dict) -> None:
+    """To'lov tasdiqlangach (web/click.py webhook) uzun videoni navbatga qo'yadi.
+
+    _offer_long_video_payment'da saqlangan meta (source_type/file_id yoki url,
+    rejim, til, user) bilan to'g'ridan-to'g'ri _submit_job'ni chaqiradi —
+    foydalanuvchi bilan qayta muloqot (FSM/callback) kerak emas."""
+    telegram_id = meta["telegram_id"]
+    try:
+        await bot.send_message(
+            telegram_id,
+            "✅ To'lov qabul qilindi! Videongiz navbatga qo'shilmoqda...",
+        )
+    except Exception:
+        logger.warning("Uzun video to'lov xabarini yuborib bo'lmadi: %s", telegram_id)
+    await _submit_job(
+        bot, chat_id=telegram_id, user_tg_id=telegram_id,
+        source_type=meta["source_type"], file_id=meta.get("file_id"),
+        url=meta.get("url"), duration=meta.get("duration", 0),
+        user_db_id=meta["user_db_id"], modes=[meta["mode"]],
+        lang=meta.get("lang") or "none",
+    )
+
+
+async def _submit_job(
+    bot: Bot, *, chat_id: int, user_tg_id: int, source_type: str,
+    file_id: str | None, url: str | None, duration: int, user_db_id: int,
+    modes: list[str], lang: str,
+) -> None:
+    """Videoni yuklab, Celery worker'ga topshiradi (rejim+til allaqachon aniq).
+
+    Oddiy callback oqimi (_launch_job) va to'lovdan keyingi uzun-video oqimi
+    (submit_long_video_job, webhook orqali) ikkalasi ham shu funksiyani
+    chaqiradi — CallbackQuery'ga bog'liq emas, faqat bot+chat_id kerak."""
     # Manba/tarjima tilini aniqlash
     if "transcript" in modes:
         # Matn: "asl tilda" (none) -> tarjimasiz; aks holda tanlangan tilga tarjima
@@ -438,9 +640,6 @@ async def _launch_job(
     else:
         source_lang = lang
         target_lang = None
-
-    await call.answer()
-    await call.message.edit_reply_markup(reply_markup=None)
 
     est = _est_time(duration or 0, modes[0])
     if len(modes) > 1:
@@ -455,18 +654,58 @@ async def _launch_job(
 
     # Video faylni yuklab olish (bot API yoki yt-dlp) — bot handler'da qilish shart
     # chunki file_id faqat bot API orqali ishlaydi
-    status_msg = await call.message.answer(f"⏳ Qabul qilindi! Video yuklanmoqda... ({est})")
+    status_msg = await bot.send_message(chat_id, f"⏳ Qabul qilindi! Video yuklanmoqda... ({est})")
     try:
         os.makedirs(settings.work_dir, exist_ok=True)
         if source_type == "upload":
             tg_file = await bot.get_file(file_id)
-            await bot.download_file(tg_file.file_path, paths["video"])
+            if settings.local_bot_api:
+                # Local server (--local): fayl allaqachon serverimiz diskida.
+                # get_file KONTEYNER yo'lini beradi — host yo'liga o'girib, HTTP
+                # yuklab olishsiz nusxalaymiz (tez), so'ng originalni o'chiramiz.
+                import shutil
+
+                from tg_session import local_to_host_path
+
+                src = local_to_host_path(tg_file.file_path)
+                await asyncio.to_thread(shutil.copy, src, paths["video"])
+                try:
+                    os.remove(src)
+                except OSError:
+                    pass
+            else:
+                await bot.download_file(tg_file.file_path, paths["video"])
         else:
-            try:
-                await status_msg.edit_text("📥 Video havoladan yuklab olinmoqda...")
-            except Exception:
-                pass
-            await asyncio.to_thread(download_video, url, paths["video"])
+            from worker import home_relay
+
+            if source_type in ("youtube", "instagram") and home_relay.is_relay_user(user_tg_id):
+                # Bu foydalanuvchi uchun YouTube/Instagram uy kompyuteri orqali
+                # yuklanadi (datacenter IP blokini chetlab o'tish). Kompyuterdagi
+                # skript ishlamasa (grace muddat o'tsa) — pastdagi except server-
+                # tomon yuklashga QAYTA URINADI (foydalanuvchi tiqilib qolmasin).
+                async def _relay_progress(text: str) -> None:
+                    try:
+                        await status_msg.edit_text(text)
+                    except Exception:
+                        pass
+
+                try:
+                    await home_relay.request_download(url, paths["video"], _relay_progress)
+                except Exception as relay_exc:
+                    # Kompyuter o'chiq yoki yuklay olmadi — server-tomon urinmaymiz
+                    # (datacenter IP baribir bloklangan, behuda vaqt ketardi).
+                    # "yuklab olinmadi" so'zi tashqi except'da @taronabot yo'riqnomasini
+                    # ochadi (kompyuter yoniq bo'lsa bu yergacha yetib kelmaydi).
+                    logger.info("Home relay ishlamadi (job %s): %s", job_id, relay_exc)
+                    raise RuntimeError(
+                        f"Video yuklab olinmadi (uy kompyuteri o'chiq): {relay_exc}"
+                    )
+            else:
+                try:
+                    await status_msg.edit_text("📥 Video havoladan yuklab olinmoqda...")
+                except Exception:
+                    pass
+                await asyncio.to_thread(download_video, url, paths["video"])
     except Exception as exc:
         logger.exception("Video yuklab olishda xato (job %s)", job_id)
         await finish_video(video_id, "error", error_message=str(exc))
@@ -503,8 +742,8 @@ async def _launch_job(
     from worker.celery_app import process_video_task
 
     # Premium/Basic foydalanuvchilarga ustuvor navbat
-    user = await get_or_create_user(call.from_user.id, call.from_user.username)
-    plan = effective_plan(user)
+    user = await get_user_by_id(user_db_id)
+    plan = effective_plan(user) if user else "free"
     queue = "high" if plan in ("premium", "basic") else "default"
 
     # Kirish videoni masofaviy worker yuklab olishi uchun ulashamiz (master'ning
@@ -568,10 +807,12 @@ async def on_reuse(call: CallbackQuery, state: FSMContext) -> None:
         return
     user = await get_or_create_user(call.from_user.id, call.from_user.username)
     tariff = await get_effective_tariff(effective_plan(user))
+    duration = info.get("duration", 0)
+    is_long = duration > settings.long_video_minutes * 60
     await state.update_data(
         source_type=info["source_type"], file_id=info.get("file_id"),
-        url=info.get("url"), duration=info.get("duration", 0),
-        user_db_id=info["user_db_id"],
+        url=info.get("url"), duration=duration,
+        user_db_id=info["user_db_id"], is_long=is_long,
     )
     await state.set_state(VideoFlow.waiting_mode)
     await call.answer()
@@ -579,9 +820,11 @@ async def on_reuse(call: CallbackQuery, state: FSMContext) -> None:
         await call.message.edit_reply_markup(reply_markup=None)
     except Exception:
         pass
-    await call.message.answer(
-        "✅ <b>Shu video uchun</b> yangi rejim tanlang 👇",
-        reply_markup=mode_keyboard(tariff.modes),
+    allowed = [m for m in ALL_MODES if m in tariff.modes]
+    await call.message.answer_photo(
+        FSInputFile(mode_photo_path(allowed[0])),
+        caption=_mode_head(is_long, duration) + mode_caption(allowed[0], 0, len(allowed)),
+        reply_markup=mode_card_keyboard(allowed, 0),
         parse_mode="HTML",
     )
 

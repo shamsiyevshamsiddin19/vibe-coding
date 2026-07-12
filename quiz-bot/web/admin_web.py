@@ -302,11 +302,26 @@ def _dropdown(p: str) -> str:
     quiz = _sv.format("<circle cx='12' cy='12' r='10'/>"
                       "<path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3'/>"
                       "<line x1='12' y1='17' x2='12.01' y2='17'/>")
+    doc = _sv.format("<path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/>"
+                     "<polyline points='14 2 14 8 20 8'/>"
+                     "<line x1='16' y1='13' x2='8' y2='13'/>"
+                     "<line x1='16' y1='17' x2='8' y2='17'/>")
+    cart = _sv.format("<circle cx='9' cy='21' r='1'/><circle cx='20' cy='21' r='1'/>"
+                      "<path d='M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6'/>")
+    chart = _sv.format("<line x1='12' y1='20' x2='12' y2='10'/>"
+                       "<line x1='18' y1='20' x2='18' y2='4'/>"
+                       "<line x1='6' y1='20' x2='6' y2='16'/>")
+    video = _sv.format("<polygon points='23 7 16 12 23 17 23 7'/>"
+                       "<rect x='1' y='5' width='15' height='14' rx='2' ry='2'/>")
     bots = [(subtitr_url, film, "Subtitr bot", False),
             ("/sessiya/admin", book, "Sessiya bot", False),
             ("/mustaqil/admin", pencil, "Mustaqil bot", False),
             ("/tatulms/admin", cap, "TATU LMS bot", False),
-            (quiz_url, quiz, "Quiz bot", True)]
+            (quiz_url, quiz, "Quiz bot", True),
+            ("/wstore/admin", cart, "wstore market", False),
+            ("/portfolio/admin", chart, "Portfolio", False),
+            ("/kino/admin", video, "Kino bot", False),
+            ("/docs/admin", doc, "Document bot", False)]
     cur = next((b for b in bots if b[3]), bots[0])
     opts = ""
     for url, svg, label, act in bots:

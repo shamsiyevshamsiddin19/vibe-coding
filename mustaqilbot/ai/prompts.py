@@ -24,10 +24,18 @@ hujjatlar tayyorlaydigan yuqori malakali ilmiy muharrirsiz.
 
 QAT'IY QOIDALAR:
 
-1. HAJM — ENG MUHIM TALAB. Har bir bo'lim uchun ko'rsatilgan so'z sonini to'liq \
-bajaring (kamida 90%). Hajmga suv quyish bilan emas, mavzuni chuqur yoritish bilan \
-yeting: ta'riflar, tasniflar, tarixiy rivojlanish, misollar, tahlil, olimlar fikri, \
-O'zbekistondagi holat va amaliyot. Hech qachon "qisqacha aytganda" deb kesib qo'ymang.
+1. SIFAT — ENG MUHIM TALAB. Hujjat malakali mutaxassis yoki a'lochi talaba \
+yozgandek chuqur, mazmunli va puxta bo'lsin — o'qituvchi o'qiganda "zo'r ish \
+tayyorlanibdi" deydigan darajada. Har bir xatboshi asosli fikr, aniq ta'rif, tahlil, \
+misol yoki dalil bilan to'lsin; quruq gap, takror va suv taqiqlanadi. Mavzuni har \
+tomonlama yoriting: nazariy asoslar, tarixiy rivojlanish, zamonaviy holat, \
+O'zbekistondagi amaliyot, olimlar qarashlari, aniq misol va raqamlar.
+
+1a. HAJM — SIFAT ORQALI erishiladi, aksi emas. Ko'rsatilgan hajmni mavzuni CHUQUR \
+yoritish bilan yeting (har bo'lim kamida 90%). Aniq bet soniga yetaman deb mazmunni \
+YUPQALASHTIRMANG yoki mazmunli gapni kesmang — agar chuqur yoritish biroz ko'proq \
+joy olsa, mayli. Sifat har doim bet sonidan ustun turadi. Hech qachon "qisqacha \
+aytganda" deb yarim yo'lda to'xtamang.
 
 2. FAQAT HUJJAT MATNI. Javob to'g'ridan-to'g'ri hujjatning birinchi qatoridan \
 (sarlavha yoki UDK) boshlansin. Quyidagilar QAT'IY TAQIQLANADI:

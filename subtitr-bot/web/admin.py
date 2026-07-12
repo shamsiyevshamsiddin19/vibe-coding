@@ -384,6 +384,70 @@ def _page_raw(body: str) -> str:
     )
 
 
+
+def _bot_dropdown(active_label: str) -> str:
+    _sv = ("<svg viewBox='0 0 24 24' width='18' height='18' fill='none' stroke='currentColor' "
+           "stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>{}</svg>")
+    
+    film = _sv.format("<rect x='2' y='4' width='20' height='16' rx='2'/><path d='M2 9h20M2 15h20M7 4v16M17 4v16'/>")
+    book = _sv.format("<path d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20'/><path d='M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z'/>")
+    pencil = _sv.format("<path d='M12 20h9'/><path d='M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z'/>")
+    cap = _sv.format("<path d='M22 10 12 5 2 10l10 5 10-5Z'/><path d='M6 12v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5'/>")
+    quiz = _sv.format("<circle cx='12' cy='12' r='10'/><path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3'/><line x1='12' y1='17' x2='12.01' y2='17'/>")
+    cart = _sv.format("<circle cx='9' cy='21' r='1'/><circle cx='20' cy='21' r='1'/><path d='M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6'/>")
+    chart = _sv.format("<line x1='12' y1='20' x2='12' y2='10'/><line x1='18' y1='20' x2='18' y2='4'/><line x1='6' y1='20' x2='6' y2='16'/>")
+    video = _sv.format("<polygon points='23 7 16 12 23 17 23 7'/><rect x='1' y='5' width='15' height='14' rx='2' ry='2'/>")
+    doc = _sv.format("<path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/><polyline points='14 2 14 8 20 8'/><line x1='16' y1='13' x2='8' y2='13'/><line x1='16' y1='17' x2='8' y2='17'/>")
+
+    bots = [
+        ("/admin", film, "Subtitr bot"),
+        ("/sessiya/admin", book, "Sessiya bot"),
+        ("/mustaqil/admin", pencil, "Mustaqil bot"),
+        ("/tatulms/admin", cap, "TATU LMS bot"),
+        ("/quiz/admin", quiz, "Quiz bot"),
+        ("/wstore/admin", cart, "wstore market"),
+        ("/portfolio/admin", chart, "Portfolio"),
+        ("/kino/admin", video, "Kino bot"),
+        ("/docs/admin", doc, "Document bot")
+    ]
+    
+    opts = ""
+    cur_svg = film
+    for url, svg, label in bots:
+        is_act = (label == active_label)
+        if is_act:
+            cur_svg = svg
+        a_cls = " active" if is_act else ""
+        opts += f"<a class='botopt{a_cls}' href='{url}'>{svg}<span>{label}</span></a>"
+        
+    chev = ("<svg class='botchev' viewBox='0 0 24 24' fill='none' stroke='currentColor' "
+            "stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+            "<polyline points='6 9 12 15 18 9'/></svg>")
+            
+    return (
+        "<style>.botdd{position:relative;flex:1;min-width:0}"
+        ".botcur{list-style:none;display:flex;align-items:center;gap:9px;padding:9px 11px;"
+        "border:1px solid #e5e5e5;border-radius:10px;background:#fff;cursor:pointer;color:#0d0d0d;"
+        "font-size:13.5px;font-weight:600;user-select:none}"
+        ".botcur::-webkit-details-marker{display:none}.botcur:hover{background:#f7f7f8}"
+        ".botcur svg,.botopt svg{width:18px;height:18px;flex:0 0 18px}"
+        ".botnm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+        ".botcur .botchev{width:15px;height:15px;flex:0 0 15px;color:#6e6e80;transition:transform .2s}"
+        ".botdd[open] .botchev{transform:rotate(180deg)}"
+        ".botmenu{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:60;background:#fff;"
+        "border:1px solid #e5e5e5;border-radius:12px;box-shadow:0 14px 34px rgba(0,0,0,.13);padding:6px}"
+        ".botopt{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;"
+        "color:#6e6e80;text-decoration:none;font-size:13.5px;font-weight:500;margin-bottom:2px}"
+        ".botopt:last-child{margin-bottom:0}.botopt:hover{background:#f7f7f8;color:#0d0d0d}"
+        ".botopt.active{background:#0d0d0d;color:#fff}</style>"
+        f"<details class='botdd'><summary class='botcur'>{cur_svg}"
+        f"<span class='botnm'>{active_label}</span>{chev}</summary>"
+        f"<div class='botmenu'>{opts}</div></details>"
+        "<script>document.addEventListener('click',function(e){"
+        "document.querySelectorAll('details.botdd[open]').forEach(function(d){"
+        "if(!d.contains(e.target))d.removeAttribute('open');});});</script>"
+    )
+
 def _sidebar(active: str) -> str:
     items = ""
     for key, label, href, icon in _NAV:
@@ -394,14 +458,7 @@ def _sidebar(active: str) -> str:
         # Brand logosi + bot tanlagich — bitta qatorda (ortiqcha matnsiz)
         "<div class='brand' style='display:flex;align-items:center;gap:10px'>"
         "<span class='dot'>S</span>"
-        "<select onchange='if(this.value)location.href=this.value' "
-        "style='flex:1;min-width:0;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;"
-        "background:#fff;color:#1e293b;font-size:13px;font-weight:500;cursor:pointer'>"
-        "<option value='/admin' selected>📹 Subtitr bot</option>"
-        "<option value='/sessiya/admin'>📚 Sessiya bot</option>"
-        "<option value='/mustaqil/admin'>📝 Mustaqil bot</option>"
-        "<option value='/tatulms/admin'>🎓 TATU LMS bot</option>"
-        "</select></div>"
+        "" + _bot_dropdown('Subtitr bot') + "</div>"
         f"<nav class='nav'>{items}</nav></aside>"
     )
 
@@ -781,30 +838,13 @@ async def _api(request: web.Request) -> web.Response:
     # Eslatma: bitta video bir nechta chaqiruv qiladi (oynalar + tuzatish).
     from worker import usage
     gem_day, gem_mon = usage.read("gemini")
-    cla_day, cla_mon = usage.read("claude")
     oai_day, oai_mon = usage.read("openai")
-    tts_day, tts_mon = usage.read("gemini_tts")
 
     gem_limit = settings.gemini_daily_limit
     gem_rem = max(0, gem_limit - gem_day)
     gem_gauge = _gauge(
         "Gemini — bugungi chaqiruvlar", gem_day, gem_limit, "so'rov",
         f"{_fmt_num(gem_rem)} qoldi (bugun) · bu oy jami {_fmt_num(gem_mon)}",
-        threshold,
-    )
-    cla_block = (
-        "<div class='statbar'>"
-        + _kpi("Claude — bugun", _fmt_num(cla_day), "so'rov (zaxira)")
-        + _kpi("Claude — bu oy", _fmt_num(cla_mon), "so'rov")
-        + "</div>"
-    )
-    # Google'ning gemini-2.5-flash-preview-tts bepul tarifi qattiq kunlik
-    # limit qo'yadi (hozircha 10/kun, BUTUN loyiha uchun umumiy — billing
-    # yoqilsa Google tomonidan ko'tariladi, .env sozlamasi yo'q).
-    tts_limit = 10
-    tts_gauge = _gauge(
-        "TTS (/tts) — bugungi so'rovlar", tts_day, tts_limit, "so'rov",
-        f"bu oy jami {_fmt_num(tts_mon)} · Google bepul tarif qat'iy cheklovi",
         threshold,
     )
     oai_limit = settings.openai_monthly_limit
@@ -822,7 +862,7 @@ async def _api(request: web.Request) -> web.Response:
         )
 
     # Videolar provayder bo'yicha (kontekst — qaysi tarjima qaysi provayder bilan)
-    order = ["gemini", "claude", "openai"]
+    order = ["gemini", "openai"]
     for key in stats["prov_total"]:
         if key not in order:
             order.append(key)
@@ -850,9 +890,7 @@ async def _api(request: web.Request) -> web.Response:
                   "<a class='btn' href='/admin/api'>↻ Yangilash</a>")
         + "<h2>Groq Whisper (transkripsiya)</h2>" + gauge
         + "<h2>Gemini (tarjima · lug'at · tuzatish · sarlavha)</h2>" + gem_gauge
-        + "<h2>Claude (1-zaxira provayder)</h2>" + cla_block
-        + "<h2>OpenAI (2-zaxira provayder)</h2>" + oai_block
-        + "<h2>Matnni ovozga aylantirish (/tts)</h2>" + tts_gauge
+        + "<h2>OpenAI (zaxira provayder)</h2>" + oai_block
         + "<h2>Videolar provayder bo'yicha (oy / jami)</h2>" + prov_block
         + note
     )
@@ -1501,27 +1539,23 @@ async def _mustaqil_proxy(request: web.Request) -> web.Response:
         return web.Response(status=502, text=f"Mustaqil panelga ulanib bo'lmadi: {exc}")
 
 
-_TATULMS_ORIGIN = os.getenv("TATULMS_ORIGIN", "http://141.147.156.65")
-_TATULMS_SECRET = os.getenv("TATULMS_BRIDGE_SECRET", "")
-
-
-async def _tatulms_proxy(request: web.Request) -> web.Response:
-    """TATU LMS bot admin panelini /tatulms/ ostida shu domenga ulaydi."""
+async def _docs_proxy(request: web.Request) -> web.Response:
     g = _guard(request)
     if g is not None:
         return g
-    tail = request.match_info.get("tail", "") or "tatulms/admin"
-    if not tail.startswith("tatulms"):
-        tail = "tatulms/" + tail
-    url = f"{_TATULMS_ORIGIN}/{tail}"
+    tail = request.match_info.get("tail", "") or "admin"
+    if not tail.startswith("admin"):
+        tail = "admin/" + tail
+    url = f"http://127.0.0.1:8085/docs/{tail}"
     if request.query_string:
         url += "?" + request.query_string
     body = await request.read()
-    fwd = {"X-Forwarded-Prefix": "/tatulms"}
-    if _TATULMS_SECRET:
-        fwd["X-Admin-Proxy"] = _TATULMS_SECRET
+    fwd: dict[str, str] = {}
     if request.content_type:
         fwd["Content-Type"] = request.content_type
+    auth = request.headers.get("Authorization")
+    if auth:
+        fwd["Authorization"] = auth
     try:
         timeout = aiohttp.ClientTimeout(total=25)
         async with aiohttp.ClientSession(timeout=timeout) as sess:
@@ -1533,9 +1567,8 @@ async def _tatulms_proxy(request: web.Request) -> web.Response:
                     if resp.headers.get(h):
                         out.headers[h] = resp.headers[h]
                 return out
-    except Exception as exc:  # noqa: BLE001
-        return web.Response(status=502, text=f"TATU LMS panelga ulanib bo'lmadi: {exc}")
-
+    except Exception as exc:
+        return web.Response(status=502, text=f"Document panelga ulanib bo'lmadi: {exc}")
 
 
 def setup_admin_routes(app: web.Application, bot: Bot = None) -> None:
@@ -1574,6 +1607,7 @@ def setup_admin_routes(app: web.Application, bot: Bot = None) -> None:
     # Mustaqil bot admin panelini shamsiyev serveri orqali proxy qilish.
     app.router.add_route("*", "/mustaqil", _mustaqil_proxy)
     app.router.add_route("*", "/mustaqil/{tail:.*}", _mustaqil_proxy)
-    app.router.add_route("*", "/tatulms", _tatulms_proxy)
-    app.router.add_route("*", "/tatulms/{tail:.*}", _tatulms_proxy)
 
+    # Document bot admin panelini proxy qilish (127.0.0.1:8085)
+    app.router.add_route("*", "/docs", _docs_proxy)
+    app.router.add_route("*", "/docs/{tail:.*}", _docs_proxy)

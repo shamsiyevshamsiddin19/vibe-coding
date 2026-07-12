@@ -43,6 +43,16 @@ class Settings:
     correct_enabled: bool = os.getenv("CORRECT_ENABLED", "1") not in ("0", "false", "")
     # Qaysi tillarda tuzatish ishlasin (vergul bilan). Default: faqat o'zbek.
     correct_langs: str = os.getenv("CORRECT_LANGS", "uz")
+    # Tarjima bo'laklari nechta parallel yuborilsin (uzun kinoda tezlik).
+    # Juda katta qilinsa AI provayder RPM limiti (429) urilib, sekinlashadi —
+    # 3 optimal (bepul Gemini tier bilan). 1 = ketma-ket (eski xatti-harakat).
+    translate_parallel: int = int(os.getenv("TRANSLATE_PARALLEL", "3"))
+    # Uzun audio (Groq) shundan katta bo'lsa bo'laklarga bo'linib PARALLEL
+    # transkripsiya qilinadi (soniya). 0 = bo'lish o'chiq.
+    transcribe_chunk_seconds: int = int(os.getenv("TRANSCRIBE_CHUNK_SECONDS", "600"))
+    transcribe_parallel: int = int(os.getenv("TRANSCRIBE_PARALLEL", "3"))
+    # Whisper gallyutsinatsiya filtri (soxta subtitr-krediti, SFX-captionlar)
+    clean_transcription: bool = os.getenv("CLEAN_TRANSCRIPTION", "1") not in ("0", "false", "")
     # Subtitr shrifti — Noto Sans (Google, ekran uchun, to'liq Unicode:
     # o'zbek lotin + rus kiril + ingliz). Eng o'qiluvchan zamonaviy shrift.
     sub_font: str = os.getenv("SUB_FONT", "Noto Sans")
@@ -56,9 +66,27 @@ class Settings:
     # veryfast = tez + hajmi me'yorida; crf 28 = yaxshi sifat, kichik fayl
     sub_preset: str = os.getenv("SUB_PRESET", "veryfast")
     sub_crf: int = int(os.getenv("SUB_CRF", "28"))
-    # Yuklab olish va yuborish chegaralari (oddiy Bot API)
+    # Subtitr KUYDIRISHDA maksimal balandlik (px). Kattaroq video shu balandlikka
+    # tushiriladi — kodlash ANCHA tez va fayl kichik (1080p->720p ~2x tez), subtitr
+    # baribir tiniq. 0 = tushirmaydi (asl o'lchamda). 480 qilsa yanada tez, lekin
+    # sifat pastroq. Faqat kuydiriladigan (video) rejimga tegishli.
+    burn_max_height: int = int(os.getenv("BURN_MAX_HEIGHT", "720"))
+    # Yuklab olish va yuborish chegaralari.
+    # Oddiy bulut Bot API: yuklab olish 20MB, yuborish 50MB.
+    # LOCAL_BOT_API o'rnatilgan bo'lsa (o'z serverimizdagi telegram-bot-api) —
+    # 2GB gacha ko'tariladi, shuning uchun bu qiymatlarni ham oshiring (2000).
     max_upload_mb: int = int(os.getenv("MAX_UPLOAD_MB", "20"))
     max_send_mb: int = int(os.getenv("MAX_SEND_MB", "49"))
+    # Local Telegram Bot API server (katta fayllar uchun). Masalan:
+    # http://127.0.0.1:8082 . Bo'sh bo'lsa oddiy bulut api.telegram.org ishlatiladi.
+    local_bot_api: str = os.getenv("LOCAL_BOT_API", "")
+    # Local server --local rejimda fayllarni diskda qoldiradi va get_file KONTEYNER
+    # ichidagi yo'lni qaytaradi. Bu yo'l host fayl tizimidagi haqiqiy joyga
+    # tarjima qilinadi (Docker bind-mount). Bo'sh host_dir = tarjima yo'q.
+    local_api_container_dir: str = os.getenv(
+        "LOCAL_API_CONTAINER_DIR", "/var/lib/telegram-bot-api"
+    )
+    local_api_host_dir: str = os.getenv("LOCAL_API_HOST_DIR", "")
     # Telegramga fayl yuklash (upload) timeout — soniya. Standart 60s katta
     # videoni sekin internetda yuborishga yetmaydi, shuning uchun oshiramiz.
     bot_request_timeout: int = int(os.getenv("BOT_REQUEST_TIMEOUT", "300"))
@@ -107,6 +135,11 @@ class Settings:
     price_basic: int = int(os.getenv("PRICE_BASIC", "30000"))
     price_premium: int = int(os.getenv("PRICE_PREMIUM", "60000"))
     sub_days: int = int(os.getenv("SUB_DAYS", "30"))
+    # Uzun video (45+ daqiqa) — bitta martalik to'lov, TARIFDAN QAT'I NAZAR
+    # (bepul/basic/premium hammasiga tegishli — oylik/kunlik limitga kirmaydi).
+    # To'lov Click orqali, webhook tasdiqlagach video avtomatik navbatga qo'yiladi.
+    long_video_minutes: int = int(os.getenv("LONG_VIDEO_MINUTES", "45"))
+    price_long_video: int = int(os.getenv("PRICE_LONG_VIDEO", "20000"))
     # Redis va Celery (navbat tizimi)
     redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     celery_broker: str = os.getenv("CELERY_BROKER", "redis://localhost:6379/0")
@@ -121,6 +154,27 @@ class Settings:
     # Master kirish videoni worker'larга beradigan to'g'ridan-to'g'ri manzil
     # (tunnel emas — masalan http://161.33.36.218:8080). Bo'sh = base_url ishlatiladi.
     internal_base_url: str = os.getenv("INTERNAL_BASE_URL", "")
+    # "Uy kompyuteri orqali yuklash" — YouTube/Instagram datacenter IP blokini
+    # chetlab o'tish uchun: belgilangan foydalanuvchi(lar) yuborgan havolalar
+    # o'z kompyuteridagi skript (tools/home_relay_client.py) orqali yuklab
+    # olinadi (uy IP bloklanmagan) va serverga yuklanadi. Bo'sh = o'chiq.
+    home_relay_admin_ids: str = os.getenv("HOME_RELAY_ADMIN_IDS", "7883409434")
+    home_relay_secret: str = os.getenv("HOME_RELAY_SECRET", "")
+    # Kompyuter skripti ish boshlaguncha (pull qilguncha) shuncha kutamiz —
+    # o'tsa, oddiy server-tomon yuklashga qaytamiz (skript o'chiq bo'lsa ham
+    # foydalanuvchi tiqilib qolmasin).
+    home_relay_grace_seconds: int = int(os.getenv("HOME_RELAY_GRACE_SECONDS", "20"))
+    # Yuklab olish umuman shuncha vaqtgacha kutiladi (katta videolar uchun).
+    home_relay_timeout_seconds: int = int(os.getenv("HOME_RELAY_TIMEOUT_SECONDS", "1200"))
+
+    @property
+    def home_relay_admin_id_set(self) -> set[int]:
+        out: set[int] = set()
+        for part in self.home_relay_admin_ids.split(","):
+            part = part.strip()
+            if part.isdigit():
+                out.add(int(part))
+        return out
 
     @property
     def correct_lang_set(self) -> set[str]:

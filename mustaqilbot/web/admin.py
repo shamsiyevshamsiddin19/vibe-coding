@@ -51,15 +51,7 @@ def _authorized(request: web.Request) -> bool:
 
 
 def _guard(request: web.Request) -> web.Response | None:
-    if not settings.admin_password:
-        return web.Response(status=503, text="Admin paneli yopiq — ADMIN_PASSWORD sozlang")
-    if request.headers.get("X-Admin-Proxy") == settings.bridge_secret and settings.bridge_secret:
-        return None  # proxy'dan kelgan — ishonch
-    if not _authorized(request):
-        return web.Response(
-            status=401, text="Kirish talab qilinadi.",
-            headers={"WWW-Authenticate": 'Basic realm="Mustaqil Admin"'},
-        )
+    # Parol himoyasi foydalanuvchi so'roviga ko'ra OLIB TASHLANDI — barcha so'rov o'tadi.
     return None
 
 
@@ -266,17 +258,61 @@ def _sidebar(active: str) -> str:
         items += f"<a href='{href}'{cls}>{_icon(icon)}<span>{label}</span></a>"
     # Barcha panellar bitta domen (subtitr cloudflare tunnel) orqali ochiladi —
     # nisbiy yo'llar ishlatamiz (subtitr bot dropdown'i bilan bir xil).
+    _sv = ("<svg viewBox='0 0 24 24' width='20' height='20' fill='none' stroke='currentColor' "
+           "stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'>{}</svg>")
+    film = _sv.format("<rect x='2' y='4' width='20' height='16' rx='2'/>"
+                      "<path d='M2 9h20M2 15h20M7 4v16M17 4v16'/>")
+    book = _sv.format("<path d='M4 19.5A2.5 2.5 0 0 1 6.5 17H20'/>"
+                      "<path d='M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z'/>")
+    pencil = _sv.format("<path d='M12 20h9'/><path d='M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z'/>")
+    cap = _sv.format("<path d='M22 10 12 5 2 10l10 5 10-5Z'/>"
+                     "<path d='M6 12v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5'/>")
+    quiz = _sv.format("<circle cx='12' cy='12' r='10'/>"
+                      "<path d='M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3'/>"
+                      "<line x1='12' y1='17' x2='12.01' y2='17'/>")
+    cart = _sv.format("<circle cx='9' cy='21' r='1'/>"
+                      "<circle cx='20' cy='21' r='1'/>"
+                      "<path d='M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6'/>")
+    chart = _sv.format("<line x1='18' y1='20' x2='18' y2='10'/><line x1='12' y1='20' x2='12' y2='4'/><line x1='6' y1='20' x2='6' y2='14'/>")
+    bots = [("/admin", film, "Subtitr bot", False),
+            ("/sessiya/admin", book, "Sessiya bot", False),
+            ("/mustaqil/admin", pencil, "Mustaqil bot", True),
+            ("/tatulms/admin", cap, "TATU LMS bot", False),
+            ("/quiz/admin", quiz, "Quiz bot", False),
+            ("/wstore/admin", cart, "wstore market", False),
+            ("/site/admin", chart, "Portfolio", False)]
+    cur = next((b for b in bots if b[3]), bots[0])
+    opts = ""
+    for url, svg, label, act in bots:
+        a = " active" if act else ""
+        opts += f"<a class='botopt{a}' href='{url}'>{svg}<span>{label}</span></a>"
+    chev = ("<svg class='botchev' viewBox='0 0 24 24' fill='none' stroke='currentColor' "
+            "stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>"
+            "<polyline points='6 9 12 15 18 9'/></svg>")
     return (
         "<aside class='sidebar'>"
-        "<div class='brand'>"
-        "<span class='dot'>T</span>"
-        "<select onchange='if(this.value)location.href=this.value' "
-        "style='flex:1;min-width:0;padding:8px 10px;border-radius:8px;border:1px solid #cbd5e1;"
-        "background:#fff;color:#1e293b;font-size:13px;font-weight:500;cursor:pointer'>"
-        "<option value='/admin'>📹 Subtitr bot</option>"
-        "<option value='/sessiya/admin'>📚 Sessiya bot</option>"
-        "<option value='/mustaqil/admin' selected>📝 Mustaqil bot</option>"
-        "</select></div>"
+        "<div class='brand'><span class='dot'>M</span><span>Bot boshqaruv</span></div>"
+        "<style>.botdd{position:relative;flex:1;min-width:0;margin-bottom:6px}"
+        ".botcur{list-style:none;display:flex;align-items:center;gap:9px;padding:9px 11px;"
+        "border:1px solid #e5e5e5;border-radius:10px;background:#fff;cursor:pointer;color:#0d0d0d;"
+        "font-size:13.5px;font-weight:600;user-select:none}"
+        ".botcur::-webkit-details-marker{display:none}.botcur:hover{background:#f7f7f8}"
+        ".botcur svg,.botopt svg{width:18px;height:18px;flex:0 0 18px}"
+        ".botnm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+        ".botcur .botchev{width:15px;height:15px;flex:0 0 15px;color:#6e6e80;transition:transform .2s}"
+        ".botdd[open] .botchev{transform:rotate(180deg)}"
+        ".botmenu{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:60;background:#fff;"
+        "border:1px solid #e5e5e5;border-radius:12px;box-shadow:0 14px 34px rgba(0,0,0,.13);padding:6px}"
+        ".botopt{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;"
+        "color:#6e6e80;text-decoration:none;font-size:13.5px;font-weight:500;margin-bottom:2px}"
+        ".botopt:last-child{margin-bottom:0}.botopt:hover{background:#f7f7f8;color:#0d0d0d}"
+        ".botopt.active{background:#0d0d0d;color:#fff}</style>"
+        f"<details class='botdd'><summary class='botcur'>{cur[1]}"
+        f"<span class='botnm'>{cur[2]}</span>{chev}</summary>"
+        f"<div class='botmenu'>{opts}</div></details>"
+        "<script>document.addEventListener('click',function(e){"
+        "document.querySelectorAll('details.botdd[open]').forEach(function(d){"
+        "if(!d.contains(e.target))d.removeAttribute('open');});});</script>"
         f"<nav class='nav'>{items}</nav></aside>"
     )
 
@@ -308,6 +344,45 @@ def _cell(k: str, v: str) -> str:
 
 # ─── dashboard ───
 
+def _bar_chart(pairs, w=520, h=160, pad=26):
+    """Oddiy SVG ustunli grafik. pairs = [(label, value), ...]."""
+    if not pairs or not any(v for _, v in pairs):
+        return "<div class='empty' style='padding:18px'>Ma'lumot yo'q</div>"
+    mx = max(v for _, v in pairs) or 1
+    n = len(pairs)
+    iw, ih = w - pad * 2, h - pad * 2
+    bw = iw / n
+    parts = [f"<line x1='{pad}' y1='{pad+ih}' x2='{w-pad}' y2='{pad+ih}' stroke='#e5e5e5'/>"]
+    for i, (label, val) in enumerate(pairs):
+        bh = (val / mx) * ih
+        x = pad + i * bw + bw * 0.18
+        bwid = bw * 0.64
+        y = pad + ih - bh
+        parts.append(f"<rect x='{x:.1f}' y='{y:.1f}' width='{bwid:.1f}' height='{bh:.1f}' "
+                     "rx='3' fill='#0d0d0d'/>")
+        parts.append(f"<text x='{x+bwid/2:.1f}' y='{y-5:.1f}' font-size='11' "
+                     f"text-anchor='middle' fill='#6e6e80'>{val}</text>")
+        parts.append(f"<text x='{x+bwid/2:.1f}' y='{h-7:.1f}' font-size='10' "
+                     f"text-anchor='middle' fill='#6e6e80'>{label}</text>")
+    return (f"<svg viewBox='0 0 {w} {h}' width='100%' style='max-width:{w}px;height:auto'>"
+            + "".join(parts) + "</svg>")
+
+
+async def _dash_charts():
+    try:
+        from db.crud import admin_chart_data
+        d = await admin_chart_data()
+        return (
+            "<div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));"
+            "gap:16px;margin-bottom:26px'>"
+            "<div class='panel' style='padding:16px'><h2>Yangi foydalanuvchilar (kunlik)</h2>"
+            + _bar_chart(d["users"]) + "</div>"
+            "<div class='panel' style='padding:16px'><h2>Daromad (kunlik, ming so'm)</h2>"
+            + _bar_chart(d["revenue"]) + "</div></div>")
+    except Exception:
+        return ""
+
+
 async def _dashboard(request: web.Request) -> web.Response:
     g = _guard(request)
     if g is not None:
@@ -320,10 +395,12 @@ async def _dashboard(request: web.Request) -> web.Response:
         + _kpi("Bajarilgan", _fmt_num(s["done_orders"]))
         + _kpi("Daromad", _fmt_num(s["revenue"]) + " so'm", f"bugun +{_fmt_num(s['revenue_today'])}")
     )
+    charts = await _dash_charts()
     body = (
         _pagehead("Dashboard", "Umumiy holat",
                   "<a class='btn' href='/mustaqil/admin'>↻ Yangilash</a>")
         + f"<div class='statbar'>{kpis}</div>"
+        + charts
     )
     return web.Response(content_type="text/html", text=_layout("dash", "Dashboard", body))
 

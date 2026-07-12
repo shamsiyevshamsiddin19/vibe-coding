@@ -139,7 +139,7 @@ def _parse(content: str, words: list[str]) -> tuple[list[dict], int]:
 
 def _classify_chunk(words: list[str], target_name: str, src_name: str) -> list[dict]:
     providers = [
-        ("gemini", bool(settings.gemini_api_key), _gemini),
+        ("gemini", aiclient.gemini_available(), _gemini),
         ("claude", aiclient.claude_available(), _claude),
         ("openai", aiclient.openai_available(), _openai),
     ]

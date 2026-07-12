@@ -53,7 +53,7 @@ def make_title(text: str, fallback: str = "matn") -> str:
     if not snippet:
         return fallback
     for name, available, func in [
-        ("gemini", bool(settings.gemini_api_key), _gemini),
+        ("gemini", aiclient.gemini_available(), _gemini),
         ("claude", aiclient.claude_available(), _claude),
         ("openai", aiclient.openai_available(), _openai),
     ]:

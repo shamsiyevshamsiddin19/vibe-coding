@@ -100,6 +100,87 @@ async def _handle_internal_finish(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+# ---------------------------------------------------------------------------
+# Uy kompyuteri orqali yuklash (home relay) — worker/home_relay.py.
+# YouTube/Instagram datacenter IP blokini chetlab o'tish uchun: belgilangan
+# admin yuborgan havolalar uy kompyuteridagi skript (tools/home_relay_client.py)
+# orqali yuklanadi. Bu 3 endpoint o'sha skript bilan gaplashadi.
+
+
+def _home_relay_check(secret: str) -> web.Response | None:
+    if not settings.home_relay_secret:
+        return web.Response(status=403, text="home relay o'chiq")
+    if secret != settings.home_relay_secret:
+        return web.Response(status=403, text="forbidden")
+    return None
+
+
+async def _handle_home_pull(request: web.Request) -> web.Response:
+    """Klient skript navbatdagi ishni so'raydi (bo'sh bo'lsa job_id=null)."""
+    err = _home_relay_check(request.query.get("secret", ""))
+    if err:
+        return err
+    from worker import home_relay
+
+    job = home_relay.claim_next()
+    if not job:
+        return web.json_response({"job_id": None})
+    job_id, url = job
+    return web.json_response({"job_id": job_id, "url": url})
+
+
+async def _handle_home_upload(request: web.Request) -> web.Response:
+    """Klient skript yuklab olgan faylni shu yerga yuklaydi (multipart)."""
+    err = _home_relay_check(request.query.get("secret", ""))
+    if err:
+        return err
+    from worker import home_relay
+
+    reader = await request.multipart()
+    job_id = None
+    dest_path = None
+    field = await reader.next()
+    while field is not None:
+        if field.name == "job_id":
+            job_id = (await field.read()).decode("utf-8").strip()
+        elif field.name == "file":
+            if not job_id:
+                return web.Response(status=400, text="job_id avval kelishi kerak")
+            os.makedirs(settings.work_dir, exist_ok=True)
+            dest_path = os.path.join(settings.work_dir, f"home_{job_id}.mp4")
+            with open(dest_path, "wb") as f:
+                while True:
+                    chunk = await field.read_chunk(1 << 20)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+        field = await reader.next()
+
+    if not job_id or not dest_path or not os.path.isfile(dest_path):
+        return web.Response(status=400, text="fayl kelmadi")
+    home_relay.complete_job(job_id, dest_path)
+    logger.info("Home relay: job %s yuklandi (%s)", job_id, dest_path)
+    return web.json_response({"ok": True})
+
+
+async def _handle_home_fail(request: web.Request) -> web.Response:
+    """Klient skript xato haqida xabar beradi (masalan yt-dlp muvaffaqiyatsiz)."""
+    err = _home_relay_check(request.query.get("secret", ""))
+    if err:
+        return err
+    from worker import home_relay
+
+    try:
+        data = await request.json()
+    except Exception:
+        return web.Response(status=400, text="bad json")
+    job_id = str(data.get("job_id") or "")
+    if not job_id:
+        return web.Response(status=400, text="job_id yo'q")
+    home_relay.fail_job(job_id, str(data.get("error") or "noma'lum xato"))
+    return web.json_response({"ok": True})
+
+
 async def _handle_download(request: web.Request) -> web.StreamResponse:
     name = os.path.basename(request.match_info["name"])  # path traversal himoyasi
     path = os.path.join(settings.download_dir, name)
@@ -155,6 +236,9 @@ async def start_web(bot=None) -> None:
     app = web.Application(client_max_size=max_body)
     app.router.add_get("/dl/{name}", _handle_download)
     app.router.add_post("/internal/finish", _handle_internal_finish)
+    app.router.add_get("/internal/home/pull", _handle_home_pull)
+    app.router.add_post("/internal/home/upload", _handle_home_upload)
+    app.router.add_post("/internal/home/fail", _handle_home_fail)
 
     if bot is not None:
         from web.click import setup_click_routes

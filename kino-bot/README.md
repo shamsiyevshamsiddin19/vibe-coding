@@ -32,7 +32,7 @@ kino/
 
 ```bash
 sudo apt update && sudo apt install -y python3-venv postgresql
-sudo -u postgres psql -c "CREATE USER kino WITH PASSWORD 'CHANGE_ME';"
+sudo -u postgres psql -c "CREATE USER kino WITH PASSWORD '190919';"
 sudo -u postgres psql -c "CREATE DATABASE kino OWNER kino;"
 
 cd /opt/kino

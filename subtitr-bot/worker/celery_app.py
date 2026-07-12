@@ -61,6 +61,90 @@ def _name_of(out_path: str, default: str) -> str:
         return default
 
 
+# Bosqich matnidan taxminiy progress foizi (Task 14) — kalit so'z bo'yicha.
+# Bosqichlar ketma-ket, shuning uchun taxminiy bo'lsa ham foydalanuvchiga
+# "qancha qoldi" hissi beradi. Mos kelmasa bar ko'rsatilmaydi.
+_STAGE_PCT = [
+    ("kuydir", 88),
+    ("lug'at", 75),
+    ("Tarjima", 60),
+    ("tarjima", 60),
+    ("tuzatil", 45),
+    ("keshdan", 32),
+    ("tahlil", 30),
+    ("Ovoz", 10),
+    ("Audio ajrat", 8),
+]
+
+
+def _friendly_error(err: str) -> str:
+    """Xom xato matnidan foydalanuvchiga tushunarli, maslahatli xabar (Task 15)."""
+    e = err.lower()
+    if "nutq aniqlanmadi" in e:
+        return (
+            "❌ <b>Video ichida nutq (ovoz) aniqlanmadi.</b>\n\n"
+            "• Video ovozli ekanini tekshiring\n"
+            "• Musiqa/shovqin ustidan gap bo'lsa aniqlanmasligi mumkin\n"
+            "• Ovozli boshqa video bilan urinib ko'ring"
+        )
+    if "429" in e or "rate" in e or "quota" in e or "insufficient" in e:
+        return (
+            "❌ <b>AI xizmat hozir band</b> (so'rov limiti).\n\n"
+            "Bu vaqtinchalik — <b>1-2 daqiqadan keyin</b> shu videoni qayta yuboring."
+        )
+    if "yuklab olinmadi" in e or "download" in e or "yt-dlp" in e or "http" in e:
+        return (
+            "❌ <b>Videoni havoladan yuklab bo'lmadi.</b>\n\n"
+            "• Havola to'g'ri va ochiq ekanini tekshiring\n"
+            "• YouTube/Instagram bo'lsa: <b>@taronabot</b> orqali yuklab, videoni "
+            "shu yerga qaytaring\n"
+            "• Yoki videoni to'g'ridan-to'g'ri yuboring"
+        )
+    if "ffmpeg" in e or "kuydir" in e or "burn" in e or "subtitr videoga" in e:
+        return (
+            "❌ <b>Videoni tayyorlashda texnik xatolik.</b>\n\n"
+            "Video formati g'ayrioddiy bo'lishi mumkin — boshqa video yoki "
+            "boshqa rejim bilan urinib ko'ring."
+        )
+    if "timeout" in e or "timed out" in e or "timelimit" in e:
+        return (
+            "❌ <b>Video juda uzoq ishlandi va to'xtatildi.</b>\n\n"
+            "Qisqaroq video yuboring yoki birozdan so'ng qayta urinib ko'ring."
+        )
+    if "entity too large" in e or "too big" in e or "file is too big" in e:
+        return (
+            "❌ <b>Fayl juda katta.</b>\n\n"
+            "Kichikroq yoki qisqaroq video bilan urinib ko'ring."
+        )
+    if "tarjima qilinmadi" in e or "provayder" in e:
+        return (
+            "❌ <b>Tarjima xizmati hozir ishlamadi.</b>\n\n"
+            "Birozdan so'ng qayta urinib ko'ring — yoki <b>Original</b> rejimini "
+            "(tarjimasiz) tanlang."
+        )
+    return (
+        "❌ <b>Videoni qayta ishlashda xatolik bo'ldi.</b>\n\n"
+        "Qayta urinib ko'ring. Muammo takrorlansa — /help yoki /feedback."
+    )
+
+
+def _stage_percent(text: str) -> int | None:
+    for key, pct in _STAGE_PCT:
+        if key in text:
+            return pct
+    return None
+
+
+def _decorate_progress(text: str) -> str:
+    """Bosqich matniga vizual progress-bar + foiz qo'shadi (mos kelsa)."""
+    pct = _stage_percent(text)
+    if pct is None:
+        return text
+    filled = round(pct / 10)
+    bar = "▓" * filled + "░" * (10 - filled)
+    return f"{text}\n\n{bar} {pct}%"
+
+
 def _run_async(coro):
     """Celery worker (sinxron) ichida async kodni ishga tushirish.
 
@@ -109,8 +193,7 @@ def process_video_task(
     Bu task Celery worker'da sinxron ishlaydi. Ichida asyncio loop
     yaratib async funksiyalarni chaqiradi (Telegram API, DB).
     """
-    from aiogram import Bot
-    from aiogram.client.session.aiohttp import AiohttpSession
+    from tg_session import make_bot
 
     from worker.pipeline import process_video_modes, cleanup_all, job_paths
 
@@ -121,9 +204,9 @@ def process_video_task(
 
     start_ts = time.monotonic()
 
-    # Bitta bot sessiyasi butun task uchun: jonli progress + natija yuborish
-    session = AiohttpSession(timeout=settings.bot_request_timeout)
-    bot = Bot(token=settings.bot_token, session=session)
+    # Bitta bot sessiyasi butun task uchun: jonli progress + natija yuborish.
+    # local_bot_api sozlangan bo'lsa — o'z serverimizdagi telegram-bot-api (2GB yuborish).
+    bot = make_bot()
 
     # Jonli progress: foydalanuvchiga bosqich xabari yuboriladi va har
     # bosqichda TAHRIRLANADI — "bot javob bermayapti" degan taassurot qolmaydi.
@@ -136,15 +219,16 @@ def process_video_task(
         if text == _prog["text"]:
             return
         now = time.monotonic()
+        display = _decorate_progress(text)
         try:
             if _prog["msg_id"] is None:
-                m = await bot.send_message(user_tg_id, text)
+                m = await bot.send_message(user_tg_id, display)
                 _prog["msg_id"] = m.message_id
             else:
                 if now - _prog["ts"] < 2.5:
                     return
                 await bot.edit_message_text(
-                    text, chat_id=user_tg_id, message_id=_prog["msg_id"]
+                    display, chat_id=user_tg_id, message_id=_prog["msg_id"]
                 )
             _prog["text"] = text
             _prog["ts"] = now
@@ -258,23 +342,9 @@ def process_video_task(
         # Xatolik xabarini foydalanuvchiga yuborish
         async def _send_error():
             await _progress_cleanup()
-            err = str(exc)
-            if "Nutq aniqlanmadi" in err:
-                msg = (
-                    "❌ Video ichida nutq (ovoz) aniqlanmadi.\n"
-                    "Ovozli video ekanini tekshirib, qayta yuboring."
-                )
-            elif "429" in err or "rate" in err.lower() or "quota" in err.lower():
-                msg = (
-                    "❌ AI xizmat vaqtincha band (so'rov limiti).\n"
-                    "1-2 daqiqadan keyin qayta urinib ko'ring."
-                )
-            else:
-                msg = (
-                    "❌ Videoni qayta ishlashda xatolik bo'ldi.\n"
-                    "Qayta urinib ko'ring yoki /help."
-                )
-            await bot.send_message(user_tg_id, msg)
+            await bot.send_message(
+                user_tg_id, _friendly_error(str(exc)), parse_mode="HTML"
+            )
 
         try:
             _run_async(_send_error())

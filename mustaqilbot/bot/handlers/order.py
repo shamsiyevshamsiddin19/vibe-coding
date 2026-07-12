@@ -134,7 +134,7 @@ def _details_prompt(doc_type: str) -> str:
         return (
             "📝 <b>Qo'shimcha ma'lumot kiriting</b> — titul varag'iga yoziladi:\n\n"
             "<code>Fan: Iqtisodiyot\n"
-            "Talaba: Shamsiddin Shamsiyev\n"
+            "Talaba: Aliyev Sardor\n"
             "Guruh: IT-23\n"
             "Rahbar: Rahimov B.X.</code>\n\n"
             "<i>Agar ma'lumot yo'q bo'lsa, <b>o'tkazib yuborish</b> yozing</i>"
@@ -143,8 +143,8 @@ def _details_prompt(doc_type: str) -> str:
         return (
             "📝 <b>Muallif ma'lumotlarini kiriting:</b>\n\n"
             "<code>Fan: Informatika\n"
-            "Muallif: Shamsiddin Shamsiyev\n"
-            "Tashkilot: ToshDU, IT-23</code>\n\n"
+            "Muallif: Aliyev Sardor\n"
+            "Tashkilot: Toshkent axborot texnologiyalari universiteti (TATU), IT-23</code>\n\n"
             "<i>Agar yo'q bo'lsa, <b>o'tkazib yuborish</b> yozing</i>"
         )
     return "📝 <b>Fan nomini kiriting</b> (yoki <b>o'tkazib yuborish</b>):"
