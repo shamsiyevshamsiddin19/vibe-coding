@@ -31,7 +31,7 @@ foydalanuvchilarga xizmat ko'rsatadigan tayyor mahsulotlar.
 | Loyiha | Tavsif | Texnologiyalar |
 | :--- | :--- | :--- |
 | 🛒 **[wstore](./wstore)** | Raqamli mahsulotlar (kod loyihalari, botlar, saytlar) sotish marketpleysi — wstore.uz. | `Next.js 15` `TypeScript` `Prisma` `PostgreSQL` |
-| 🌐 **[web-site](./web-site)** | shamsiyev.uz — shaxsiy portfolio sayti. | `HTML` `CSS` `JavaScript` |
+| 🎨 **[web-site](./web-site)** | Turli sohalar uchun tayyor statik sayt shablonlari (7 ta namuna). | `HTML` `CSS` `JavaScript` |
 
 ### 💻 Desktop
 
