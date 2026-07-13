@@ -12,6 +12,7 @@ Ushbu repozitoriyada turli xil Telegram botlar, foydali skriptlar va dasturlar j
 | 🎬 **[kino-bot](./kino-bot)** | Telegram orqali kino va seriallarni qidirib topish hamda yuklab olish imkonini beruvchi bot. | `Python`, `Aiogram 3`, `PostgreSQL` |
 | 📚 **[mustaqilbot](./mustaqilbot)** | Talabalar uchun akademik yordamchi va mustaqil ishlarni tayyorlashda ko'maklashuvchi AI bot. | `Python`, `Aiogram`, `AI` |
 | ❓ **[quiz-bot](./quiz-bot)** | Foydalanuvchilar o'rtasida interaktiv savol-javoblar (viktorina) o'tkazuvchi mukammal Telegram bot. | `Python`, `Aiogram`, `Database` |
+| 🗓️ **[sessiyabot](./sessiyabot)** | Sessiyaga tayyorgarlik materiallari sotuvchi bot — Click to'lov, referal va HWID-aktivatsiya bilan. | `Python`, `Aiogram 3`, `PostgreSQL` |
 | 📝 **[subtitr-bot](./subtitr-bot)** | Videolarga avtomatik tarzda subtitr yaratib va qo'shib beruvchi Telegram bot. | `Python`, `FFmpeg`, `Aiogram` |
 | 💻 **[subtitr-desktop](./subtitr-desktop)** | Subtitr yaratish jarayonini kompyuterda (desktop) osonlashtiruvchi ilova. | `Flutter`, `Python` |
 | 🎓 **[tatu-bots](./tatu-bots)** | TATU talabalari uchun maxsus mo'ljallangan yordamchi botlar to'plami (@tatulmsbot va boshqalar). | `Python`, `API` |
