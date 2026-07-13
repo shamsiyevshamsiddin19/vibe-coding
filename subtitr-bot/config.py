@@ -152,7 +152,7 @@ class Settings:
     # Ichki API umumiy siri (worker va master bir xil bo'lishi shart).
     internal_secret: str = os.getenv("INTERNAL_SECRET", "")
     # Master kirish videoni worker'larга beradigan to'g'ridan-to'g'ri manzil
-    # (tunnel emas — masalan http://161.33.36.218:8080). Bo'sh = base_url ishlatiladi.
+    # (tunnel emas — masalan http://SERVER_IP:8080). Bo'sh = base_url ishlatiladi.
     internal_base_url: str = os.getenv("INTERNAL_BASE_URL", "")
     # "Uy kompyuteri orqali yuklash" — YouTube/Instagram datacenter IP blokini
     # chetlab o'tish uchun: belgilangan foydalanuvchi(lar) yuborgan havolalar

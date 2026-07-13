@@ -26,7 +26,7 @@ class Settings:
     admin_ids: tuple[int, ...] = _ids(os.getenv("ADMIN_IDS", "7524804094"))
 
     # Biznes
-    secret_salt: str = os.getenv("SECRET_SALT", "talaba-xizmatlari-secret")
+    secret_salt: str = os.getenv("SECRET_SALT", "")
     base_price: int = int(os.getenv("BASE_PRICE", "10000"))
     referrals_for_free: int = int(os.getenv("REFERRALS_FOR_FREE", "5"))
 

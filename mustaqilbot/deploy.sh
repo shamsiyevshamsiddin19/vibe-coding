@@ -6,7 +6,7 @@ set -e
 PROJ=/opt/mustaqilbot
 BOT_SERVICE=mustaqilbot
 DB_USER=mustaqil
-DB_PASS="Mustaqil_Pg2026!"
+DB_PASS="CHANGE_ME"
 DB_NAME=mustaqilbot
 
 echo "=== 1. Papka yaratish ==="
@@ -15,7 +15,7 @@ sudo chown opc:opc $PROJ
 
 echo "=== 2. Kod ko'chirish (lokal papkadan) ==="
 # Bu qatorni o'chiring agar git clone ishlatsangiz
-# Lokal: scp -i oracle_ssh -r . opc@141.147.156.65:/tmp/mustaqilbot_src
+# Lokal: scp -i oracle_ssh -r . opc@SERVER_IP:/tmp/mustaqilbot_src
 # Serverda:
 # rsync -av /tmp/mustaqilbot_src/ /opt/mustaqilbot/
 

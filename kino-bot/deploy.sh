@@ -6,7 +6,7 @@ set -euo pipefail
 APP_DIR="/opt/kino"
 DB_NAME="kino"
 DB_USER="kino"
-DB_PASS="190919"
+DB_PASS="CHANGE_ME"
 
 echo "==> 1/6 Paketlar"
 apt-get update -y

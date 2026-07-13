@@ -1465,7 +1465,7 @@ async def _broadcast_send(request: web.Request) -> web.Response:
 
 # ---------------------------------------------------------------- sessiya proxy
 
-_SESSIYA_ORIGIN = os.getenv("SESSIYA_ORIGIN", "http://141.147.156.65")
+_SESSIYA_ORIGIN = os.getenv("SESSIYA_ORIGIN", "http://SERVER_IP")
 _SESSIYA_SECRET = os.getenv("SESSIYA_PROXY_SECRET", "")
 
 
@@ -1502,7 +1502,7 @@ async def _sessiya_proxy(request: web.Request) -> web.Response:
                             text=f"Sessiya panelга ulanib bo'lmadi: {exc}")
 
 
-_MUSTAQIL_ORIGIN = os.getenv("MUSTAQIL_ORIGIN", "http://141.147.156.65")
+_MUSTAQIL_ORIGIN = os.getenv("MUSTAQIL_ORIGIN", "http://SERVER_IP")
 _MUSTAQIL_SECRET = os.getenv("MUSTAQIL_BRIDGE_SECRET", "")
 
 

@@ -46,13 +46,13 @@ Ish qoidalari:
 
 ## 2. QAT'IY CHEKLOVLAR
 
-- **Server**: shamsiyev (141.147.156.65), Oracle Micro, **498MB RAM**, systemd
+- **Server**: shamsiyev (SERVER_IP), Oracle Micro, **498MB RAM**, systemd
   `MemoryHigh=140M` bot uchun. OG'IR KUTUBXONALAR TAQIQLANADI (matplotlib, numpy,
   pandas...). Faqat yengil sof-Python paketlar.
 - **Deploy**: o'zgargan fayllardan tar → scp `/tmp` → serverda ochish → `_backups/` ga
   zaxira → `.venv/bin/python -m py_compile` + import test → `sudo systemctl restart
   mustaqilbot` → `journalctl` tekshirish. Serverdagi `.env` va bazani HECH QACHON almashtirma.
-- **SSH**: `ssh -i ~/.ssh/oracle_ssh opc@141.147.156.65`, operatsiyalar bittalab.
+- **SSH**: `ssh -i ~/.ssh/oracle_ssh opc@SERVER_IP`, operatsiyalar bittalab.
 - **Xarajat**: har to'liq sinov generatsiyasi ~$0.2-0.5. Sinovni 10 bet bilan qil,
   natijani lokalga ko'chirib foydalanuvchiga ber.
 - **Zaxira provayder**: OpenAI (gpt-4o-mini, 16K chiqish chegarasi) — yangi imkoniyat
@@ -272,7 +272,7 @@ yoki `chunk_extend` chegarasini qayta sozla.
 ```
 1. Lokal: python -m py_compile <fayllar> + lokal smoke-test
 2. tar czf /tmp/upd.tar.gz <faqat o'zgargan fayllar>
-3. scp -i ~/.ssh/oracle_ssh /tmp/upd.tar.gz opc@141.147.156.65:/tmp/
+3. scp -i ~/.ssh/oracle_ssh /tmp/upd.tar.gz opc@SERVER_IP:/tmp/
 4. Serverda: _backups/$(date +%Y%m%d_%H%M)/ ga eski nusxa → tar xzf → py_compile
    → import test → (yangi paket bo'lsa .venv/bin/pip install) →
    sudo systemctl restart mustaqilbot → systemctl is-active → journalctl -n 20
