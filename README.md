@@ -15,6 +15,7 @@ Ushbu repozitoriyada turli xil Telegram botlar, foydali skriptlar va dasturlar j
 | 📝 **[subtitr-bot](./subtitr-bot)** | Videolarga avtomatik tarzda subtitr yaratib va qo'shib beruvchi Telegram bot. | `Python`, `FFmpeg`, `Aiogram` |
 | 💻 **[subtitr-desktop](./subtitr-desktop)** | Subtitr yaratish jarayonini kompyuterda (desktop) osonlashtiruvchi ilova. | `Flutter`, `Python` |
 | 🎓 **[tatu-bots](./tatu-bots)** | TATU talabalari uchun maxsus mo'ljallangan yordamchi botlar to'plami (@tatulmsbot va boshqalar). | `Python`, `API` |
+| 🛒 **[wstore](./wstore)** | Raqamli mahsulotlar (kod loyihalari, botlar, saytlar) sotish marketpleysi — wstore.uz. | `Next.js`, `TypeScript`, `Prisma`, `PostgreSQL` |
 
 ---
 
