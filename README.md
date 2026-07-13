@@ -8,6 +8,7 @@ Ushbu repozitoriyada turli xil Telegram botlar, foydali skriptlar va dasturlar j
 
 | Loyiha Nomi | Tavsif | Texnologiyalar |
 | :--- | :--- | :--- |
+| 📄 **[document-convertor](./document-convertor)** | Rasm/Fayl→PDF/ZIP, Matn→DOCX, PDF↔DOCX, Office→PDF, OCR, PDF birlashtirish/qirqish/watermark qiluvchi bot. | `Python`, `Aiogram 3`, `PostgreSQL` |
 | 🎬 **[kino-bot](./kino-bot)** | Telegram orqali kino va seriallarni qidirib topish hamda yuklab olish imkonini beruvchi bot. | `Python`, `Aiogram 3`, `PostgreSQL` |
 | 📚 **[mustaqilbot](./mustaqilbot)** | Talabalar uchun akademik yordamchi va mustaqil ishlarni tayyorlashda ko'maklashuvchi AI bot. | `Python`, `Aiogram`, `AI` |
 | ❓ **[quiz-bot](./quiz-bot)** | Foydalanuvchilar o'rtasida interaktiv savol-javoblar (viktorina) o'tkazuvchi mukammal Telegram bot. | `Python`, `Aiogram`, `Database` |
