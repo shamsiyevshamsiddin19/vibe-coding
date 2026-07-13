@@ -17,7 +17,7 @@
  */
 
 // >>> YANGI SERVER MANZILI VA SIRI (ikkalasi ham .env dagi INTERNAL_SECRET bilan bir xil) <<<
-if (!defined('BAZA_BRIDGE_URL'))    define('BAZA_BRIDGE_URL', 'http://SERVER_IP/click/baza');
+if (!defined('BAZA_BRIDGE_URL'))    define('BAZA_BRIDGE_URL', 'http://141.147.156.65/click/baza');
 if (!defined('BAZA_BRIDGE_SECRET')) define('BAZA_BRIDGE_SECRET', 'PUT_SAME_SECRET_AS_NEW_SERVER');
 
 function bazaBridgePost(string $action, array $requestData): array

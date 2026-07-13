@@ -31,7 +31,7 @@ from worker.download import download_video
 
 # Server manzili — tunnel URL har restartda o'zgaradi, shuning uchun
 # TO'G'RIDAN-TO'G'RI server IP:8080 ishlatiladi (barqaror, ufw'da ochilgan).
-SERVER = os.getenv("HOME_RELAY_SERVER", "http://SERVER_IP:8080")
+SERVER = os.getenv("HOME_RELAY_SERVER", "http://178.104.25.218:8080")
 POLL_INTERVAL = 3.0
 
 # pythonw (oynasiz) rejimda konsol yo'q — loglarni faylga yozamiz (nosozlikni

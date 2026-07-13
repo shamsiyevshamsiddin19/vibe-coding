@@ -58,7 +58,7 @@ class Settings:
 
     web_host: str = field(default_factory=lambda: os.getenv("WEB_HOST", "127.0.0.1"))
     web_port: int = field(default_factory=lambda: _int("WEB_PORT", 8092))
-    public_base_url: str = field(default_factory=lambda: os.getenv("PUBLIC_BASE_URL", ""))
+    public_base_url: str = field(default_factory=lambda: os.getenv("PUBLIC_BASE_URL", "http://141.147.156.65/mustaqil"))
 
     tmp_dir: str = field(default_factory=lambda: os.getenv("TMP_DIR", "/tmp/mustaqilbot"))
     min_topup: int = field(default_factory=lambda: _int("MIN_TOPUP", 10000))

@@ -19,7 +19,7 @@
 
 if (!defined('MUSTAQIL_BRIDGE_BASE_URL')) {
     // Shamsiyev serveri (nginx 80-port) → /mustaqil/click/... → 127.0.0.1:8092
-    define('MUSTAQIL_BRIDGE_BASE_URL', 'http://SERVER_IP/mustaqil');
+    define('MUSTAQIL_BRIDGE_BASE_URL', 'http://141.147.156.65/mustaqil');
 }
 
 if (!defined('MUSTAQIL_BRIDGE_PREFIX')) {
