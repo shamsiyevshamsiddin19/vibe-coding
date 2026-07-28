@@ -1,0 +1,422 @@
+"""Rejalashtirilgan vazifalar — cron.php ekvivalenti. Har daqiqada ishga tushiriladi."""
+
+from __future__ import annotations
+
+import calendar
+import json
+import logging
+from datetime import datetime, timedelta
+from urllib.parse import urlencode
+
+from . import db
+from .config import settings
+from .helpers import (
+    build_todo_text,
+    decode_task_groups,
+    encode_task_groups,
+    flatten_task_groups,
+    now,
+    todo_keyboard,
+)
+from .tg import send_challenge_post, send_message, send_plan_items
+
+logger = logging.getLogger("boostday")
+DT_FMT = "%Y-%m-%d %H:%M:%S"
+
+
+def run_all() -> None:
+    n = now()
+    now_str = n.strftime(DT_FMT)
+    today = n.strftime("%Y-%m-%d")
+    logger.info("CRON_START now=%s tz=%s", now_str, settings.TIMEZONE)
+
+    run_media_daily_plans(now_str)
+    run_reminders(now_str)
+    run_challenge_plans(today, now_str)
+    run_daily_todo_posts(today, now_str)
+    run_calendar_posts(today, now_str)
+    run_super_todo_alerts(now_str)
+    run_daily_reports_if_needed(n)
+    run_daily_todo_rollover_if_needed(n)
+    run_weekly_reports_if_needed(n)
+    run_monthly_reports_if_needed(n)
+    run_yearly_reports_if_needed(n)
+
+    logger.info("CRON_END")
+
+
+def _parse(dt_str: str) -> datetime:
+    return datetime.strptime(dt_str, DT_FMT).replace(tzinfo=settings.tz)
+
+
+def next_daily_run_after(time_str: str, reference: datetime | None = None) -> str:
+    ref = reference or now()
+    run = _parse(f"{ref.strftime('%Y-%m-%d')} {time_str}:00")
+    if run <= ref:
+        run += timedelta(days=1)
+    return run.strftime(DT_FMT)
+
+
+def daily_mode_should_send(mode: str | None, when: datetime) -> bool:
+    mode = (mode or "everyday").lower()
+    if mode not in ("odd", "even"):
+        return True
+    n = when.isoweekday()  # 1=Mon ... 7=Sun
+    if n == 7:
+        return False
+    is_odd = (n % 2) == 1
+    return is_odd if mode == "odd" else not is_odd
+
+
+def sent_log_exists(plan_id: int, note: str) -> bool:
+    return db.one("SELECT id FROM sent_logs WHERE plan_id = :p AND note = :n LIMIT 1",
+                  {"p": plan_id, "n": note}) is not None
+
+
+def add_sent_log(plan_id: int, sent_at: str, note: str) -> None:
+    db.run("INSERT INTO sent_logs (plan_id, sent_at, note) VALUES (:p, :s, :n)",
+           {"p": plan_id, "s": sent_at, "n": note})
+
+
+def build_web_url(view: str, owner_id: int) -> str:
+    base = (settings.WEB_APP_URL or "").strip()
+    if base == "":
+        return ""
+    sep = "?" if "?" not in base else "&"
+    return base + sep + urlencode({"view": view, "owner_id": owner_id})
+
+
+def build_web_button(text: str, url: str) -> dict | None:
+    if url == "":
+        return None
+    return {"inline_keyboard": [[{"text": text, "url": url}]]}
+
+
+def send_user_message_by_id(user_id: int, text: str, reply_markup: dict | None = None) -> None:
+    user = db.one("SELECT chat_id FROM users WHERE id = :id LIMIT 1", {"id": user_id})
+    if not user or not user.get("chat_id"):
+        return
+    send_message(user["chat_id"], text, reply_markup)
+
+
+def reset_task_statuses(tasks: list) -> list:
+    for task in tasks:
+        task["status"] = 0
+        if "started_at" in task:
+            task["started_at"] = None
+        if "finished_at" in task:
+            task["finished_at"] = None
+        if "alerts" in task:
+            task["alerts"] = []
+    return tasks
+
+
+def _load(js) -> list:
+    try:
+        v = json.loads(js or "null")
+    except (ValueError, TypeError):
+        return []
+    return v if isinstance(v, list) else []
+
+
+def run_media_daily_plans(now_str: str) -> None:
+    plans = db.all_(
+        "SELECT * FROM plans WHERE status = 'active' AND plan_type = 'daily_plan' "
+        "AND next_run_at IS NOT NULL AND next_run_at <= :now", {"now": now_str})
+    for plan in plans:
+        send_plan_items(plan["channel_id"], _load(plan["items"]))
+        db.run("UPDATE plans SET last_run = :n, next_run_at = :nra, updated_at = :n WHERE id = :id",
+               {"n": now_str, "nra": next_daily_run_after(plan["time"], _parse(now_str)), "id": plan["id"]})
+        add_sent_log(int(plan["id"]), now_str, "daily_plan")
+
+
+def run_reminders(now_str: str) -> None:
+    plans = db.all_(
+        "SELECT * FROM plans WHERE status = 'active' AND plan_type = 'reminder' "
+        "AND next_run_at IS NOT NULL AND next_run_at <= :now", {"now": now_str})
+    for plan in plans:
+        send_plan_items(plan["channel_id"], _load(plan["items"]))
+        db.run("UPDATE plans SET status = 'done', last_run = :n, updated_at = :n WHERE id = :id",
+               {"n": now_str, "id": plan["id"]})
+        add_sent_log(int(plan["id"]), now_str, "reminder")
+
+
+def run_challenge_plans(today: str, now_str: str) -> None:
+    plans = db.all_(
+        "SELECT p.*, u.birth_date FROM plans p JOIN users u ON u.id = p.owner_id "
+        "WHERE p.status = 'active' AND p.plan_type = 'challenge' "
+        "AND p.next_run_at IS NOT NULL AND p.next_run_at <= :now", {"now": now_str})
+    for plan in plans:
+        if not plan.get("start_date") or not plan.get("end_date") or not plan.get("time"):
+            continue
+        sd = str(plan["start_date"])
+        ed = str(plan["end_date"])
+        if today < sd:
+            continue
+        if today > ed:
+            send_message(plan["channel_id"], "<b>Challenge yakunlandi</b>\n\nChallenge muddati tugadi.")
+            db.run("UPDATE plans SET status = 'done', last_run = :n, updated_at = :n WHERE id = :id",
+                   {"n": now_str, "id": plan["id"]})
+            add_sent_log(int(plan["id"]), now_str, "challenge_finished")
+            continue
+        send_challenge_post(plan["channel_id"], plan, plan.get("birth_date"))
+        db.run("UPDATE plans SET last_run = :n, next_run_at = :nra, updated_at = :n WHERE id = :id",
+               {"n": now_str, "nra": next_daily_run_after(plan["time"], _parse(now_str)), "id": plan["id"]})
+        add_sent_log(int(plan["id"]), now_str, "challenge")
+
+
+def run_daily_todo_posts(today: str, now_str: str) -> None:
+    plans = db.all_(
+        "SELECT * FROM plans WHERE status = 'active' AND plan_type = 'daily_todo' "
+        "AND next_run_at IS NOT NULL AND next_run_at <= :now", {"now": now_str})
+    for plan in plans:
+        week_mode = plan.get("week_mode") or "everyday"
+        if not daily_mode_should_send(week_mode, _parse(now_str)):
+            db.run("UPDATE plans SET next_run_at = :nra, updated_at = :n WHERE id = :id",
+                   {"nra": next_daily_run_after(plan["time"], _parse(now_str)), "n": now_str, "id": plan["id"]})
+            continue
+        groups = decode_task_groups(plan["tasks"])
+        last_run_date = str(plan["last_run"])[:10] if plan.get("last_run") else ""
+        if last_run_date != today:
+            reset_task_statuses(flatten_task_groups(groups))
+        response = send_message(plan["channel_id"], build_todo_text(groups, "Har kungi rejalar"),
+                                todo_keyboard(int(plan["id"]), groups, plan["plan_type"]))
+        message_id = (response or {}).get("result", {}).get("message_id")
+        db.run("UPDATE plans SET tasks = :t, message_id = :mid, last_run = :n, next_run_at = :nra, updated_at = :n WHERE id = :id",
+               {"t": encode_task_groups(groups), "mid": message_id, "n": now_str,
+                "nra": next_daily_run_after(plan["time"], _parse(now_str)), "id": plan["id"]})
+        add_sent_log(int(plan["id"]), now_str, "daily_todo")
+
+
+def run_calendar_posts(today: str, now_str: str) -> None:
+    plans = db.all_(
+        "SELECT * FROM plans WHERE status = 'active' AND plan_type IN ('todo', 'super_todo') "
+        "AND date = :today AND next_run_at IS NOT NULL AND next_run_at <= :now "
+        "AND (message_id IS NULL OR message_id = 0)", {"today": today, "now": now_str})
+    for plan in plans:
+        groups = decode_task_groups(plan["tasks"])
+        title = "Super TO-DO" if plan["plan_type"] == "super_todo" else "TO-DO"
+        response = send_message(plan["channel_id"], build_todo_text(groups, title),
+                                todo_keyboard(int(plan["id"]), groups, plan["plan_type"]))
+        message_id = (response or {}).get("result", {}).get("message_id")
+        db.run("UPDATE plans SET message_id = :mid, last_run = :n, updated_at = :n WHERE id = :id",
+               {"mid": message_id, "n": now_str, "id": plan["id"]})
+        add_sent_log(int(plan["id"]), now_str, plan["plan_type"])
+
+
+def run_super_todo_alerts(now_str: str) -> None:
+    plans = db.all_(
+        "SELECT * FROM plans WHERE status = 'active' AND plan_type = 'super_todo' "
+        "AND date = :today AND message_id IS NOT NULL", {"today": now().strftime("%Y-%m-%d")})
+    now_ts = _parse(now_str)
+    for plan in plans:
+        groups = decode_task_groups(plan["tasks"])
+        tasks = flatten_task_groups(groups)
+        changed = False
+        for task in tasks:
+            status = int(task.get("status", 0) or 0)
+            if status != 2 or not task.get("started_at") or not task.get("duration"):
+                continue
+            started = _parse(task["started_at"])
+            duration_min = int(task["duration"])
+            end = started + timedelta(minutes=duration_min)
+            total_sec = max(1, duration_min * 60)
+            passed_sec = max(0, (now_ts - started).total_seconds())
+            percent = (passed_sec / total_sec) * 100
+            alerts = task.get("alerts") if isinstance(task.get("alerts"), list) else []
+
+            if percent >= 50 and "50" not in alerts:
+                send_message(plan["channel_id"], f"<b>Super TO-DO ogohlantirish</b>\n\n<b>{task['text']}</b> vazifasining 50% vaqti o'tdi.")
+                alerts.append("50")
+                changed = True
+            if percent >= 75 and "75" not in alerts:
+                send_message(plan["channel_id"], f"<b>Super TO-DO ogohlantirish</b>\n\n<b>{task['text']}</b> vazifasining 75% vaqti o'tdi.")
+                alerts.append("75")
+                changed = True
+            if (end - now_ts).total_seconds() <= 60 and "1m" not in alerts:
+                send_message(plan["channel_id"], f"<b>Super TO-DO ogohlantirish</b>\n\n<b>{task['text']}</b> tugashiga 1 daqiqa qoldi.")
+                alerts.append("1m")
+                changed = True
+            if now_ts >= end and "done_time" not in alerts:
+                send_message(plan["channel_id"], f"<b>Super TO-DO</b>\n\n<b>{task['text']}</b> uchun belgilangan vaqt tugadi.")
+                alerts.append("done_time")
+                changed = True
+            task["alerts"] = alerts
+        if changed:
+            db.run("UPDATE plans SET tasks = :t, updated_at = :n WHERE id = :id",
+                   {"t": encode_task_groups(groups), "n": now_str, "id": plan["id"]})
+
+
+def run_daily_reports_if_needed(n: datetime) -> None:
+    if n.strftime("%H:%M") != "23:59":
+        return
+    today = n.strftime("%Y-%m-%d")
+    plans = db.all_(
+        "SELECT * FROM plans WHERE status = 'active' AND plan_type IN ('todo', 'super_todo') "
+        "AND date = :today AND report_sent = 0", {"today": today})
+    for plan in plans:
+        groups = decode_task_groups(plan["tasks"])
+        tasks = flatten_task_groups(groups)
+        total = len(tasks)
+        completed = sum(1 for t in tasks if int(t.get("status", 0) or 0) == 1)
+        remaining_groups = []
+        for g in groups:
+            remaining_tasks = []
+            for task in g.get("tasks") or []:
+                if int(task.get("status", 0) or 0) == 1:
+                    continue
+                t = dict(task)
+                t["text"] = "-> " + str(task.get("text", ""))
+                t["status"] = 0
+                if plan["plan_type"] == "super_todo":
+                    t["started_at"] = None
+                    t["finished_at"] = None
+                    t["alerts"] = []
+                remaining_tasks.append(t)
+            if remaining_tasks:
+                remaining_groups.append({"name": g.get("name", ""), "tasks": remaining_tasks})
+        percent = round((completed / total) * 100, 1) if total > 0 else 0
+        report = ("<b>Kunlik hisobot</b>\n\n"
+                  f"Sana: <code>{today}</code>\nJami vazifalar: <b>{total}</b>\n"
+                  f"Bajarilgan: <b>{completed}</b>\nQolgan: <b>{total - completed}</b>\n"
+                  f"Natija: <b>{percent}%</b>")
+        send_message(plan["channel_id"], report)
+        upsert_history(int(plan["owner_id"]), str(plan["channel_id"]), today, total, completed)
+
+        if remaining_groups:
+            tomorrow = (_parse(f"{today} 00:00:00") + timedelta(days=1)).strftime("%Y-%m-%d")
+            db.run(
+                "INSERT INTO plans (owner_id, channel_id, channel_name, plan_type, tasks, date, time, next_run_at, "
+                "created_at, updated_at) VALUES (:owner, :cid, :cname, :pt, :tasks, :date, :time, :nra, :ca, :ua)",
+                {"owner": plan["owner_id"], "cid": plan["channel_id"], "cname": plan["channel_name"],
+                 "pt": plan["plan_type"], "tasks": encode_task_groups(remaining_groups), "date": tomorrow,
+                 "time": plan["time"], "nra": f"{tomorrow} {plan['time']}:00",
+                 "ca": f"{today} 23:59:00", "ua": f"{today} 23:59:00"})
+
+        db.run("UPDATE plans SET report_sent = 1, updated_at = :n WHERE id = :id",
+               {"n": n.strftime(DT_FMT), "id": plan["id"]})
+        add_sent_log(int(plan["id"]), n.strftime(DT_FMT), "daily_report")
+
+
+def run_daily_todo_rollover_if_needed(n: datetime) -> None:
+    if n.strftime("%H:%M") != "23:59":
+        return
+    today = n.strftime("%Y-%m-%d")
+    plans = db.all_("SELECT * FROM plans WHERE status = 'active' AND plan_type = 'daily_todo'")
+    for plan in plans:
+        note = f"daily_todo_rollover:{today}"
+        if sent_log_exists(int(plan["id"]), note):
+            continue
+        groups = decode_task_groups(plan["tasks"])
+        tasks = flatten_task_groups(groups)
+        total = len(tasks)
+        completed = sum(1 for t in tasks if int(t.get("status", 0) or 0) == 1)
+        upsert_history(int(plan["owner_id"]), str(plan["channel_id"]), today, total, completed)
+        reset_task_statuses(tasks)
+        db.run("UPDATE plans SET tasks = :t, message_id = NULL, updated_at = :n WHERE id = :id",
+               {"t": encode_task_groups(groups), "n": n.strftime(DT_FMT), "id": plan["id"]})
+        add_sent_log(int(plan["id"]), n.strftime(DT_FMT), note)
+
+
+def _monday_this_week(n: datetime) -> datetime:
+    return (n - timedelta(days=n.isoweekday() - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def run_weekly_reports_if_needed(n: datetime) -> None:
+    if n.strftime("%H:%M") != "23:59" or n.isoweekday() != 7:
+        return
+    start = _monday_this_week(n)
+    end = start + timedelta(days=6)
+    send_period_report_to_users("weekly", start, end, n)
+
+
+def run_monthly_reports_if_needed(n: datetime) -> None:
+    if n.strftime("%H:%M") != "23:59":
+        return
+    last_day = calendar.monthrange(n.year, n.month)[1]
+    if n.day != last_day:
+        return
+    start = n.replace(day=1)
+    end = n.replace(day=last_day)
+    send_period_report_to_users("monthly", start, end, n)
+
+
+def run_yearly_reports_if_needed(n: datetime) -> None:
+    if n.strftime("%H:%M") != "23:59" or n.strftime("%m-%d") != "12-31":
+        return
+    start = n.replace(month=1, day=1)
+    end = n.replace(month=12, day=31)
+    send_period_report_to_users("yearly", start, end, n)
+
+
+def history_user_ids_in_range(start_date: str, end_date: str) -> list[int]:
+    rows = db.all_(
+        "SELECT DISTINCT user_id FROM history "
+        "WHERE CONCAT(LPAD(year, 4, '0'), '-', LPAD(month, 2, '0'), '-', LPAD(day, 2, '0')) BETWEEN :s AND :e "
+        "ORDER BY user_id", {"s": start_date, "e": end_date})
+    return [int(r["user_id"]) for r in rows]
+
+
+def history_summary_for_range(user_id: int, start_date: str, end_date: str) -> dict:
+    row = db.one(
+        "SELECT COUNT(*) AS day_count, COALESCE(SUM(total_tasks), 0) AS total_tasks_sum, "
+        "COALESCE(SUM(completed_tasks), 0) AS completed_tasks_sum FROM history "
+        "WHERE user_id = :u AND CONCAT(LPAD(year, 4, '0'), '-', LPAD(month, 2, '0'), '-', LPAD(day, 2, '0')) BETWEEN :s AND :e",
+        {"u": user_id, "s": start_date, "e": end_date}) or {}
+    total = int(row.get("total_tasks_sum") or 0)
+    completed = int(row.get("completed_tasks_sum") or 0)
+    return {
+        "days": int(row.get("day_count") or 0),
+        "total_tasks": total,
+        "completed_tasks": completed,
+        "percent": round((completed / total) * 100, 1) if total > 0 else 0,
+    }
+
+
+def report_title_and_period(kind: str, start: datetime, end: datetime) -> tuple[str, str]:
+    if kind == "weekly":
+        return "Haftalik statistika", f"{start.strftime('%d.%m.%Y')} - {end.strftime('%d.%m.%Y')}"
+    if kind == "monthly":
+        return "Oylik statistika", start.strftime("%Y-%m")
+    return "Yillik statistika", start.strftime("%Y")
+
+
+def send_period_report_to_users(kind: str, start: datetime, end: datetime, n: datetime) -> None:
+    user_ids = history_user_ids_in_range(start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
+    title, period_text = report_title_and_period(kind, start, end)
+    for user_id in user_ids:
+        note = f"{kind}_report:{period_text}:{user_id}"
+        if sent_log_exists(0, note):
+            continue
+        summary = history_summary_for_range(user_id, start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
+        if summary["total_tasks"] <= 0:
+            continue
+        text = (f"<b>{title}</b>\n\nDavr: <code>{period_text}</code>\n"
+                f"Faol kunlar: <b>{summary['days']}</b>\nJami vazifalar: <b>{summary['total_tasks']}</b>\n"
+                f"Bajarilgan: <b>{summary['completed_tasks']}</b>\n"
+                f"Bajarilmagan: <b>{summary['total_tasks'] - summary['completed_tasks']}</b>\n"
+                f"Natija: <b>{summary['percent']}%</b>")
+        url = build_web_url("stats", user_id)
+        keyboard = build_web_button("Batafsil statistikani ko'rish", url)
+        send_user_message_by_id(user_id, text, keyboard)
+        add_sent_log(0, n.strftime(DT_FMT), note)
+
+
+def upsert_history(user_id: int, channel_id: str, date: str, total: int, completed: int) -> None:
+    if user_id <= 0:
+        return
+    parts = date.split("-")
+    year, month, day = int(parts[0]), int(parts[1]), int(parts[2])
+    ts = now().strftime(DT_FMT)
+    row = db.one("SELECT * FROM history WHERE user_id = :u AND year = :y AND month = :m AND day = :d",
+                 {"u": user_id, "y": year, "m": month, "d": day})
+    if row:
+        db.run(
+            "UPDATE history SET total_tasks = :t, completed_tasks = :c, last_channel_id = :ch, updated_at = :n WHERE id = :id",
+            {"t": int(row["total_tasks"]) + total, "c": int(row["completed_tasks"]) + completed,
+             "ch": channel_id, "n": ts, "id": row["id"]})
+        return
+    db.run(
+        "INSERT INTO history (user_id, year, month, day, total_tasks, completed_tasks, last_channel_id, created_at, updated_at) "
+        "VALUES (:u, :y, :m, :d, :t, :c, :ch, :n, :n)",
+        {"u": user_id, "y": year, "m": month, "d": day, "t": total, "c": completed, "ch": channel_id, "n": ts})

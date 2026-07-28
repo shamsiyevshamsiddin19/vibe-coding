@@ -1,0 +1,8 @@
+logs/
+.local-logs/
+.local-data/
+*.log
+*.tmp
+uploads/
+Boostdaybot/*.log
+Boostdaybot/*.sqlite

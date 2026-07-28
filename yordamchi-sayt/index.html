@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Yordamchi</title>
+  <link rel="icon" data-app-icon href="assets/icons/custom-app-icon-192.png?v=20260722n1">
+  <link rel="manifest" href="manifest.webmanifest?v=20260722n1">
+  <meta name="theme-color" content="#0f1216">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Yordamchi">
+  <link rel="apple-touch-icon" data-app-icon href="assets/icons/custom-app-icon-192.png?v=20260722n1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/app.css?v=20260727n12">
+  <script>
+    window.MathJax = {
+      startup: { typeset: false },
+      tex: { inlineMath: [['\\(', '\\)'], ['$', '$']], displayMath: [['\\[', '\\]'], ['$$', '$$']], processEscapes: true },
+      options: { skipHtmlTags: ['script','noscript','style','textarea','pre','code'] }
+    };
+  </script>
+  <!-- MathJax har sahifada emas, faqat LaTeX'li savol uchrasa yuklanadi (App.typeset) -->
+  <style>
+    #splash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--bg);transition:opacity .3s}
+    #splash.gone{opacity:0;pointer-events:none}
+    #splash img{width:84px;height:84px;border-radius:22px;object-fit:cover;animation:sp 1.4s ease-in-out infinite}
+    #splash span{margin-top:16px;font-size:12px;font-weight:800;letter-spacing:4px;color:var(--hint);text-transform:uppercase}
+    @keyframes sp{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.07);opacity:.85}}
+  </style>
+</head>
+<body>
+
+<div id="splash">
+  <img id="splash-logo" data-app-icon src="assets/icons/custom-app-icon-192.png?v=20260722n1" alt="Yordamchi">
+  <span>Yordamchi</span>
+</div>
+<script>(function(){try{var ic=localStorage.getItem('app_custom_icon_192')||localStorage.getItem('app_custom_icon');if(ic)document.querySelectorAll('[data-app-icon]').forEach(function(el){if(el.tagName==='LINK')el.setAttribute('href',ic);else el.src=ic;});var th=localStorage.getItem('app_theme');if(th)document.documentElement.setAttribute('data-theme',th);}catch(e){}})();</script>
+
+<div class="app">
+  <div class="app-body">
+    <!-- Desktop sidebar -->
+    <aside class="side">
+      <div class="side-brand">
+        <img id="side-logo" data-app-icon src="assets/icons/custom-app-icon-192.png?v=20260722n1" alt="">
+        <div><b>Yordamchi</b><span>Shaxsiy yordamchi</span></div>
+      </div>
+      <nav class="side-nav" id="side-nav"></nav>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <div id="page" class="page"></div>
+    </main>
+  </div>
+
+  <!-- Mobile bottom nav -->
+  <nav class="botnav" id="botnav"></nav>
+</div>
+
+<!-- Core infra (saqlangan) -->
+<script src="assets/js/core/logger.js?v=20260722n1"></script>
+<script src="assets/js/core/remote-storage.js?v=20260727n1"></script>
+<script src="assets/js/core/icons.js?v=20260727n1"></script>
+<!-- Yangi SPA -->
+<script src="assets/js/app2/core.js?v=20260727n1"></script>
+<script src="assets/js/app2/auth.js?v=20260727n1"></script>
+<script src="assets/js/app2/activity.js?v=20260726n1"></script>
+<script src="assets/js/app2/goals.js?v=20260723n4"></script>
+<script src="assets/js/app2/home.js?v=20260726n1"></script>
+<script src="assets/js/app2/quiz.js?v=20260727n5"></script>
+<script src="assets/js/app2/languages.js?v=20260727n1"></script>
+<script src="assets/js/app2/coding.js?v=20260727n1"></script>
+<script src="assets/js/app2/boost.js?v=20260727n1"></script>
+<script src="assets/js/app2/grammar.js?v=20260727n6"></script>
+<script src="assets/js/app2/grammar-games.js?v=20260727n2"></script>
+<script src="assets/js/app2/listening.js?v=20260727n2"></script>
+<script src="assets/js/app2/vocab.js?v=20260727n3"></script>
+<script src="assets/js/app2/sport.js?v=20260727n6"></script>
+<script src="assets/js/app2/arxiv.js?v=20260727n3"></script>
+<script src="assets/js/app2/kun.js?v=20260727n1"></script>
+<script src="assets/js/app2/settings.js?v=20260727n3"></script>
+<script src="assets/js/app2/bootstrap.js?v=20260727n4"></script>
+</body>
+</html>

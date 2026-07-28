@@ -25,6 +25,7 @@ foydalanuvchilarga xizmat ko'rsatadigan tayyor mahsulotlar.
 | 🗓️ **[sessiyabot](./sessiyabot)** | Sessiyaga tayyorgarlik materiallari savdosi — Click to'lov, referal, HWID-aktivatsiya. | `Python` `Aiogram 3` `PostgreSQL` |
 | 📝 **[subtitr-bot](./subtitr-bot)** | Videoga avtomatik subtitr (tarjima) yaratib qo'shib beradi. | `Python` `Aiogram 3` `FFmpeg` |
 | 🎓 **[tatu-bots](./tatu-bots)** | TUIT LMS integratsiyasi — dars jadvali, baholar, deadline eslatmalari. | `Python` `Aiogram 3` `httpx/lxml` |
+| 🚀 **[boostday-bot](./boostday-bot)** | Kanalga avtomatik kunlik reja/TO-DO, challenge, eslatma va hisobotlar + Mini App. | `Python` `FastAPI` `PostgreSQL` |
 
 ### 🌐 Web platformalar
 
@@ -32,6 +33,7 @@ foydalanuvchilarga xizmat ko'rsatadigan tayyor mahsulotlar.
 | :--- | :--- | :--- |
 | 🛒 **[wstore](./wstore)** | Raqamli mahsulotlar (kod loyihalari, botlar, saytlar) sotish marketpleysi — wstore.uz. | `Next.js 15` `TypeScript` `Prisma` `PostgreSQL` |
 | 🎨 **[web-site](./web-site)** | Turli sohalar uchun tayyor statik sayt shablonlari (7 ta namuna). | `HTML` `CSS` `JavaScript` |
+| 📚 **[yordamchi-sayt](./yordamchi-sayt)** | Shaxsiy o'quv platformasi — testlar, lug'at (SRS), sport, dars jadvali, maqsadlar. | `FastAPI` `PostgreSQL` `Vanilla JS` |
 
 ### 💻 Desktop
 

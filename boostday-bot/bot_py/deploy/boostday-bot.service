@@ -1,0 +1,22 @@
+[Unit]
+Description=Boostday Telegram bot (FastAPI webhook)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/boostday-bot/bot_py
+EnvironmentFile=/opt/boostday-bot/bot_py/.env
+ExecStart=/opt/boostday-bot/bot_py/.venv/bin/gunicorn app.main:app \
+    -k uvicorn.workers.UvicornWorker \
+    --workers 2 \
+    --bind 127.0.0.1:8090 \
+    --timeout 60 \
+    --access-logfile - \
+    --error-logfile -
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
