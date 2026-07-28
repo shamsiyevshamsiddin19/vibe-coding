@@ -57,6 +57,45 @@ Bot **webhook** rejimida ishlaydi (production) yoki **polling** rejimida
 (lokal test). Rejalarni yuborish `run_cron.py` orqali — systemd timer yoki
 oddiy cron har daqiqada chaqiradi.
 
+## 📱 Telegram Mini App
+
+Rejalarni tugmalar orqali emas, qulay ilova interfeysida boshqarish uchun
+to'liq **Telegram Mini App** bor:
+
+**Fayl:** [`bot_py/miniapp.html`](bot_py/miniapp.html) — bitta o'zi yetarli
+(build, npm yoki tashqi kutubxona kerak emas). Bot uni `GET /boost/app`
+manzilida o'zi tarqatadi, shuning uchun fayl `bot_py/` ichida turishi shart.
+
+**Imkoniyatlari:**
+
+- 📊 Dashboard — statistika va rejalar holati
+- 📋 Rejalar ro'yxati turi bo'yicha guruhlangan (6 tur)
+- ✏️ Reja sahifasi — progress bar, vazifalarni bo'limlarga ajratib tahrirlash,
+  belgilash va o'chirish
+- ➕ Yangi reja yaratish — tur tanlanganda kerakli maydonlar o'zi ko'rinadi
+- 🖼 Galereyadan **ko'p fayl** yuklash (rasm + video + audio + hujjat aralash,
+  maksimal 45 MB)
+- 📡 Kanallarni ulash va o'chirish
+
+**Dizayni Telegram mavzusiga moslashadi** — `--tg-theme-*` CSS o'zgaruvchilari
+ishlatilgan, ya'ni foydalanuvchining qorong'u/yorug' mavzusida to'g'ri ko'rinadi.
+
+**Yoqish:**
+
+1. `.env` da `MINIAPP_URL` ni to'ldiring, masalan
+   `https://sizning-domeningiz.uz/boost/app`
+2. Bot avtomatik ravishda chat menyu tugmasini (☰) va inline `web_app`
+   tugmasini shu manzilga qo'yadi.
+
+> **Eslatma:** reply-keyboard'dagi `web_app` tugmasi ba'zi Telegram
+> klientlarida `initData` ni bo'sh yuboradi (klient nuqsoni). Shu sababli bot
+> Mini App'ni **inline tugma** orqali ochadi — u barcha klientlarda ishonchli
+> ishlaydi.
+
+**Xavfsizlik:** har so'rovda `initData` bot tokeni bilan HMAC tekshiruvidan
+o'tadi ([`app/miniauth.py`](bot_py/app/miniauth.py)) — foydalanuvchi soxta
+`owner_id` yubora olmaydi va faqat o'z rejalarini ko'radi.
+
 ## 🚀 Ishga tushirish
 
 **Talablar:** Python 3.9+, PostgreSQL 12+ (sayt bilan bitta baza)
