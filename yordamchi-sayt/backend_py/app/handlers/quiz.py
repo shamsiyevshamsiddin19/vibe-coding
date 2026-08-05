@@ -11,7 +11,7 @@ from .. import db
 from ..errors import ApiError, success
 from ..owner import owner_context
 from .common import normalize_quiz_segment, parse_quiz_full_name, s, to_int
-from . import goals as goals_handlers
+from . import activity, goals as goals_handlers
 
 
 def _find_base(name) -> dict | None:
@@ -152,16 +152,20 @@ def upload_base(request: Request, body: dict, db_name: str):
                 continue
             options = question.get("options") if isinstance(question.get("options"), (dict, list)) else {}
             correct = s(question.get("correct"))
+            # Izoh ixtiyoriy — kelmasa bo'sh satr saqlanadi
+            explanation = s(question.get("explanation"))
             conn.execute(
                 text(
-                    "INSERT INTO quiz_questions (base_id, question_text, options_json, correct_answer, sort_order) "
-                    "VALUES (:b, :t, :o, :c, :so)"
+                    "INSERT INTO quiz_questions "
+                    "(base_id, question_text, options_json, correct_answer, explanation, sort_order) "
+                    "VALUES (:b, :t, :o, :c, :e, :so)"
                 ),
                 {
                     "b": base["id"],
                     "t": text_val,
                     "o": json.dumps(options, ensure_ascii=False),
                     "c": correct,
+                    "e": explanation,
                     "so": index,
                 },
             )
@@ -179,7 +183,7 @@ def get_data(request: Request, body: dict, db_name: str):
         return success({"questions": [], "solved": [], "flags": []})
 
     q_rows = db.fetch_all(
-        "SELECT id, question_text, options_json, correct_answer FROM quiz_questions "
+        "SELECT id, question_text, options_json, correct_answer, explanation FROM quiz_questions "
         "WHERE base_id = :b ORDER BY sort_order, id",
         {"b": base["id"]},
     )
@@ -194,6 +198,7 @@ def get_data(request: Request, body: dict, db_name: str):
             "text": row["question_text"],
             "options": options if isinstance(options, (dict, list)) else {},
             "correct": row["correct_answer"],
+            "explanation": row["explanation"] or "",
         })
 
     ctx = owner_context(request)
@@ -281,16 +286,18 @@ def add_question(request: Request, body: dict, db_name: str):
     if len(options) < 2:
         raise ApiError("Kamida 2 ta variant kerak.")
     correct = s(body.get("correct")) or sorted(options.keys())[0]
+    explanation = s(body.get("explanation"))
 
     order = db.fetch_value(
         "SELECT COALESCE(MAX(sort_order), 0) + 1 FROM quiz_questions WHERE base_id = :b",
         {"b": base["id"]},
     )
     new_id = db.execute_returning_id(
-        "INSERT INTO quiz_questions (base_id, question_text, options_json, correct_answer, sort_order) "
-        "VALUES (:b, :t, :o, :c, :so)",
+        "INSERT INTO quiz_questions "
+        "(base_id, question_text, options_json, correct_answer, explanation, sort_order) "
+        "VALUES (:b, :t, :o, :c, :e, :so)",
         {"b": base["id"], "t": text_val, "o": json.dumps(options, ensure_ascii=False),
-         "c": correct, "so": int(order or 0)},
+         "c": correct, "e": explanation, "so": int(order or 0)},
     )
     return success({"id": new_id})
 
@@ -308,12 +315,13 @@ def edit_question(request: Request, body: dict, db_name: str):
     if len(options) < 2:
         raise ApiError("Kamida 2 ta variant kerak.")
     correct = s(body.get("correct")) or sorted(options.keys())[0]
+    explanation = s(body.get("explanation"))
 
     db.execute(
         "UPDATE quiz_questions SET question_text = :t, options_json = :o, correct_answer = :c, "
-        "updated_at = CURRENT_TIMESTAMP WHERE id = :id AND base_id = :b",
+        "explanation = :e, updated_at = CURRENT_TIMESTAMP WHERE id = :id AND base_id = :b",
         {"t": text_val, "o": json.dumps(options, ensure_ascii=False), "c": correct,
-         "id": question_id, "b": base["id"]},
+         "e": explanation, "id": question_id, "b": base["id"]},
     )
     return success()
 
@@ -381,13 +389,19 @@ def save_quiz_result(request: Request, body: dict):
     percent = int(round(correct * 100.0 / total))
 
     ctx = owner_context(request)
+    mode = s(body.get("mode"))[:32]
     db.execute(
         "INSERT INTO quiz_results (owner_type, owner_key, base_full, mode, total, correct, wrong, percent) "
         "VALUES (:ot, :ok, :bf, :m, :t, :c, :w, :p)",
         {
             "ot": ctx["owner_type"], "ok": ctx["owner_key"], "bf": base_full,
-            "m": s(body.get("mode"))[:32], "t": total, "c": correct, "w": wrong, "p": percent,
+            "m": mode, "t": total, "c": correct, "w": wrong, "p": percent,
         },
+    )
+    duration = to_int(body.get("duration")) or None
+    activity.record(
+        ctx, "quiz", object_name=base_full, amount=total, unit="savol", duration=duration,
+        meta={"correct": correct, "wrong": wrong, "percent": percent, "mode": mode},
     )
     return success({"percent": percent})
 

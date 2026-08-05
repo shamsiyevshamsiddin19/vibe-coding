@@ -44,7 +44,7 @@ Frontend'ni ham shu app tarqatishini xohlasangiz `.env` da `SERVE_STATIC=true` q
 `http://localhost:8000/` sizga `index.html` ni beradi. Aks holda frontend'ni alohida
 (nginx yoki `python -m http.server`) tarqating va `api.php` so'rovlarini 8000-portga yo'naltiring.
 
-## VPS ga o'rnatish
+## VPS (shamsiyev) ga o'rnatish
 
 ```bash
 # 1. Kod

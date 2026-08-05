@@ -10,3 +10,6 @@ Pillow>=10.2
 python-dotenv>=1.0
 # `/boost/*` lokal proxy uchun (BOOST_PROXY_URL o'rnatilganda; production'da nginx yo'naltiradi)
 httpx>=0.27
+
+# LMS (lms.tuit.uz) parolini shifrlab saqlash uchun — handlers/lms.py
+cryptography>=42

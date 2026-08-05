@@ -23,6 +23,7 @@ HEALTH_TABLES = [
     "app_storage", "reja_files", "quiz_bases", "quiz_questions", "quiz_progress",
     "goals", "goal_folders", "goal_sections", "dictionary_words", "dictionary_mistakes",
     "sport_exercises", "users", "user_channels", "plans", "history", "settings", "sent_logs",
+    "activity_log",
 ]
 
 

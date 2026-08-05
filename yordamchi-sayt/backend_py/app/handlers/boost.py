@@ -14,12 +14,15 @@ from ..config import settings
 from ..errors import ApiError, success
 
 # Mini app'dagi kabi action'lar. Faqat shu ro'yxatdagilar uzatiladi.
+# MUHIM: bot_py'ga (webapp.py::handle_action) yangi action qo'shilganda BU YERGA
+# HAM qo'shish shart — aks holda "Noma'lum boost amali" xatosi chiqadi (bir marta
+# shu sabab bilan toggle_task ishlamay qolgan edi, saboq uchun qarang: memory).
 ALLOWED_ACTIONS = {
     "list", "get", "save", "delete", "stats",
-    "channels", "add_channel", "delete_channel",
+    "channels", "add_channel", "delete_channel", "toggle_task", "set_channel_topics",
 }
 # Yozuv amallari — saytda tizimga kirgan bo'lish shart (main.py tekshiradi)
-WRITE_ACTIONS = {"save", "delete", "add_channel", "delete_channel"}
+WRITE_ACTIONS = {"save", "delete", "add_channel", "delete_channel", "toggle_task", "set_channel_topics"}
 
 
 async def proxy(request: Request, body: dict, action: str):

@@ -31,10 +31,30 @@
     });
   }
 
-  function topbar(title, back, backParams) {
+  function topbar(title, back, backParams, rightHtml) {
     return '<div class="topbar" style="margin:-16px -15px 12px">' +
       '<button class="icon-btn ghost" data-act="go" data-arg=\'' + App.arg({ v: back, p: backParams || {} }) + '\'><span data-icon="arrowLeft" data-icon-size="20"></span></button>' +
-      '<h1>' + App.esc(title) + '</h1></div>';
+      '<h1>' + App.esc(title) + '</h1>' + (rightHtml || '') + '</div>';
+  }
+
+  /* "Tugatish" tugmasi — barcha mashq rejimlarida bir xil ko'rinishda. */
+  function finishBtnHtml(action) {
+    return '<button class="icon-btn ghost" style="margin-left:auto" data-act="' + action + '" aria-label="Tugatish"><span data-icon="check" data-icon-size="18"></span></button>';
+  }
+
+  /* Sessiya oxirigacha borilmasa ham ("Tugatish" bosilsa) hozirgacha ko'rilgan
+     so'zlar activity_log'ga yoziladi — statistika/streak yangilanishi uchun.
+     `count` 0 bo'lsa yozilmaydi (hali hech narsa qilinmagan sessiya). */
+  function logVocabProgress(lang, cat, count, mode, startedAt, extraMeta) {
+    if (!count) return;
+    if (window.Activity) Activity.mark();
+    var meta = { lang: lang, mode: mode };
+    if (extraMeta) { for (var k in extraMeta) meta[k] = extraMeta[k]; }
+    App.call('log_activity', {
+      section: 'vocab', object: cat || '—', amount: count, unit: 'so\'z',
+      duration: startedAt ? Math.round((Date.now() - startedAt) / 1000) : null,
+      meta: meta
+    }).catch(function () {});
   }
 
   /* ---------- Lug'at hub: kategoriyalar ---------- */
@@ -42,10 +62,19 @@
     nav: 'languages',
     render: function (page, params) {
       var lang = params.lang === 'russian' ? 'russian' : 'english';
-      var backView = lang === 'russian' ? 'russian' : 'english';
-      page.innerHTML = topbar(LABEL[lang].hub, backView) +
+      // Papka ichida bo'lsak — "ortga" papkalar ro'yxatiga qaytaradi
+      var inFolder = params.folder || '';
+      var backView = inFolder ? 'vocab' : (lang === 'russian' ? 'russian' : 'english');
+      var backParams = inFolder ? { lang: lang } : null;
+      page.innerHTML = topbar(inFolder || LABEL[lang].hub, backView, backParams) +
         '<div id="vocab-mis-entry"></div>' +
-        '<button class="btn sec" data-act="vocabAddCat" data-arg=\'' + App.arg({ lang: lang }) + '\' style="margin-bottom:14px"><span data-icon="plus" data-icon-size="16"></span>Yangi kategoriya</button>' +
+        '<div style="display:flex;gap:10px;margin-bottom:10px">' +
+        '<button class="btn sec" data-act="vocabAddCat" data-arg=\'' + App.arg({ lang: lang }) + '\' style="flex:1"><span data-icon="plus" data-icon-size="16"></span>Yangi kategoriya</button>' +
+        '<button class="btn sec" data-act="vocabDbOptions" data-arg=\'' + App.arg({ lang: lang }) + '\' style="flex:1"><span data-icon="upload" data-icon-size="16"></span>Baza qo\'shish</button>' +
+        '</div>' +
+        (inFolder ? '' :
+          '<button class="btn sec" data-act="vocabSendSheet" data-arg=\'' + App.arg({ lang: lang }) + '\' style="width:100%;margin-bottom:14px">' +
+          '<span data-icon="message" data-icon-size="16"></span>Boostdayga yuborish</button>') +
         '<div id="vocab-list"><div class="load-wrap"><div class="spinner"></div></div></div>';
       App.icons(page);
 
@@ -62,18 +91,66 @@
 
       loadDict(lang).then(function () {
         var box = App.el('vocab-list'); if (!box) return;
-        if (!V.order.length) {
-          box.innerHTML = App.empty({ icon: 'list', title: 'Kategoriya yo\'q', text: 'Yuqoridagi tugma bilan birinchi kategoriyani qo\'shing.' });
-          return;
-        }
-        box.innerHTML = V.order.map(function (cat) {
-          var count = (V.data[cat] || []).length;
+
+        // Kategoriya nomida "/" bo'lsa — papka ("Chastota/1-100" -> "Chastota"
+        // papkasi ichida "1-100"). Yuzlab kategoriya bitta ro'yxatda oqib
+        // ketmasligi uchun. "/" siz nomlar avvalgidek ildizda qoladi.
+        var folder = params.folder || '';
+        var order = [], map = {}, root = [];
+        V.order.forEach(function (cat) {
+          var i = cat.indexOf('/');
+          var f = i < 0 ? '' : cat.slice(0, i).trim();
+          var n = i < 0 ? cat : cat.slice(i + 1).trim();
+          var item = { full: cat, name: n || cat, count: (V.data[cat] || []).length };
+          if (!f) { root.push(item); return; }
+          if (!map[f]) { map[f] = []; order.push(f); }
+          map[f].push(item);
+        });
+
+        function catRow(it) {
           return '<div class="list-row">' +
             '<span class="li-ic" data-icon="list" data-icon-size="15"></span>' +
-            '<button class="li-main li-btn" data-act="go" data-arg=\'' + App.arg({ v: 'vocab_practice', p: { lang: lang, cat: cat } }) + '\'>' +
-            '<div class="li-title">' + App.esc(cat) + '</div><div class="li-sub">' + count + ' so\'z</div></button>' +
-            '<button class="icon-btn ghost" style="width:30px;height:30px" data-act="vocabCatManage" data-arg=\'' + App.arg({ lang: lang, cat: cat }) + '\'><span data-icon="edit" data-icon-size="14"></span></button></div>';
+            '<button class="li-main li-btn" data-act="go" data-arg=\'' + App.arg({ v: 'vocab_practice', p: { lang: lang, cat: it.full } }) + '\'>' +
+            '<div class="li-title">' + App.esc(it.name) + '</div><div class="li-sub">' + it.count + ' so\'z</div></button>' +
+            '<button class="icon-btn ghost" style="width:30px;height:30px" data-act="vocabCatManage" data-arg=\'' + App.arg({ lang: lang, cat: it.full }) + '\'><span data-icon="edit" data-icon-size="14"></span></button></div>';
+        }
+
+        if (folder) {
+          var items = map[folder] || [];
+          box.innerHTML = items.length ? items.map(catRow).join('')
+            : App.empty({ icon: 'list', title: 'Bo\'sh papka', text: '' });
+          App.icons(box); return;
+        }
+
+        var html = order.map(function (f) {
+          var n = map[f].reduce(function (s, x) { return s + x.count; }, 0);
+          return '<button class="list-row" data-act="go" data-arg=\'' +
+            App.arg({ v: 'vocab', p: { lang: lang, folder: f } }) + '\'>' +
+            '<span class="li-ic" style="background:var(--accent-soft);color:var(--accent)" data-icon="archive" data-icon-size="15"></span>' +
+            '<div class="li-main"><div class="li-title">' + App.esc(f) + '</div>' +
+            '<div class="li-sub">' + map[f].length + ' bo\'lim · ' + n + ' so\'z</div></div>' +
+            '<span class="li-chev" data-icon="arrowLeft" data-icon-size="16" style="transform:rotate(180deg)"></span></button>';
         }).join('');
+        if (root.length) {
+          if (order.length) html += '<div class="list-label">Papkasiz</div>';
+          html += root.map(catRow).join('');
+        }
+        
+        var mdFiles = {};
+        try { mdFiles = JSON.parse(localStorage.getItem('vocab_md_files_v1_' + lang) || '{}'); } catch(ex) {}
+        var mdKeys = Object.keys(mdFiles);
+        if (mdKeys.length) {
+          html += '<div class="list-label" style="margin-top:16px">MD Fayllar (Kitoblar)</div>';
+          html += mdKeys.map(function(fname) {
+             return '<div class="list-row">' +
+              '<span class="li-ic" style="background:var(--accent-soft);color:var(--accent)" data-icon="fileText" data-icon-size="15"></span>' +
+              '<button class="li-main li-btn" data-act="go" data-arg=\'' + App.arg({ v: 'vocab_md_read', p: { lang: lang, mdId: fname } }) + '\'>' +
+              '<div class="li-title">' + App.esc(fname) + '</div><div class="li-sub">MD bazasi</div></button>' +
+              '<button class="icon-btn ghost" style="width:30px;height:30px;color:var(--danger)" data-act="vocabDeleteMD" data-arg=\'' + App.arg({ lang: lang, mdId: fname }) + '\'><span data-icon="trash" data-icon-size="14"></span></button></div>';
+          }).join('');
+        }
+        
+        box.innerHTML = html || App.empty({ icon: 'list', title: 'Kategoriya yo\'q', text: 'Yuqoridagi tugma bilan birinchi kategoriyani qo\'shing.' });
         App.icons(box);
       }).catch(function (e) {
         var box = App.el('vocab-list'); if (box) box.innerHTML = App.empty({ icon: 'alert', title: 'Xatolik', text: e.message });
@@ -87,6 +164,131 @@
       '<textarea class="textarea" id="vc-text" rows="9" placeholder="1) cat - mushuk&#10;2) dog - it">' + App.esc(textValue || '') + '</textarea></label>' +
       '<button class="btn" id="vc-save">Saqlash</button>';
   }
+
+  App.actions.vocabDbOptions = function(a) {
+    var sh = App.sheet(
+      '<button class="list-row" data-act="vocabUploadMD" data-arg=\'' + App.arg(a) + '\'>' +
+        '<span class="li-ic" data-icon="upload" data-icon-size="15"></span>' +
+        '<div class="li-main"><div class="li-title">MD fayl yuklash</div><div class="li-sub">Matn formatidagi bazani o\'qish</div></div>' +
+      '</button>',
+      { title: 'Baza qo\'shish' }
+    );
+  };
+
+  App.actions.vocabUploadMD = function (a) {
+    if (App._sheetNode) App.closeSheet();
+    var inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.md';
+    inp.onchange = function (e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      var defaultName = file.name.replace(/\.md$/i, '');
+      var customName = prompt('Baza uchun nom kiriting:', defaultName);
+      if (!customName || customName.trim() === '') return;
+      var finalName = customName.trim();
+      var reader = new FileReader();
+      reader.onload = function (evt) {
+        var text = evt.target.result;
+        var mdFiles = {};
+        try { mdFiles = JSON.parse(localStorage.getItem('vocab_md_files_v1_' + a.lang) || '{}'); } catch(ex) {}
+        mdFiles[finalName] = text;
+        localStorage.setItem('vocab_md_files_v1_' + a.lang, JSON.stringify(mdFiles));
+        App.toast('Baza yuklandi!');
+        App.go('vocab', { lang: a.lang });
+      };
+      reader.readAsText(file);
+    };
+    inp.click();
+  };
+
+  App.actions.vocabDeleteMD = function (a) {
+    if (confirm(a.mdId + ' ni o\'chirishni xohlaysizmi?')) {
+      var mdFiles = {};
+      try { mdFiles = JSON.parse(localStorage.getItem('vocab_md_files_v1_' + a.lang) || '{}'); } catch(ex) {}
+      delete mdFiles[a.mdId];
+      localStorage.setItem('vocab_md_files_v1_' + a.lang, JSON.stringify(mdFiles));
+      App.go('vocab', { lang: a.lang });
+    }
+  };
+
+  App.view('vocab_md_read', {
+    nav: 'languages',
+    render: function (page, params) {
+      var lang = params.lang || 'english';
+      var fname = params.mdId;
+      var mdFiles = {};
+      try { mdFiles = JSON.parse(localStorage.getItem('vocab_md_files_v1_' + lang) || '{}'); } catch(ex) {}
+      var content = mdFiles[fname];
+      var contentHtml = content ? App._mdToHtml(content) : 'Fayl topilmadi yoki yuklanmadi.';
+      var title = fname || 'MD Fayl';
+      page.innerHTML = topbar(title, 'vocab', { lang: lang }) +
+        '<div style="overflow-x:auto; padding-bottom:30px;">' +
+          '<div class="md-content">' + contentHtml + '</div>' +
+        '</div>';
+      App.icons(page);
+    }
+  });
+
+  /* Boostdayga yuborish — kategoriyalardan bir nechtasini tanlash (mavjud
+     "mashg'ulotlar" ro'yxatidan) yoki pastdagi "Boshqa" maydoniga erkin matn
+     yozish. Sport'dagi kabi tanlangan nomlar tegishli mavzu (english/russian)
+     kanaliga bitta har-kungi rejaga vazifa sifatida qo'shiladi. */
+  App.actions.vocabSendSheet = function (a) {
+    var lang = a.lang === 'russian' ? 'russian' : 'english';
+    loadDict(lang).then(function () {
+      var cats = V.order.slice();
+      var selected = {};
+      var today = new Date();
+      var todayStr = today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2) + '-' + ('0' + today.getDate()).slice(-2);
+      var html = '<p class="muted" style="font-size:12.5px;margin:0 0 12px">Kategoriyalardan birini (yoki bir nechtasini) tanlang, yoki pastda "Boshqa"ga o\'zingiz yozing.</p>' +
+        '<div id="vs-list">' + (cats.length ? cats.map(function (c) {
+          return '<button class="list-row vs-row" data-cat="' + App.esc(c) + '">' +
+            '<span class="li-ic vs-check" style="border:1px solid var(--border);background:none"></span>' +
+            '<div class="li-main"><div class="li-title">' + App.esc(c) + '</div></div></button>';
+        }).join('') : '<p class="muted" style="font-size:13px">Kategoriya yo\'q.</p>') + '</div>' +
+        '<label class="field" style="margin-top:12px"><span>Boshqa (ixtiyoriy, erkin matn)</span>' +
+        '<input class="input" id="vs-other" placeholder="Masalan: 20 ta yangi so\'z yodlash"></label>' +
+        '<div class="flex" style="gap:8px">' +
+        '<label class="field" style="flex:1"><span>Qaysi sanaga</span><input class="input" type="date" id="vs-date" value="' + todayStr + '" min="' + todayStr + '"></label>' +
+        '<label class="field" style="width:110px"><span>Vaqt</span><input class="input" type="time" id="vs-time" value="08:00"></label>' +
+        '</div>' +
+        '<button class="btn" id="vs-send" style="margin-top:4px">Yuborish</button>';
+      var sh = App.sheet(html, { title: (lang === 'russian' ? '🇷🇺 Rus tili' : '🇬🇧 Ingliz tili') + ' — yuborish' });
+      App.icons(sh);
+
+      sh.querySelectorAll('.vs-row').forEach(function (row) {
+        row.onclick = function () {
+          var cat = row.getAttribute('data-cat');
+          var on = !selected[cat];
+          selected[cat] = on;
+          var chk = row.querySelector('.vs-check');
+          chk.style.background = on ? 'var(--accent)' : 'none';
+          chk.innerHTML = on ? '<span data-icon="check" data-icon-size="13" style="color:#fff"></span>' : '';
+          App.icons(chk);
+        };
+      });
+
+      sh.querySelector('#vs-send').onclick = function () {
+        var items = Object.keys(selected).filter(function (c) { return selected[c]; }).map(function (c) { return { text: c }; });
+        var other = sh.querySelector('#vs-other').value.trim();
+        if (other) items.push({ text: other });
+        if (!items.length) return App.toast('Kamida bittasini tanlang yoki yozing');
+        var date = sh.querySelector('#vs-date').value;
+        if (!date) return App.toast('Sanani tanlang');
+        var time = sh.querySelector('#vs-time').value || '08:00';
+        if (!window.BoostPush) return App.toast('Boostday moduli yuklanmagan');
+        var btn = sh.querySelector('#vs-send'); btn.disabled = true; btn.textContent = 'Yuborilmoqda...';
+        var title = (lang === 'russian' ? '🇷🇺 Rus tili' : '🇬🇧 Ingliz tili') + ' mashg\'ulotlari';
+        BoostPush.pushTasks(lang, title, items, { date: date, time: time }).then(function () {
+          App.closeSheet(); App.toast('✅ ' + items.length + ' ta narsa ' + date + ' kuniga yuborildi');
+        }).catch(function (e) {
+          btn.disabled = false; btn.textContent = 'Yuborish';
+          App.toast('⚠️ ' + e.message);
+        });
+      };
+    }).catch(function (e) { App.toast('⚠️ ' + e.message); });
+  };
 
   App.actions.vocabAddCat = function (a) {
     var sh = App.sheet(bulkSheetHtml('', ''), { title: 'Yangi kategoriya' });
@@ -233,6 +435,9 @@
   });
 
   /* ---------- Yodlash (svayp ro'yxati) — chapga: bilmadim, o'ngga: bildim ---------- */
+  var MEMO = { good: 0, bad: 0, startedAt: 0, lang: '', cat: '', logged: false };
+  var QZ = null;   // vocab_quiz joriy sessiyasi — "Tugatish" tugmasi shundan o'qiydi
+
   App.view('vocab_memo', {
     nav: 'languages',
     render: function (page, params) {
@@ -240,7 +445,8 @@
       var start = function () {
         var words = rangedWords(lang, cat);
         if (!words.length) { App.toast('Bu oraliqda so\'z yo\'q'); App.go('vocab_practice', { lang: lang, cat: cat }); return; }
-        page.innerHTML = topbar(cat, 'vocab_practice', { lang: lang, cat: cat }) +
+        MEMO = { good: 0, bad: 0, startedAt: Date.now(), lang: lang, cat: cat, logged: false };
+        page.innerHTML = topbar(cat, 'vocab_practice', { lang: lang, cat: cat }, finishBtnHtml('vocabMemoFinish')) +
           '<p class="muted" style="font-size:12.5px;margin:-6px 0 12px" id="mt-count">' + words.length + ' ta qoldi</p>' +
           '<p class="muted" style="font-size:11.5px;margin:0 0 12px">Chapga suring — bilmadim, o\'ngga — bildim. Bosilsa ovozda o\'qiydi.</p>' +
           '<div id="mt-list"></div>' +
@@ -266,8 +472,23 @@
     var left = box.querySelectorAll('.mt-item').length;
     var cnt = App.el('mt-count');
     if (cnt) cnt.textContent = left + ' ta qoldi';
-    if (left === 0) { box.classList.add('hidden'); if (cnt) cnt.classList.add('hidden'); App.el('mt-done').classList.remove('hidden'); }
+    if (left === 0) {
+      box.classList.add('hidden'); if (cnt) cnt.classList.add('hidden');
+      App.el('mt-done').classList.remove('hidden');
+      if (!MEMO.logged) {
+        logVocabProgress(MEMO.lang, MEMO.cat, MEMO.good + MEMO.bad, 'memo', MEMO.startedAt, { good: MEMO.good, bad: MEMO.bad });
+        MEMO.logged = true;
+      }
+    }
   }
+
+  App.actions.vocabMemoFinish = function () {
+    if (!MEMO.logged) {
+      logVocabProgress(MEMO.lang, MEMO.cat, MEMO.good + MEMO.bad, 'memo', MEMO.startedAt, { good: MEMO.good, bad: MEMO.bad });
+      MEMO.logged = true;
+    }
+    App.go('vocab_practice', { lang: MEMO.lang, cat: MEMO.cat });
+  };
 
   function attachMemoSwipe(el, word, lang, cat) {
     var startX = 0, dx = 0, dragging = false, moved = false;
@@ -303,8 +524,8 @@
     el.style.transform = 'translateX(' + (known ? '120%' : '-120%') + ')';
     el.style.opacity = '0';
     srsUpdate(lang, cat, word.ru, known);
-    if (known) App.call('remove_mistake', { lang: lang, category: cat, ru: word.ru }).catch(function () {});
-    else App.call('add_mistake', { lang: lang, category: cat, ru: word.ru, uz: word.uz }).catch(function () {});
+    if (known) { MEMO.good++; App.call('remove_mistake', { lang: lang, category: cat, ru: word.ru }).catch(function () {}); }
+    else { MEMO.bad++; App.call('add_mistake', { lang: lang, category: cat, ru: word.ru, uz: word.uz }).catch(function () {}); }
     setTimeout(function () { el.remove(); memoLeft(); }, 300);
   }
 
@@ -318,16 +539,19 @@
   }
 
   /* ---------- Tinglash (Speaker): bosilsa o'qiydi, Auto Play ketma-ket ---------- */
-  var SPK = { playing: false, idx: -1, timer: null, list: [], lang: 'russian' };
+  var SPK = { playing: false, idx: -1, timer: null, list: [], lang: 'russian', cat: '', startedAt: 0, logged: false };
   App.view('vocab_speaker', {
     nav: 'languages',
+    /* Auto Play zanjiri (utterance -> setTimeout -> keyingi so'z) bo'limdan
+       chiqilganda ham davom etib ketmasligi uchun aniq to'xtatiladi. */
+    leave: function () { try { spkStop(); } catch (e) {} },
     render: function (page, params) {
       var lang = params.lang === 'russian' ? 'russian' : 'english', cat = params.cat;
       var start = function () {
         var words = rangedWords(lang, cat);
         if (!words.length) { App.toast('Bu oraliqda so\'z yo\'q'); App.go('vocab_practice', { lang: lang, cat: cat }); return; }
-        SPK = { playing: false, idx: -1, timer: null, list: words, lang: lang };
-        page.innerHTML = topbar(cat, 'vocab_practice', { lang: lang, cat: cat }) +
+        SPK = { playing: false, idx: -1, timer: null, list: words, lang: lang, cat: cat, startedAt: Date.now(), logged: false };
+        page.innerHTML = topbar(cat, 'vocab_practice', { lang: lang, cat: cat }, finishBtnHtml('vocabSpeakerFinish')) +
           '<div class="flex" style="gap:10px;margin-bottom:12px">' +
           '<button class="btn" id="spk-toggle" style="flex:1"><span data-icon="play" data-icon-size="16"></span><span id="spk-txt">Auto Play</span></button>' +
           '<label class="field" style="margin:0;width:110px"><span>Oraliq (s)</span><input class="input" type="number" id="spk-int" min="1" max="10" value="2"></label>' +
@@ -370,10 +594,26 @@
     var t = App.el('spk-txt'); if (t) t.textContent = 'Auto Play';
     var b = App.el('spk-toggle'); if (b) b.classList.remove('danger');
   }
+  App.actions.vocabSpeakerFinish = function () {
+    spkStop();
+    if (!SPK.logged) {
+      var count = SPK.idx >= 0 ? SPK.idx + 1 : 0;
+      logVocabProgress(SPK.lang, SPK.cat, count, 'speaker', SPK.startedAt, {});
+      SPK.logged = true;
+    }
+    App.go('vocab_practice', { lang: SPK.lang, cat: SPK.cat });
+  };
   function spkNext() {
     if (!SPK.playing) return;
     SPK.idx++;
-    if (SPK.idx >= SPK.list.length) { spkStop(); return; }
+    if (SPK.idx >= SPK.list.length) {
+      spkStop();
+      if (!SPK.logged) {
+        logVocabProgress(SPK.lang, SPK.cat, SPK.list.length, 'speaker', SPK.startedAt, {});
+        SPK.logged = true;
+      }
+      return;
+    }
     if (!App.el('spk-list')) { SPK.playing = false; return; } // sahifa almashgan
     spkHighlight(SPK.idx);
     var u = new SpeechSynthesisUtterance(SPK.list[SPK.idx].ru);
@@ -388,7 +628,7 @@
   }
 
   /* ---------- Ovozli lug'at: tarjimasi ko'rsatiladi, so'zni ovoz bilan aytasiz ---------- */
-  var SR = { list: [], idx: 0, good: 0, bad: 0, rec: null, lang: 'russian', busy: false };
+  var SR = { list: [], idx: 0, good: 0, bad: 0, rec: null, lang: 'russian', cat: '', busy: false, startedAt: 0, logged: false };
   App.view('vocab_speech', {
     nav: 'languages',
     render: function (page, params) {
@@ -397,8 +637,8 @@
         var words = rangedWords(lang, cat);
         if (!words.length) { App.toast('Bu oraliqda so\'z yo\'q'); App.go('vocab_practice', { lang: lang, cat: cat }); return; }
         var Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        SR = { list: words, idx: 0, good: 0, bad: 0, rec: null, lang: lang, busy: false };
-        page.innerHTML = topbar(cat, 'vocab_practice', { lang: lang, cat: cat }) +
+        SR = { list: words, idx: 0, good: 0, bad: 0, rec: null, lang: lang, cat: cat, busy: false, startedAt: Date.now(), logged: false };
+        page.innerHTML = topbar(cat, 'vocab_practice', { lang: lang, cat: cat }, finishBtnHtml('vocabSpeechFinish')) +
           (Rec ? '' : '<p class="muted" style="font-size:13px;margin:0 0 12px">⚠️ Brauzeringiz mikrofonli tanishni qo\'llamaydi — javobni yozib ham tekshirsangiz bo\'ladi.</p>') +
           '<div class="stat-strip" style="margin:0 0 14px">' +
           '<div class="s"><div class="n" id="sr-idx">1/' + words.length + '</div><div class="l">Progress</div></div>' +
@@ -447,6 +687,33 @@
   });
 
   function srNorm(s) { return String(s || '').toLowerCase().replace(/[^\wа-яё]/gi, ''); }
+  
+  function levenshtein(a, b) {
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    var matrix = [];
+    for (var i = 0; i <= b.length; i++) matrix[i] = [i];
+    for (var j = 0; j <= a.length; j++) matrix[0][j] = j;
+    for (var i = 1; i <= b.length; i++) {
+      for (var j = 1; j <= a.length; j++) {
+        if (b.charAt(i - 1) === a.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(matrix[i - 1][j - 1] + 1, Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1));
+        }
+      }
+    }
+    return matrix[b.length][a.length];
+  }
+  function srSimilarity(said, target) {
+    var a = srNorm(said), b = srNorm(target);
+    if (!a && !b) return 100;
+    if (!a || !b) return 0;
+    var dist = levenshtein(a, b);
+    var maxLen = Math.max(a.length, b.length);
+    return Math.max(0, Math.round((1 - dist / maxLen) * 100));
+  }
+
   function srRender() {
     if (!App.el('sr-uz')) return;
     App.el('sr-uz').textContent = SR.list[SR.idx].uz;
@@ -456,16 +723,21 @@
     App.el('sr-bad').textContent = SR.bad;
     var t = App.el('sr-typed'); if (t) t.value = '';
   }
+
   function srCheck(said) {
     if (!App.el('sr-hint')) return;
-    var ok = srNorm(said) === srNorm(SR.list[SR.idx].ru);
+    var target = SR.list[SR.idx].ru;
+    var sim = srSimilarity(said, target);
+    var ok = sim >= 75; // 75% o'xshasa qabul qilinadi
+    var color = sim >= 75 ? 'var(--success)' : (sim >= 40 ? 'var(--warning, #eab308)' : 'var(--danger)');
+    
     if (ok) {
       SR.good++;
-      App.el('sr-hint').innerHTML = '<span style="color:var(--success);font-weight:700">✓ To\'g\'ri: ' + App.esc(SR.list[SR.idx].ru) + '</span>';
+      App.el('sr-hint').innerHTML = '<span style="color:' + color + ';font-weight:700">✓ Qabul qilindi (' + sim + '%): ' + App.esc(target) + '</span>';
       setTimeout(srAdvance, 900);
     } else {
       SR.bad++;
-      App.el('sr-hint').innerHTML = '<span style="color:var(--danger);font-weight:700">✕ ' + App.esc(said || '—') + '</span> → <b style="color:var(--text)">' + App.esc(SR.list[SR.idx].ru) + '</b>';
+      App.el('sr-hint').innerHTML = '<span style="color:' + color + ';font-weight:700">✕ ' + App.esc(said || '—') + ' (' + sim + '%)</span> → <b style="color:var(--text)">' + App.esc(target) + '</b>';
     }
     App.el('sr-good').textContent = SR.good;
     App.el('sr-bad').textContent = SR.bad;
@@ -475,10 +747,21 @@
     if (SR.idx >= SR.list.length) {
       SR.idx = SR.list.length - 1;
       App.toast('✅ Tugadi: ' + SR.good + ' to\'g\'ri, ' + SR.bad + ' xato');
+      if (!SR.logged) {
+        logVocabProgress(SR.lang, SR.cat, SR.good + SR.bad, 'speech', SR.startedAt, { good: SR.good, bad: SR.bad });
+        SR.logged = true;
+      }
       return;
     }
     srRender();
   }
+  App.actions.vocabSpeechFinish = function () {
+    if (!SR.logged) {
+      logVocabProgress(SR.lang, SR.cat, SR.good + SR.bad, 'speech', SR.startedAt, { good: SR.good, bad: SR.bad });
+      SR.logged = true;
+    }
+    App.go('vocab_practice', { lang: SR.lang, cat: SR.cat });
+  };
 
   /* ---------- So'zlar ro'yxati: qidiruv + bitta so'zni tahrirlash ---------- */
   function saveWords(lang, cat, words) {
@@ -544,7 +827,8 @@
         var pool = V.data[cat] || [];
         var words = rangedWords(lang, cat);
         if (words.length < 4) { App.toast('Kamida 4 ta so\'z kerak'); App.go('vocab_practice', { lang: lang, cat: cat }); return; }
-        var st = { list: shuffleArr(words), pool: pool, i: 0, good: 0, bad: 0, dir: 'l1' };
+        var st = { list: shuffleArr(words), pool: pool, i: 0, good: 0, bad: 0, dir: 'l1', startedAt: Date.now(), lang: lang, cat: cat };
+        QZ = st;
 
         function draw() {
           if (st.i >= st.list.length) {
@@ -559,6 +843,11 @@
               '<button class="btn" data-act="go" data-arg=\'' + App.arg({ v: 'vocab_practice', p: { lang: lang, cat: cat } }) + '\'>Ortga</button></div>';
             App.icons(page);
             if (window.Activity) Activity.mark();
+            App.call('log_activity', {
+              section: 'vocab', object: cat, amount: st.list.length, unit: 'so\'z',
+              duration: Math.round((Date.now() - st.startedAt) / 1000),
+              meta: { lang: lang, good: st.good, bad: st.bad, mode: 'quiz' }
+            }).catch(function () {});
             return;
           }
           var w = st.list[st.i];
@@ -573,7 +862,8 @@
           page.innerHTML = '<div class="topbar" style="margin:-16px -15px 12px">' +
             '<button class="icon-btn ghost" data-act="go" data-arg=\'' + App.arg({ v: 'vocab_practice', p: { lang: lang, cat: cat } }) + '\'><span data-icon="arrowLeft" data-icon-size="20"></span></button>' +
             '<h1>' + (st.i + 1) + ' / ' + st.list.length + '</h1>' +
-            '<span class="sub" style="font-weight:700;color:var(--success)">' + st.good + '</span></div>' +
+            '<span class="sub" style="font-weight:700;color:var(--success);margin-right:8px">' + st.good + '</span>' +
+            finishBtnHtml('vocabQuizFinish') + '</div>' +
             '<div class="card" style="text-align:center;padding:24px 16px;margin-bottom:16px">' +
             '<div class="muted" style="font-size:11.5px;text-transform:uppercase;letter-spacing:1px">' + (isL1 ? LABEL[lang].side1 : LABEL[lang].side2) + '</div>' +
             '<div style="font-size:23px;font-weight:800;margin-top:8px">' + App.esc(ask) + '</div></div>' +
@@ -606,6 +896,14 @@
       if (V.lang === lang && V.data[cat]) start(); else loadDict(lang).then(start);
     }
   });
+
+  App.actions.vocabQuizFinish = function () {
+    if (!QZ) return;
+    logVocabProgress(QZ.lang, QZ.cat, QZ.good + QZ.bad, 'quiz', QZ.startedAt, { good: QZ.good, bad: QZ.bad });
+    var lang = QZ.lang, cat = QZ.cat;
+    QZ = null;
+    App.go('vocab_practice', { lang: lang, cat: cat });
+  };
 
   function shuffleArr(a) {
     var x = a.slice();
@@ -660,7 +958,8 @@
           if (!list.length) { App.toast('Xato so\'zlar yo\'q'); App.go('vocab_mistakes', { lang: lang }); return; }
           FC = {
             lang: lang, cat: null, src: 'mistakes', list: list.slice(), idx: 0, flipped: false,
-            good: 0, bad: 0, mistakes: [], mode: 'l1', muted: ls('vocab_muted', '0') === '1'
+            good: 0, bad: 0, mistakes: [], mode: 'l1', muted: ls('vocab_muted', '0') === '1',
+            startedAt: Date.now(), logged: false
           };
           renderFlashPage(page);
         }).catch(function (e) { App.toast('⚠️ ' + e.message); });
@@ -676,7 +975,8 @@
         }
         FC = {
           lang: lang, cat: cat, src: params.src === 'due' ? 'due' : '', list: words.slice(), idx: 0, flipped: false,
-          good: 0, bad: 0, mistakes: [], mode: 'l1', muted: ls('vocab_muted', '0') === '1'
+          good: 0, bad: 0, mistakes: [], mode: 'l1', muted: ls('vocab_muted', '0') === '1',
+          startedAt: Date.now(), logged: false
         };
         renderFlashPage(page);
       };
@@ -826,7 +1126,8 @@
         : App.arg({ v: 'vocab_practice', p: { lang: FC.lang, cat: FC.cat } })) +
       '\'><span data-icon="arrowLeft" data-icon-size="20"></span></button>' +
       '<h1>' + (FC.src === 'mistakes' ? 'Xatolar' : FC.src === 'due' ? 'Takrorlash' : 'Flashcardlar') + '</h1>' +
-      '<button class="icon-btn ghost" id="fc-mute"><span data-icon="volume" data-icon-size="18"></span></button></div>' +
+      '<button class="icon-btn ghost" id="fc-mute" style="margin-left:auto"><span data-icon="volume" data-icon-size="18"></span></button>' +
+      finishBtnHtml('vocabFlashFinish').replace('margin-left:auto', 'margin-left:4px') + '</div>' +
 
       '<div id="fc-body" style="display:flex;flex-direction:column">' +
       '<div class="between" style="margin-bottom:8px">' +
@@ -990,12 +1291,31 @@
       '<button class="btn ' + (FC.mistakes.length ? 'ghost' : '') + '" style="margin-top:10px" id="fc-finish">Tugatish</button>' +
       '</div>';
     App.icons(page);
+    if (total > 0 && !FC.logged) {
+      if (window.Activity) Activity.mark();
+      App.call('log_activity', {
+        section: 'vocab', object: FC.cat || 'Xatolar', amount: total, unit: 'so\'z',
+        duration: FC.startedAt ? Math.round((Date.now() - FC.startedAt) / 1000) : null,
+        meta: { lang: FC.lang, good: FC.good, bad: FC.bad, mode: 'flashcard' }
+      }).catch(function () {});
+      FC.logged = true;
+    }
     var retry = App.el('fc-retry');
     if (retry) retry.onclick = function () {
       var mistakes = FC.mistakes;
-      FC.list = mistakes; FC.idx = 0; FC.good = 0; FC.bad = 0; FC.mistakes = [];
+      FC.list = mistakes; FC.idx = 0; FC.good = 0; FC.bad = 0; FC.mistakes = []; FC.logged = false;
       renderFlashPage(page);
     };
     App.el('fc-finish').onclick = function () { App.go('vocab_practice', { lang: FC.lang, cat: FC.cat }); };
   }
+
+  /* Topbardagi "Tugatish" — sessiya oxirigacha bormasdan chiqib ketish
+     (hozirgacha ko'rilgan kartalar hisobga olinadi). */
+  App.actions.vocabFlashFinish = function () {
+    if (!FC.logged) {
+      logVocabProgress(FC.lang, FC.cat || 'Xatolar', FC.good + FC.bad, 'flashcard', FC.startedAt, { good: FC.good, bad: FC.bad });
+      FC.logged = true;
+    }
+    App.go(FC.src === 'mistakes' ? 'vocab_mistakes' : 'vocab_practice', { lang: FC.lang, cat: FC.cat });
+  };
 })();

@@ -42,7 +42,29 @@
     }
   };
 
-  var L = { lang: 'english', timer: 0, speed: 1, curr: '', cdInterval: null };
+  var L = { lang: 'english', timer: 0, speed: 1, curr: '', cdInterval: null, alive: false, timeouts: [] };
+
+  /* ---------- Hayot sikli ----------
+     Mashq TTS ovozi + ketma-ket setTimeout zanjirlari bilan ishlaydi
+     (intro -> so'z -> harflab -> taymer). Bo'limdan chiqilganda bular
+     o'zidan o'zi to'xtamaydi, shuning uchun `alive` bayrog'i bilan
+     boshqariladi: har kechiktirilgan chaqiruv ishga tushishidan oldin
+     bo'lim hali ochiqmi — tekshiradi. */
+  function lsLater(fn, ms) {
+    var id = setTimeout(function () {
+      L.timeouts = L.timeouts.filter(function (x) { return x !== id; });
+      if (L.alive) fn();
+    }, ms);
+    L.timeouts.push(id);
+    return id;
+  }
+  function lsStop() {
+    L.alive = false;
+    L.timeouts.forEach(clearTimeout);
+    L.timeouts = [];
+    if (L.cdInterval) { clearInterval(L.cdInterval); L.cdInterval = null; }
+    try { window.speechSynthesis.cancel(); } catch (e) {}
+  }
 
   function ls(k, d) { try { var v = localStorage.getItem(k); return v == null ? d : v; } catch (e) { return d; } }
   function namesList() {
@@ -127,8 +149,11 @@
       App.el('ls-ans').onkeydown = function (e) { if (e.key === 'Enter') lsCheckForce(this); };
 
       L.timer = 0; L.speed = 1;
+      lsStop();          // eski seansdan qolgan ovoz/taymer bo'lsa tozalanadi
+      L.alive = true;
       lsNext();
-    }
+    },
+    leave: lsStop
   });
 
   App.actions.lsSettings = function () {
@@ -183,13 +208,15 @@
   }
 
   function lsSpeak(text, rate, cb) {
+    if (!L.alive) return;
     var u = new SpeechSynthesisUtterance(text);
     u.lang = CFG[L.lang].ttsLang; u.rate = rate;
-    if (cb) u.onend = cb;
+    if (cb) u.onend = function () { if (L.alive) cb(); };
     window.speechSynthesis.speak(u);
   }
 
   function lsPlay() {
+    if (!L.alive) return;
     var c = CFG[L.lang];
     window.speechSynthesis.cancel();
     if (L.cdInterval) clearInterval(L.cdInterval);
@@ -200,9 +227,9 @@
 
     if (type === 'name') {
       lsSpeak(c.introName, 1, function () {
-        setTimeout(function () {
+        lsLater(function () {
           lsSpeak(txt, L.speed, function () {
-            setTimeout(function () {
+            lsLater(function () {
               var spelled = txt.split('').join(L.lang === 'russian' ? '. ' : ', ');
               lsSpeak(spelled, L.speed * (L.lang === 'russian' ? 0.75 : 0.85), function () { if (L.timer > 0) lsStartTimer(); });
             }, 700);
@@ -211,7 +238,7 @@
       });
     } else if (type === 'tel') {
       lsSpeak(c.introTel, 1, function () {
-        setTimeout(function () {
+        lsLater(function () {
           var readable = txt.split('').map(function (ch) { return ch === ' ' ? ',' : ch; }).join(' ');
           lsSpeak(readable, L.speed * 0.85, function () { if (L.timer > 0) lsStartTimer(); });
         }, 450);
@@ -240,7 +267,7 @@
         clearInterval(L.cdInterval);
         cd.classList.remove('active'); cd.textContent = '';
         inp.value = L.curr; inp.style.borderColor = 'var(--danger)'; inp.style.color = 'var(--danger)';
-        setTimeout(lsNext, 1300);
+        lsLater(lsNext, 1300);
       }
     }, 1000);
   }
@@ -255,7 +282,9 @@
       el.style.borderColor = 'var(--success)'; el.style.color = 'var(--success)';
       if (L.cdInterval) clearInterval(L.cdInterval);
       var cd = App.el('ls-cd'); if (cd) cd.classList.remove('active');
-      setTimeout(lsNext, 550);
+      if (window.Activity) Activity.mark();
+      App.call('log_activity', { section: 'listening', object: CFG[L.lang].title, amount: 1, unit: 'savol', meta: { lang: L.lang, type: type } }).catch(function () {});
+      lsLater(lsNext, 550);
       return;
     }
     if (type !== 'tel' && type !== 'name' && val.length >= ans.length) lsCheckForce(el);
@@ -269,7 +298,7 @@
       el.style.borderColor = 'var(--danger)'; el.style.color = 'var(--danger)'; el.value = L.curr;
       if (L.cdInterval) clearInterval(L.cdInterval);
       var cd = App.el('ls-cd'); if (cd) cd.classList.remove('active');
-      setTimeout(lsNext, 1300);
+      lsLater(lsNext, 1300);
     } else {
       lsCheckInput(el);
     }

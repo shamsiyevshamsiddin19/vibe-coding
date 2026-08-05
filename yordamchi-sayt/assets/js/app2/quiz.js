@@ -54,12 +54,43 @@
   App.mathHtml = mathHtml;
   App.typeset = typeset;
 
+  /* ---------- Savol izohi (IXTIYORIY) ----------
+     Savolda izoh bo'lsa — javob berilgandan keyin yuqorida lampa belgisi
+     paydo bo'ladi; bosilganda izoh pastki oynada ochiladi. Izohi yo'q
+     savollarda lampa umuman ko'rinmaydi (eski xatti-harakat saqlanadi). */
+  function hasExpl(q) { return String((q && q.explanation) || '').trim() !== ''; }
+
+  function lampHtml(qid) {
+    return '<button class="qlamp hidden" data-act="showExpl" data-arg=\'' + App.arg({ id: qid }) +
+      '\' title="Izoh" aria-label="Izoh"><span data-icon="bulb" data-icon-size="17"></span></button>';
+  }
+
+  /* Javob berilgach chaqiriladi — izohi bor savolda lampani ko'rsatadi */
+  function revealLamp(scope, q) {
+    if (!scope || !hasExpl(q)) return;
+    var b = scope.querySelector('.qlamp');
+    if (b) b.classList.remove('hidden');
+  }
+
+  App.actions.showExpl = function (a) {
+    var list = (Q.data && Q.data.questions) || [];
+    var q = list.find(function (x) { return String(x.id) === String(a.id); });
+    var t = String((q && q.explanation) || '').trim();
+    if (!t) return App.toast('Bu savolda izoh yo\'q');
+    var sh = App.sheet('<div class="qexpl-t">' + mathHtml(t) + '</div>', { title: 'Izoh' });
+    typeset(sh);
+  };
+
   /* ---------- Test matnini parslash (raqamli/#/A)-B)/+- formatlar) ---------- */
   function parseTests(text) {
     var lines = String(text || '').replace(/\r/g, '').split('\n');
-    var questions = [], cur = null, lastOption = null;
+    var questions = [], cur = null, lastOption = null, inExpl = false;
 
-    function startQuestion(t) { finishQuestion(); cur = { text: String(t || '').trim(), options: {}, correct: '', idx: 0 }; lastOption = null; }
+    function startQuestion(t) {
+      finishQuestion();
+      cur = { text: String(t || '').trim(), options: {}, correct: '', idx: 0, explanation: '' };
+      lastOption = null; inExpl = false;
+    }
     function finishQuestion() {
       if (!cur) return;
       var cleaned = {};
@@ -67,27 +98,42 @@
       var keys = Object.keys(cleaned);
       var correct = String(cur.correct || '').trim().toUpperCase();
       if (cur.text.trim() && keys.length) {
-        questions.push({ text: cur.text.trim(), options: cleaned, correct: cleaned[correct] ? correct : keys[0] });
+        questions.push({
+          text: cur.text.trim(),
+          options: cleaned,
+          correct: cleaned[correct] ? correct : keys[0],
+          explanation: String(cur.explanation || '').trim()
+        });
       }
-      cur = null; lastOption = null;
+      cur = null; lastOption = null; inExpl = false;
     }
 
     lines.forEach(function (raw) {
       var line = raw.trim(); var m;
-      if (!line) { lastOption = null; return; }
+      // Bo'sh qator izohni to'xtatmaydi — izoh bir necha xatboshi bo'lishi mumkin
+      if (!line) { if (!inExpl) lastOption = null; return; }
       if ((m = line.match(/^(?:savol|question|q)\s*[:.)-]\s*(.*)$/i))) { startQuestion(m[1]); return; }
       if ((m = line.match(/^#\s*(.*)$/))) { startQuestion(m[1]); return; }
       if ((m = line.match(/^\d+[.)]\s*(.*)$/))) { startQuestion(m[1]); return; }
       if (!cur) { startQuestion(line); return; }
-      if ((m = line.match(/^(?:javob|answer|correct)\s*[:-]\s*([A-H])/i))) { cur.correct = m[1].toUpperCase(); lastOption = null; return; }
+      // IXTIYORIY izoh — "Izoh: ...", "Tushuntirish: ...", "Explanation: ..."
+      // Javobdan keyin ko'rsatiladi. Bir necha qator bo'lishi mumkin.
+      if ((m = line.match(/^(?:izoh|izox|tushuntirish|explanation|expl|note)\s*[:.-]\s*(.*)$/i))) {
+        cur.explanation = m[1].trim(); lastOption = null; inExpl = true; return;
+      }
+      if ((m = line.match(/^(?:javob|answer|correct)\s*[:-]\s*([A-H])/i))) {
+        cur.correct = m[1].toUpperCase(); lastOption = null; inExpl = false; return;
+      }
       if ((m = line.match(/^([A-H])[).:-]\s*(.*)$/i))) {
         var key = m[1].toUpperCase(); cur.options[key] = m[2].trim();
-        cur.idx = Math.max(cur.idx, key.charCodeAt(0) - 64); lastOption = key; return;
+        cur.idx = Math.max(cur.idx, key.charCodeAt(0) - 64); lastOption = key; inExpl = false; return;
       }
       if (/^[+-]\s*/.test(line)) {
         var k2 = String.fromCharCode(65 + cur.idx++); cur.options[k2] = line.substring(1).trim();
-        if (line.charAt(0) === '+') cur.correct = k2; lastOption = k2; return;
+        if (line.charAt(0) === '+') cur.correct = k2; lastOption = k2; inExpl = false; return;
       }
+      // Izoh boshlangan bo'lsa — keyingi oddiy qatorlar ham izohga qo'shiladi
+      if (inExpl) { cur.explanation = [cur.explanation, line].filter(Boolean).join('\n'); return; }
       if (lastOption) { cur.options[lastOption] = [cur.options[lastOption], line].filter(Boolean).join('\n'); return; }
       cur.text = [cur.text, line].filter(Boolean).join('\n');
     });
@@ -124,6 +170,53 @@
   }
   function subjectOf(full) { return full.split('__')[0] || ''; }
 
+  /* ---------- Fan/baza ikonkasi ----------
+     Avval maktab/universitet fanlari uchun emoji jadvali, so'ng texnologiya
+     logolari (Learn'dagi 138 talik baza, `TechIcon` orqali — jadval bitta
+     nusxada, languages.js'da). Hech biri topilmasa — rangli harf plitkasi. */
+  var FAN_EMOJI = [
+    [/matem|algebra|geometr|matan|hisob/,        '🧮', '#3B82F6'],
+    [/fizik/,                                    '⚛️', '#8B5CF6'],
+    [/kimyo|ximiy/,                              '🧪', '#10B981'],
+    [/biolog|anatom|botanik|zoolog/,             '🧬', '#22C55E'],
+    [/tarix|history/,                            '🏛', '#F59E0B'],
+    [/geograf/,                                  '🌍', '#06B6D4'],
+    [/ingliz|english/,                           '🇬🇧', '#EF4444'],
+    [/rus\b|russk|русск/,                        '🇷🇺', '#6366F1'],
+    [/ona tili|adabiyot|o'zbek|ozbek/,           '📖', '#EC4899'],
+    [/huquq|konstitu|qonun/,                     '⚖️', '#64748B'],
+    [/iqtisod|moliya|buxgalt|menejment|marketing/, '💰', '#F97316'],
+    [/tibbiy|meditsin|salomatlik/,               '🩺', '#F43F5E'],
+    [/falsafa|mantiq|psixolog|sotsiolog/,        '🧠', '#A855F7'],
+    [/sport|jismoniy/,                           '🏅', '#14B8A6'],
+    [/harbiy|mudofa|fuqaro muhofaza/,            '🛡', '#78716C'],
+    [/din|islom|hadis/,                          '🕌', '#0EA5E9'],
+    [/ekolog|atrof muhit/,                       '🌱', '#84CC16']
+  ];
+
+  function subjectIcon(name, parent) {
+    var s = 28;
+    var low = (name || '').replace(/_/g, ' ').toLowerCase();
+    for (var i = 0; i < FAN_EMOJI.length; i++) {
+      if (FAN_EMOJI[i][0].test(low)) {
+        return '<span style="width:' + s + 'px;height:' + s + 'px;border-radius:8px;background:' +
+          FAN_EMOJI[i][2] + '22;font-size:16px;display:inline-flex;align-items:center;justify-content:center">' +
+          FAN_EMOJI[i][1] + '</span>';
+      }
+    }
+    // Texnologiya logosi — baza nomida topilmasa, fan nomidan ham qidiramiz
+    if (window.TechIcon) {
+      if (TechIcon.find(low)) return TechIcon.html(low, s);
+      if (parent && TechIcon.find(parent.replace(/_/g, ' ').toLowerCase())) {
+        return TechIcon.html(parent.replace(/_/g, ' ').toLowerCase(), s);
+      }
+      return TechIcon.html(name || '?', s);   // rangli harf plitkasi
+    }
+    return '<span style="width:' + s + 'px;height:' + s + 'px;border-radius:8px;background:var(--accent);' +
+      'color:#fff;font-weight:700;font-size:14px;display:inline-flex;align-items:center;justify-content:center">' +
+      App.esc((name || '?').charAt(0).toUpperCase()) + '</span>';
+  }
+
   /* ---------- Ro'yxat sozlamasi (oraliq / bo'lak) — bazaga bog'liq, localStorage'da saqlanadi ---------- */
   function listCfgAll() { try { return JSON.parse(localStorage.getItem('quiz_list_cfg_v1') || '{}') || {}; } catch (e) { return {}; } }
   function loadListCfg(db) { return listCfgAll()[db] || null; }
@@ -134,7 +227,7 @@
     return Math.max(min, Math.min(max, n));
   }
   function startRangeQuiz(from, to) {
-    Q.session = { correct: 0, wrong: 0, total: 0 };
+    Q.session = { correct: 0, wrong: 0, total: 0, startedAt: Date.now() };
     var set = Q.data.questions.slice(from - 1, to);
     if (!set.length) return App.toast('Bu oraliqda savol yo\'q');
     Q.list = { active: set.map(shuffleOptions), rendered: 0, chunkSize: set.length, title: 'Ro\'yxat (' + from + '-' + to + ')' };
@@ -238,7 +331,7 @@
         box.innerHTML = subjects.map(function (s) {
           var d = bySubject[s];
           return '<button class="list-row" data-act="go" data-arg=\'' + App.arg({ v: 'fanlar_subject', p: { subject: s } }) + '\'>' +
-            '<span class="li-ic" data-icon="book" data-icon-size="15"></span>' +
+            '<span class="li-ic" style="background:none;padding:0">' + subjectIcon(s) + '</span>' +
             '<div class="li-main"><div class="li-title">' + App.esc(s) + '</div><div class="li-sub">' + d.dbs + ' baza · ' + d.count + ' savol</div></div>' +
             '<span class="li-chev" data-icon="arrowLeft" data-icon-size="16" style="transform:rotate(180deg)"></span></button>';
         }).join('');
@@ -270,7 +363,7 @@
         if (!dbs.length) { box.innerHTML = App.empty({ icon: 'file', title: 'Baza yo\'q', text: 'Pastdagi tugma bilan birinchi bazani qo\'shing.' }); return; }
         box.innerHTML = dbs.map(function (d) {
           return '<div class="list-row">' +
-            '<span class="li-ic" data-icon="file" data-icon-size="15"></span>' +
+            '<span class="li-ic" style="background:none;padding:0">' + subjectIcon(d.name, subject) + '</span>' +
             '<button class="li-main li-btn" data-act="go" data-arg=\'' + App.arg({ v: 'quiz_dashboard', p: { db: d.full } }) + '\'>' +
             '<div class="li-title">' + App.esc(d.name) + '</div><div class="li-sub">' + d.count + ' savol</div></button>' +
             '<button class="icon-btn ghost" style="width:30px;height:30px" data-act="dbManage" data-arg=\'' + App.arg({ full: d.full, name: d.name }) + '\'><span data-icon="edit" data-icon-size="14"></span></button></div>';
@@ -324,7 +417,10 @@
       '<label class="field"><span>Baza nomi</span><input class="input" id="db-name" placeholder="Masalan: 1-variant"></label>' +
       txtPickerHtml('db-file', 'db-file-info') +
       '<label class="field"><span>Savollar matni</span><textarea class="textarea" id="db-text" rows="9" placeholder="1. Savol matni&#10;A) Variant&#10;B) Variant&#10;Javob: A&#10;&#10;yoki&#10;&#10;#Savol&#10;- Noto\'g\'ri&#10;+ To\'g\'ri"></textarea></label>' +
-      '<p class="muted" style="font-size:11.5px;margin:-6px 1px 12px">LaTeX: <code>[tex]...[/tex]</code> yoki <code>\\(...\\)</code></p>' +
+      '<p class="muted" style="font-size:11.5px;margin:-6px 1px 12px">' +
+      'Izoh (ixtiyoriy): javob qatoridan keyin <code>Izoh: ...</code> yozing — ' +
+      'javob berilgach ko\'rsatiladi. Yozmasangiz ham bo\'ladi.<br>' +
+      'LaTeX: <code>[tex]...[/tex]</code> yoki <code>\\(...\\)</code></p>' +
       '<button class="btn" id="db-save">Saqlash</button>';
     var sh = App.sheet(html, { title: 'Yangi baza — ' + a.subject });
     attachTxtPicker(sh, 'db-file', 'db-text', 'db-file-info', 'db-name');
@@ -364,6 +460,8 @@
     App.closeSheet();
     var html = txtPickerHtml('db-file2', 'db-file2-info') +
       '<label class="field"><span>Yangi savollar matni (eskisi almashadi)</span><textarea class="textarea" id="db-text2" rows="9"></textarea></label>' +
+      '<p class="muted" style="font-size:11.5px;margin:-6px 1px 12px">' +
+      'Izoh (ixtiyoriy): javob qatoridan keyin <code>Izoh: ...</code> yozing.</p>' +
       '<button class="btn" id="db-save2">Saqlash</button>';
     var sh = App.sheet(html, { title: 'Savollarni yangilash' });
     attachTxtPicker(sh, 'db-file2', 'db-text2', 'db-file2-info', null);
@@ -534,7 +632,7 @@
 
   function questionSheet(page, full, qid, onDone) {
     var isNew = !qid;
-    var qq = isNew ? { text: '', options: { A: '', B: '', C: '', D: '' }, correct: 'A' }
+    var qq = isNew ? { text: '', options: { A: '', B: '', C: '', D: '' }, correct: 'A', explanation: '' }
       : Q.data.questions.find(function (x) { return String(x.id) === String(qid); });
     if (!qq) return;
     var keys = isNew ? ['A', 'B', 'C', 'D'] : Object.keys(qq.options);
@@ -547,6 +645,9 @@
           '<button type="button" class="qs-pick' + (k === qq.correct ? ' sel' : '') + '" data-k="' + k + '">' + k + '</button>' +
           '<input class="input qs-opt" data-k="' + k + '" value="' + App.esc(qq.options[k] || '') + '" style="flex:1"></div>';
       }).join('') +
+      '<label class="field"><span>Izoh (ixtiyoriy)</span>' +
+      '<textarea class="textarea" id="qs-expl" rows="3" placeholder="Javob berilgandan keyin ko\'rsatiladi. Bo\'sh qoldirsangiz ham bo\'ladi.">' +
+      App.esc(qq.explanation || '') + '</textarea></label>' +
       (isNew ? '<button class="btn" id="qs-save" style="margin-top:8px">Qo\'shish</button>'
         : '<div class="btn-row"><button class="btn danger" id="qs-del">O\'chirish</button><button class="btn" id="qs-save">Saqlash</button></div>');
     var sh = App.sheet(html, { title: isNew ? 'Yangi savol' : 'Savolni tahrirlash' });
@@ -570,8 +671,12 @@
       if (Object.keys(options).length < 2) return App.toast('Kamida 2 ta variant kerak');
       if (!options[correct]) return App.toast('To\'g\'ri javob bo\'sh variantga belgilangan');
 
+      var explEl = sh.querySelector('#qs-expl');
       var action = isNew ? 'add_question' : 'edit_question';
-      var payload = { text: text, options: options, correct: correct };
+      var payload = {
+        text: text, options: options, correct: correct,
+        explanation: explEl ? explEl.value.trim() : ''
+      };
       if (!isNew) payload.id = qq.id;
       App.call(action, payload, { query: 'db=' + encodeURIComponent(full) }).then(function () {
         App.closeSheet(); App.toast('✅ Saqlandi');
@@ -605,7 +710,7 @@
      Bitta-bitta o'ynash (quiz_play)
      ========================================================= */
   App.actions.playQuiz = function (a) {
-    Q.session = { correct: 0, wrong: 0, total: 0 };
+    Q.session = { correct: 0, wrong: 0, total: 0, startedAt: Date.now() };
     var all = Q.data.questions, solvedIds = Q.data.solved || [], flags = Q.data.flags || {};
     var wrong = Q.data.wrong || {};
     var set;
@@ -640,7 +745,9 @@
     var pct = Math.round(((quiz.index + 1) / quiz.active.length) * 100);
     page.innerHTML =
       '<div class="topbar" style="margin:-16px -15px 12px"><button class="icon-btn ghost" data-act="finishQuiz"><span data-icon="x" data-icon-size="18"></span></button>' +
-      '<h1>' + (quiz.index + 1) + ' / ' + quiz.active.length + '</h1><span class="sub" style="font-weight:700;color:var(--success)">' + quiz.score + '</span></div>' +
+      '<h1>' + (quiz.index + 1) + ' / ' + quiz.active.length + '</h1>' +
+      lampHtml(q.id) +
+      '<span class="sub" style="font-weight:700;color:var(--success)">' + quiz.score + '</span></div>' +
       '<div class="qprog"><div class="bar"><i style="width:' + pct + '%"></i></div></div>' +
       '<div class="qtext" id="q-text"></div>' +
       '<div id="q-opts"></div>' +
@@ -717,6 +824,8 @@
       var correctBtn = opts.querySelector('[data-key="' + q.correct + '"]'); if (correctBtn) correctBtn.classList.add('correct');
       feed.innerHTML = '<div class="qfeed wrong">✗ Xato. To\'g\'ri javob: ' + q.correct + '</div>';
     }
+    // Izohi bor savolda — yuqoridagi lampa belgisi paydo bo'ladi
+    revealLamp(page, q);
     App.el('q-skip').classList.add('hidden');
     var nextBtn = App.el('q-next'); nextBtn.classList.remove('hidden');
     nextBtn.textContent = quiz.index + 1 >= quiz.active.length ? 'Natijani ko\'rish' : 'Keyingi savol';
@@ -739,7 +848,8 @@
     if (answered > 0) {
       App.call('save_quiz_result', {
         db: Q.db, mode: Q.session.mode || '', total: total,
-        correct: Q.session.correct, wrong: Q.session.wrong
+        correct: Q.session.correct, wrong: Q.session.wrong,
+        duration: Q.session.startedAt ? Math.round((Date.now() - Q.session.startedAt) / 1000) : null
       }).catch(function () {});
       if (window.Activity) window.Activity.mark();
     }
@@ -769,7 +879,7 @@
      Ro'yxat rejimi (quiz_list)
      ========================================================= */
   App.actions.playList = function (a) {
-    Q.session = { correct: 0, wrong: 0, total: 0 };
+    Q.session = { correct: 0, wrong: 0, total: 0, startedAt: Date.now() };
     var all = Q.data.questions, solvedIds = Q.data.solved || [];
     var avail = all.filter(function (q) { return solvedIds.indexOf(q.id) === -1; });
     if (!avail.length) return App.toast('Barcha savollar yechilgan!');
@@ -806,6 +916,7 @@
       var saved = (Q.data.flags || {})[q.id] === 'saved';
       html += '<div class="qcard" data-idx="' + i + '">' +
         '<div class="qcard-head"><span class="qn">#' + (i + 1) + '</span>' +
+        lampHtml(q.id) +
         '<button class="qsave ' + (saved ? 'saved' : '') + '" data-act="toggleFlag" data-arg=\'' + App.arg({ id: q.id }) + '\'>' + (saved ? 'Saqlangan' : 'Saqlash') + '</button></div>' +
         '<div class="qtext qtext-l"></div>' +
         '<div class="q-opts-l"></div></div>';
@@ -824,6 +935,9 @@
         oEl.querySelectorAll('.qopt').forEach(function (btn) {
           btn.onclick = function () { checkListAnswer(card, idx, btn.getAttribute('data-key')); };
         });
+        // Lampa belgisi SVG'ga aylanishi uchun (kartalar keyin qo'shilgani
+        // sababli core.js ning avtomatik App.icons chaqiruvi ularga tegmaydi)
+        App.icons(card);
         typeset(card);
       })(j);
     }
@@ -854,6 +968,8 @@
       App.call('mark_wrong', { id: q.id }, { query: 'db=' + encodeURIComponent(Q.db) }).catch(function () {});
       var c = card.querySelector('[data-key="' + q.correct + '"]'); if (c) c.classList.add('correct');
     }
+    // Izohi bor savolda — kartaning yuqorisidagi lampa belgisi paydo bo'ladi
+    revealLamp(card, q);
   }
 
   App.actions.toggleFlag = function (a, btn) {

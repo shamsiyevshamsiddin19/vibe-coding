@@ -172,6 +172,12 @@ CREATE TABLE IF NOT EXISTS goals (
 
 CREATE INDEX IF NOT EXISTS idx_goals_owner ON goals (owner_type, owner_key, sort_order);
 
+-- Maqsad QACHON bajarilgani. Statistika grafigida bajarilgan kun
+-- yashil nuqta bilan belgilanadi (busiz sana ma'lum bo'lmasdi).
+-- DIQQAT: izohda ham nuqta-vergul ishlatilmaydi, fayl shu belgi
+-- bo'yicha bo'linadi va gap ikkiga bo'linib ketadi.
+ALTER TABLE goals ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP NULL;
+
 CREATE INDEX IF NOT EXISTS idx_goals_folder ON goals (owner_type, owner_key, folder_id, sort_order);
 
 CREATE INDEX IF NOT EXISTS idx_goals_section ON goals (owner_type, owner_key, folder_id, section_id, sort_order);
@@ -242,6 +248,20 @@ CREATE TABLE IF NOT EXISTS user_channels (
 );
 
 CREATE INDEX IF NOT EXISTS idx_boostday_user_channels_user ON user_channels (user_id);
+
+-- Kanal qaysi MAVZUga tayinlangan (masalan 'sport', 'english', 'russian').
+-- Bo'sh — umumiy kanal, mavzu tayinlanmagan. Sport bo'limidan mashq yuborilganda
+-- shu maydon orqali to'g'ri kanal avtomatik tanlanadi.
+-- ESKI ustun (bitta kanal = bitta mavzu) — endi ishlatilmaydi, `topics`ga
+-- almashtirildi (bitta kanal bir nechta mavzuga ega bo'lishi mumkin). O'chirilmadi,
+-- chunki eski qiymat allaqachon `topics`ga bir martalik ko'chirilgan (2026-08-03).
+ALTER TABLE user_channels ADD COLUMN IF NOT EXISTS topic VARCHAR(32) NOT NULL DEFAULT '';
+
+-- Vergul bilan ajratilgan mavzular ro'yxati (masalan "sport,russian") — bitta
+-- kanal bir nechta mavzuga tayinlanishi mumkin, lekin har mavzu faqat BITTA
+-- kanalga tegishli bo'ladi (yo'naltirish uchun — qaysi mavzudan yuborilsa,
+-- aniq bitta kanalga borishi kerak).
+ALTER TABLE user_channels ADD COLUMN IF NOT EXISTS topics VARCHAR(191) NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS plans (
     id BIGSERIAL PRIMARY KEY,
@@ -334,9 +354,93 @@ ALTER TABLE language_topics ADD COLUMN IF NOT EXISTS game_content TEXT NOT NULL 
 
 ALTER TABLE language_topics ADD COLUMN IF NOT EXISTS game_type VARCHAR(16) NOT NULL DEFAULT 'fill';
 
+-- Mavzu papkasi. Foydalanuvchi "Zamonlar/Present Simple" deb yozsa, "Zamonlar"
+-- papkasi ochilib, ichiga "Present Simple" mavzusi tushadi.
+-- MUHIM: papka ALOHIDA ustunda saqlanadi, nom ichida emas — chunki mavzu
+-- nomining o'zida ham "/" bo'lishi mumkin ("идти / ходить", "Этот/эта/это/эти")
+-- va nomni ajratib olishga urinish ularni noto'g'ri papkaga bo'lib yuborardi.
+ALTER TABLE language_topics ADD COLUMN IF NOT EXISTS folder VARCHAR(191) NOT NULL DEFAULT '';
+
+-- Materiallar bo'limlari (Reading/Listening/Writing/Speaking va h.k.) `lang`
+-- ustunida "en_reading", "ru_shadowing" kabi kalitlar bilan saqlanadi —
+-- VARCHAR(16) ularga tor bo'lib qolmasin. `folder` esa endi ICHMA-ICH yo'l
+-- ("Level 1/Unit 2") bo'lishi mumkin: yo'l frontenddan ANIQ uzatiladi,
+-- shuning uchun nom ichidagi "/" hech qachon papka deb talqin qilinmaydi.
+ALTER TABLE language_topics ALTER COLUMN lang TYPE VARCHAR(64);
+
+-- LMS (lms.tuit.uz) hisobi. Parol Fernet bilan SHIFRLANGAN holda saqlanadi va
+-- hech qachon mijozga qaytarilmaydi (handlers/lms.py::_public). localStorage'ga
+-- yozilmaydi — u brauzerga va sinxronga tushib ketardi.
+CREATE TABLE IF NOT EXISTS lms_account (
+    id BIGSERIAL PRIMARY KEY,
+    owner_type VARCHAR(32) NOT NULL,
+    owner_key VARCHAR(191) NOT NULL,
+    login VARCHAR(64) NOT NULL,
+    password_enc TEXT NOT NULL,
+    student_name VARCHAR(191) NOT NULL DEFAULT '',
+    semester_id INT NOT NULL DEFAULT 0,
+    semester_name VARCHAR(191) NOT NULL DEFAULT '',
+    semesters TEXT NOT NULL DEFAULT '[]',
+    auto_sync BOOLEAN NOT NULL DEFAULT TRUE,
+    last_sync VARCHAR(32) NOT NULL DEFAULT '',
+    last_error VARCHAR(255) NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_lms_account_owner UNIQUE (owner_type, owner_key)
+);
+
+-- LMS'dan tortilgan dars jadvali. Har sinxronda TO'LIQ almashtiriladi —
+-- haqiqat manbai LMS, mahalliy tahrir bu jadvalda saqlanmaydi (foydalanuvchi
+-- o'z kurs/ish vaqtlarini Kun hisobidagi alohida saqlashda yuritadi).
+CREATE TABLE IF NOT EXISTS lms_schedule (
+    id BIGSERIAL PRIMARY KEY,
+    owner_type VARCHAR(32) NOT NULL,
+    owner_key VARCHAR(191) NOT NULL,
+    lesson_date DATE NOT NULL,
+    start_time VARCHAR(5) NOT NULL,
+    end_time VARCHAR(5) NOT NULL,
+    subject VARCHAR(191) NOT NULL,
+    stream VARCHAR(191) NOT NULL DEFAULT '',
+    room VARCHAR(64) NOT NULL DEFAULT '',
+    type_name VARCHAR(64) NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_lms_schedule_owner_date
+    ON lms_schedule (owner_type, owner_key, lesson_date);
+
+-- Savolga IXTIYORIY izoh: javob berilgandan keyin ko'rsatiladi (nega shu javob
+-- to'g'ri ekanini tushuntirish). Bo'sh bo'lishi mumkin — izohsiz testlar
+-- avvalgidek ishlayveradi.
+ALTER TABLE quiz_questions ADD COLUMN IF NOT EXISTS explanation TEXT NOT NULL DEFAULT '';
+
 -- Mashq turi: nima oshadi (og'irlik / takror / vaqt) va qaysi kunlari oshadi
 ALTER TABLE sport_exercises ADD COLUMN IF NOT EXISTS progress_type VARCHAR(16) NOT NULL DEFAULT 'weight';
 
 ALTER TABLE sport_exercises ADD COLUMN IF NOT EXISTS progress_mode VARCHAR(16) NOT NULL DEFAULT 'daily';
 
 ALTER TABLE sport_exercises ADD COLUMN IF NOT EXISTS start_date DATE DEFAULT NULL;
+
+-- Faoliyat jurnali: barcha bo'limlarda qilingan ishning yagona yozuvi (Tarix/Grafik/Heatmap
+-- bo'limlari shunga tayanadi). Har qator — bitta voqea (test yakunlandi, mashq belgilandi,
+-- mavzu o'qildi va h.k.), UI'da kun/bo'lim bo'yicha guruhlanadi va yig'iladi.
+CREATE TABLE IF NOT EXISTS activity_log (
+    id BIGSERIAL PRIMARY KEY,
+    owner_type VARCHAR(32) NOT NULL,
+    owner_key VARCHAR(191) NOT NULL,
+    section VARCHAR(32) NOT NULL,
+    object_name VARCHAR(255) NOT NULL DEFAULT '',
+    amount DECIMAL(10,2) DEFAULT NULL,
+    unit VARCHAR(32) NOT NULL DEFAULT '',
+    duration_seconds INT DEFAULT NULL,
+    meta TEXT DEFAULT NULL,
+    occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_log_owner_date ON activity_log (owner_type, owner_key, occurred_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_activity_log_owner_section ON activity_log (owner_type, owner_key, section, occurred_at DESC);
+
+-- Maqsad hajmi: katta / orta / kichik. Halqa shu uchta bo'yicha rangga bo'linadi.
+-- Mavjud maqsadlar standart 'orta' bo'lib qoladi (migratsiya shart emas — DEFAULT).
+ALTER TABLE goals ADD COLUMN IF NOT EXISTS size VARCHAR(8) NOT NULL DEFAULT 'orta';

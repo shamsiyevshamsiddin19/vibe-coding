@@ -14,10 +14,30 @@
     { id: 'yelka', n: 'Yelka', c: 'var(--purple)', ic: 'spShoulder' },
     { id: 'oyoq', n: 'Oyoq', c: 'var(--teal)', ic: 'spLegs' },
     { id: 'kardio', n: 'Kardio', c: 'var(--coral)', ic: 'spCardio' },
-    { id: 'armwresling', n: 'Armrestling', c: 'var(--warn)', ic: 'spArm' }
+    { id: 'armwresling', n: 'Armrestling', c: 'var(--warn)', ic: 'spArm' },
+    { id: 'futbol', n: 'Futbol', c: 'var(--success)', ic: 'spFutbol' },
+    { id: 'voleybol', n: 'Voleybol', c: 'var(--accent)', ic: 'spVoleybol' },
+    { id: 'badminton', n: 'Badminton', c: 'var(--teal)', ic: 'spBadminton' },
+    { id: 'basketbol', n: 'Basketbol', c: 'var(--coral)', ic: 'spBasketbol' }
   ];
+  /* Jamoaviy/o'yin sportlari — bu yerda "og'irlik" tushunchasi yo'q,
+     standart o'lchov vaqt yoki masofa bo'ladi. */
+  var TEAM_CATS = ['futbol', 'voleybol', 'badminton', 'basketbol'];
+  function isTeamCat(id) { return TEAM_CATS.indexOf(id) >= 0; }
+
   function catInfo(id) {
     return CATS.find(function (c) { return c.id === id; }) || { id: id, n: id, c: 'var(--hint)', ic: 'trophy' };
+  }
+
+  /* Kategoriya rasmi bor-yo'qligi. Rasm qo'shilgani sari shu ro'yxatga
+     id qo'shiladi — bo'lmaganlari eski rangli belgi bilan ko'rinaveradi. */
+  var CAT_IMG = ['turnik', 'brus', 'ajimaniya', 'full', 'grud', 'bitseps',
+    'triseps', 'orqa', 'yelka', 'oyoq', 'kardio', 'armwresling', 'futbol', 'voleybol', 'badminton', 'basketbol'];
+  /* Versiya — rasm almashtirilganda brauzer keshi eskisini ushlab qolmasin.
+     Rasmlarni yangilaganda shu qiymatni ham oshirish kerak. */
+  var IMG_V = '20260803e3';
+  function catImg(id) {
+    return CAT_IMG.indexOf(id) === -1 ? '' : 'assets/img/sport/' + id + '.webp?v=' + IMG_V;
   }
 
   /* Mashq belgisi: rasmi bo'lsa — o'sha rasm, bo'lmasa kategoriya belgisi */
@@ -31,15 +51,19 @@
       '"><span data-icon="' + info.ic + '" data-icon-size="16"></span></span>';
   }
 
-  var S = { data: null };
+  var S = { data: null, boostDone: [] };
   function loadAll(force) {
     if (S.data && !force) return Promise.resolve(S.data);
-    return App.call('sport_get_all').then(function (j) { S.data = j.data || {}; return S.data; });
+    return App.call('sport_get_all').then(function (j) {
+      S.data = j.data || {};
+      S.boostDone = j.today_boost_done || [];   // Telegram/Boostday orqali bugun bajarilgan nomlar (band 25)
+      return S.data;
+    });
   }
-  function topbar(title, backView, backParams) {
+  function topbar(title, backView, backParams, rightHtml) {
     return '<div class="topbar" style="margin:-16px -15px 12px">' +
       '<button class="icon-btn ghost" data-act="go" data-arg=\'' + App.arg({ v: backView, p: backParams || {} }) + '\'><span data-icon="arrowLeft" data-icon-size="20"></span></button>' +
-      '<h1>' + App.esc(title) + '</h1></div>';
+      '<h1>' + App.esc(title) + '</h1>' + (rightHtml || '') + '</div>';
   }
 
   /* =========================================================
@@ -48,24 +72,27 @@
   App.view('sport', {
     nav: 'sport',
     render: function (page) {
-      var logs = sportLog();
+      // Mashg'ulot tarixi endi umumiy "Tarix" bo'limida (activity_log) va
+      // Statistikada ko'rinadi — bu yerda alohida havola shart emas.
       page.innerHTML = '<div class="topbar" style="margin:-16px -15px 12px"><h1>Sport</h1></div>' +
-        '<button class="list-row" data-act="go" data-arg=\'' + App.arg({ v: 'sport_history' }) + '\' style="margin-bottom:12px">' +
-        '<span class="li-ic" style="background:var(--accent-soft);color:var(--accent)"><span data-icon="clock" data-icon-size="15"></span></span>' +
-        '<div class="li-main"><div class="li-title">Mashg\'ulot tarixi</div>' +
-        '<div class="li-sub">' + (logs.length ? logs.length + ' ta yozuv · oxirgisi ' + logs[logs.length - 1].d : 'Hali yozuv yo\'q') + '</div></div>' +
-        '<span class="li-chev" data-icon="arrowLeft" data-icon-size="16" style="transform:rotate(180deg)"></span></button>' +
         '<div id="sport-cats"><div class="load-wrap"><div class="spinner"></div></div></div>';
       App.icons(page);
       loadAll().then(function (data) {
         var box = App.el('sport-cats'); if (!box) return;
+        box.className = 'sp-grid';
         box.innerHTML = CATS.map(function (c) {
           var n = (data[c.id] || []).length;
-          return '<button class="list-row" data-act="go" data-arg=\'' + App.arg({ v: 'sport_cat', p: { cat: c.id } }) + '\'>' +
-            '<span class="li-ic" style="background:color-mix(in srgb,' + c.c + ' 16%, transparent);color:' + c.c + '"><span data-icon="' + c.ic + '" data-icon-size="17"></span></span>' +
-            '<div class="li-main"><div class="li-title">' + c.n + '</div></div>' +
-            '<span class="li-val">' + n + '</span>' +
-            '<span class="li-chev" data-icon="arrowLeft" data-icon-size="16" style="transform:rotate(180deg)"></span></button>';
+          var img = catImg(c.id);
+          var disabled = isCatDisabled(c.id);
+          var inner = img
+            ? '<img src="' + img + '" alt="" loading="lazy"' + (disabled ? ' style="filter:grayscale(1) opacity(0.5)"' : '') + '>'
+            : '<span class="sp-fb" style="background:color-mix(in srgb,' + c.c + ' ' + (disabled ? '5' : '14') + '%, transparent);color:' + (disabled ? 'var(--hint)' : c.c) +
+              '"><span data-icon="' + c.ic + '" data-icon-size="30"></span></span>';
+          return '<button class="sp-tile" data-act="go" data-arg=\'' + App.arg({ v: 'sport_cat', p: { cat: c.id } }) + '\'>' +
+            inner +
+            '<span class="sp-bar" style="background:' + (disabled ? 'var(--border)' : c.c) + '"></span>' +
+            '<span class="sp-ov"><span class="sp-n"' + (disabled ? ' style="color:var(--hint)"' : '') + '>' + c.n + '</span>' +
+            '<span class="sp-c">' + (disabled ? 'To\'xtatilgan' : (n ? n + ' ta mashq' : 'Mashq yo\'q')) + '</span></span></button>';
         }).join('');
         App.icons(box);
       });
@@ -75,36 +102,128 @@
   /* =========================================================
      VIEW: sport_cat — kategoriya ichidagi mashqlar
      ========================================================= */
+  /* Boostdayga yuborish uchun tanlash rejimi. Sahifa qayta chizilganda ham
+     saqlanib qolishi shart emas — yangi kategoriyaga o'tilsa tozalanadi. */
+  var SEND = { active: false, cat: '', ids: {} };
+
+  function renderExList(page, cat, info) {
+    var box = App.el('ex-list'); if (!box) return;
+    var list = S.data[cat] || [];
+    if (!list.length) { box.innerHTML = App.empty({ icon: 'trophy', title: 'Mashq yo\'q', text: 'Pastdagi tugma bilan qo\'shing.' }); return; }
+    box.innerHTML = list.map(function (e) {
+      var sub = exerciseSub(e) + (e.media && e.media.length ? ' · ' + e.media.length + ' media' : '');
+      var done = loggedToday(e.id);
+      if (SEND.active) {
+        var checked = !!SEND.ids[e.id];
+        return '<button class="list-row" data-act="sendToggleEx" data-arg=\'' + App.arg({ id: e.id }) + '\'>' +
+          '<span class="li-ic" style="border:1px solid var(--border);background:' + (checked ? 'var(--accent)' : 'none') + ';color:#fff">' +
+          (checked ? '<span data-icon="check" data-icon-size="15"></span>' : '') + '</span>' +
+          '<div class="li-main"><div class="li-title">' + App.esc(e.name) + '</div>' +
+          (sub.trim() ? '<div class="li-sub">' + App.esc(sub) + '</div>' : '') + '</div></button>';
+      }
+      return '<div class="list-row">' +
+        exerciseThumb(e, info) +
+        '<button class="li-main" style="background:none;border:none;text-align:left;padding:0" data-act="go" data-arg=\'' +
+        App.arg({ v: 'sport_exercise', p: { cat: cat, id: e.id } }) + '\'>' +
+        '<div class="li-title">' + App.esc(e.name) + '</div>' + 
+        (e.start_time && e.end_time ? '<div class="li-sub" style="color:var(--accent);font-weight:600;margin-bottom:2px">🕒 ' + App.esc(e.start_time) + ' - ' + App.esc(e.end_time) + '</div>' : '') +
+        (sub.trim() ? '<div class="li-sub">' + App.esc(sub) + '</div>' : '') + '</button>' +
+        '<button class="icon-btn ghost sp-log' + (done ? ' done' : '') + '" data-act="sportLog" data-arg=\'' +
+        App.arg({ cat: cat, id: e.id }) + '\' title="Bugun bajardim"><span data-icon="check" data-icon-size="17"></span></button>' +
+        '</div>';
+    }).join('');
+    App.icons(box);
+  }
+
+  function renderSportCatPage(page, cat, info) {
+    var n = Object.keys(SEND.ids).length;
+    var disabled = isCatDisabled(cat);
+    var rightHtml = SEND.active ? '' : 
+      '<div style="display:flex;gap:12px;margin-left:auto;align-items:center">' +
+      '<label class="ui-switch" title="' + (disabled ? 'Turkumni yoqish' : 'Turkumni to\'xtatib turish') + '"><input type="checkbox" onchange="App.actions.catToggle()" ' + (!disabled ? 'checked' : '') + '><span class="ui-slider"></span></label>' +
+      '<button class="icon-btn ghost" data-act="sendModeOn" title="Boostdayga yuborish" style="margin:0"><span data-icon="send" data-icon-size="18"></span></button>' +
+      '</div>';
+    page.innerHTML = topbar(info.n, 'sport', null, rightHtml) +
+      (SEND.active
+        ? '<div class="flex" style="gap:8px;margin-bottom:14px">' +
+          '<button class="btn sec" style="flex:1" data-act="sendModeOff">Bekor qilish</button>' +
+          '<button class="btn" style="flex:1" data-act="sendPush">Yuborish (' + n + ')</button></div>'
+        : '<button class="btn sec" data-act="restTimer" style="margin-bottom:14px"><span data-icon="clock" data-icon-size="16"></span>Dam olish taymeri</button>') +
+      '<div id="ex-list"><div class="load-wrap"><div class="spinner"></div></div></div>' +
+      (SEND.active ? '' : '<button class="btn" style="margin-top:14px" data-act="exerciseAdd" data-arg=\'' + App.arg({ cat: cat }) + '\'><span data-icon="plus" data-icon-size="16"></span>Mashq qo\'shish</button>');
+    App.icons(page);
+    loadAll().then(function () { renderExList(page, cat, info); });
+  }
+
+  // Tugma yasaydigan alohida yordamchi endi shart emas, chunki tepadagi div ichida yasadik.
+  // function finishBtnHtml(action, icon, label) { ... }
+
   App.view('sport_cat', {
     nav: 'sport',
     render: function (page, params) {
       var cat = params.cat || '';
       var info = catInfo(cat);
-      page.innerHTML = topbar(info.n, 'sport') +
-        '<button class="btn sec" data-act="restTimer" style="margin-bottom:14px"><span data-icon="clock" data-icon-size="16"></span>Dam olish taymeri</button>' +
-        '<div id="ex-list"><div class="load-wrap"><div class="spinner"></div></div></div>' +
-        '<button class="btn" style="margin-top:14px" data-act="exerciseAdd" data-arg=\'' + App.arg({ cat: cat }) + '\'><span data-icon="plus" data-icon-size="16"></span>Mashq qo\'shish</button>';
-      App.icons(page);
-      loadAll().then(function (data) {
-        var box = App.el('ex-list'); if (!box) return;
-        var list = data[cat] || [];
-        if (!list.length) { box.innerHTML = App.empty({ icon: 'trophy', title: 'Mashq yo\'q', text: 'Pastdagi tugma bilan qo\'shing.' }); return; }
-        box.innerHTML = list.map(function (e) {
-          var sub = exerciseSub(e) + (e.media && e.media.length ? ' · ' + e.media.length + ' media' : '');
-          var done = loggedToday(e.id);
-          return '<div class="list-row">' +
-            exerciseThumb(e, info) +
-            '<button class="li-main" style="background:none;border:none;text-align:left;padding:0" data-act="go" data-arg=\'' +
-            App.arg({ v: 'sport_exercise', p: { cat: cat, id: e.id } }) + '\'>' +
-            '<div class="li-title">' + App.esc(e.name) + '</div>' + (sub.trim() ? '<div class="li-sub">' + App.esc(sub) + '</div>' : '') + '</button>' +
-            '<button class="icon-btn ghost sp-log' + (done ? ' done' : '') + '" data-act="sportLog" data-arg=\'' +
-            App.arg({ cat: cat, id: e.id }) + '\' title="Bugun bajardim"><span data-icon="check" data-icon-size="17"></span></button>' +
-            '</div>';
-        }).join('');
-        App.icons(box);
-      });
+      SEND = { active: false, cat: cat, ids: {} };
+      renderSportCatPage(page, cat, info);
     }
   });
+
+  var CAT_DISABLED_KEY = 'sport_cat_disabled_v1';
+  function disabledCats() {
+    try { var v = JSON.parse(localStorage.getItem(CAT_DISABLED_KEY) || '[]'); return Array.isArray(v) ? v : []; }
+    catch (e) { return []; }
+  }
+  function saveDisabledCats(arr) { try { localStorage.setItem(CAT_DISABLED_KEY, JSON.stringify(arr)); } catch (e) {} }
+  function isCatDisabled(catId) {
+    return disabledCats().indexOf(catId) >= 0;
+  }
+
+  App.actions.catToggle = function () {
+    var cat = SEND.cat;
+    var d = disabledCats();
+    var idx = d.indexOf(cat);
+    if (idx >= 0) {
+      d.splice(idx, 1);
+      App.toast('Turkum yana yoqildi');
+    } else {
+      d.push(cat);
+      App.toast('Turkum vaqtincha to\'xtatildi');
+    }
+    saveDisabledCats(d);
+    renderSportCatPage(App.el('page'), cat, catInfo(cat));
+  };
+
+  App.actions.sendModeOn = function () {
+    var page = App.el('page');
+    SEND.active = true; SEND.ids = {};
+    renderSportCatPage(page, SEND.cat, catInfo(SEND.cat));
+  };
+  App.actions.sendModeOff = function () {
+    var page = App.el('page');
+    SEND.active = false; SEND.ids = {};
+    renderSportCatPage(page, SEND.cat, catInfo(SEND.cat));
+  };
+  App.actions.sendToggleEx = function (a) {
+    if (SEND.ids[a.id]) delete SEND.ids[a.id]; else SEND.ids[a.id] = true;
+    renderSportCatPage(App.el('page'), SEND.cat, catInfo(SEND.cat));
+  };
+  App.actions.sendPush = function () {
+    var ids = Object.keys(SEND.ids);
+    if (!ids.length) return App.toast('Kamida bitta mashq tanlang');
+    var list = S.data[SEND.cat] || [];
+    var items = list.filter(function (e) { return SEND.ids[e.id]; }).map(function (e) {
+      var timePrefix = '';
+      if (e.start_time && e.end_time) timePrefix = e.start_time + ' - ' + e.end_time + ' | ';
+      else if (e.start_time) timePrefix = e.start_time + ' | ';
+      return { text: timePrefix + e.name };
+    });
+    if (!window.BoostPush) return App.toast('Boostday moduli yuklanmagan');
+    App.toast('Yuborilmoqda...');
+    BoostPush.pushTasks('sport', '🏋 Sport mashqlari', items).then(function () {
+      App.toast('✅ ' + items.length + ' ta mashq Boostdayga yuborildi');
+      App.actions.sendModeOff();
+    }).catch(function (e) { App.toast('⚠️ ' + e.message); });
+  };
 
   /* =========================================================
      VIEW: sport_exercise — bitta mashqning to'liq sahifasi
@@ -157,6 +276,7 @@
       '<div class="ex-hero-lbl">Bugungi maqsad</div>' +
       '<div class="ex-hero-val">' + tgt.value + '<span>' + tgt.unit + '</span></div>' +
       (e.sets ? '<div class="ex-hero-sub">' + e.sets + ' set' + (t.field === 'weight' && e.reps ? ' × ' + e.reps + ' takror' : '') + '</div>' : '') +
+      (e.start_time && e.end_time ? '<div class="ex-hero-sub" style="margin-top:8px;color:var(--accent);font-weight:600;font-size:14px">🕒 ' + App.esc(e.start_time) + ' - ' + App.esc(e.end_time) + '</div>' : '') +
       '</div>' +
 
       // O'sish ma'lumoti
@@ -174,7 +294,9 @@
           '<div class="li-main"><div class="li-title">Boshlangan</div><div class="li-sub">' + App.esc(e.start_date) + '</div></div></div>'
         : '') +
 
-      (e.desc ? '<div class="list-label">Tavsif</div><p style="font-size:14px;line-height:1.6;margin:0 1px 8px">' + App.esc(e.desc) + '</p>' : '') +
+      // Tavsif Markdown sifatida render qilinadi (App.md — arxiv/grammar
+      // bilan bir xil): sarlavha, ro'yxat, qalin matn, jadval va h.k.
+      (e.desc ? '<div class="list-label">Tavsif</div><div class="md-content">' + App.md(e.desc) + '</div>' : '') +
       (media ? '<div class="list-label">Media</div><div class="ex-media-grid">' + media + '</div>' : '') +
 
       '<button class="btn" id="exv-done" style="margin-top:20px;background:' + (done ? 'var(--card)' : 'var(--success)') +
@@ -183,10 +305,10 @@
       '<button class="btn sec" id="exv-rest" style="margin-top:10px"><span data-icon="clock" data-icon-size="16"></span>Dam olish taymeri</button>';
 
     App.icons(page);
-    App.el('exv-edit').onclick = function () {
-      var sh = App.sheet(exerciseFormHtml(e), { title: e.name });
-      bindExerciseForm(sh, cat, e);
-    };
+    // Tahrirlash mantig'i bitta joyda — App.actions.exerciseEdit (ilgari shu
+    // yerda AYNAN o'sha kod takrorlangan, action esa hech qayerdan
+    // chaqirilmay o'lik qolgan edi).
+    App.el('exv-edit').onclick = function () { App.actions.exerciseEdit({ cat: cat, id: e.id }); };
     App.el('exv-done').onclick = function () { App.actions.sportLog({ cat: cat, id: e.id }); };
     App.el('exv-rest').onclick = function () { App.actions.restTimer(); };
   }
@@ -195,9 +317,12 @@
      O'sish tizimi: nima oshadi (og'irlik/takror/vaqt) va qachon oshadi
      ========================================================= */
   var PTYPE = {
-    weight: { n: 'Og\'irlik (kg)', unit: 'kg', field: 'weight', step: '0.5' },
-    reps:   { n: 'Takror (soni)',  unit: 'ta', field: 'reps',   step: '1' },
-    time:   { n: 'Vaqt (soniya)',  unit: 's',  field: 'reps',   step: '1' }
+    weight: { n: 'Og\'irlik (kg)', unit: 'kg',  field: 'weight', step: '0.5' },
+    reps:   { n: 'Takror (soni)',  unit: 'ta',  field: 'reps',   step: '1' },
+    time:   { n: 'Vaqt (soniya)',  unit: 's',   field: 'reps',   step: '1' },
+    // O'yin sportlari uchun: mashg'ulot daqiqada, yugurish esa metrda o'lchanadi
+    min:    { n: 'Vaqt (daqiqa)',  unit: 'daq', field: 'reps',   step: '1' },
+    dist:   { n: 'Masofa (metr)',  unit: 'm',   field: 'reps',   step: '10' }
   };
   var PMODE = {
     daily:     'Har kuni',
@@ -269,7 +394,7 @@
     var tgt = todayTarget(e);
     var parts = [];
     parts.push(tgt.value + tgt.unit + (t.field === 'reps' ? '' : ''));
-    if (e.sets) parts.push(e.sets + ' set');
+    if (e.sets) parts.push(e.sets + ' ' + (isTeamCat(e.category) ? 'seriya' : 'set'));
     if (e.increase) parts.push('+' + e.increase + tgt.unit + ' ' + (PMODE[e.progress_mode] || '').toLowerCase());
     return parts.join(' · ');
   }
@@ -294,7 +419,9 @@
     var sdate = e.start_date || dstr(new Date());
 
     return '<label class="field"><span>Nomi</span><input class="input" id="ex-name" value="' + App.esc(e.name || '') + '" placeholder="Masalan: Tortilish"></label>' +
-      '<label class="field"><span>Tavsif (ixtiyoriy)</span><textarea class="textarea" id="ex-desc" rows="2">' + App.esc(e.desc || '') + '</textarea></label>' +
+      '<label class="field"><span>Tavsif (ixtiyoriy — Markdown)</span><textarea class="textarea" id="ex-desc" rows="8">' + App.esc(e.desc || '') + '</textarea></label>' +
+      '<p class="muted" style="font-size:11.5px;margin:-6px 1px 12px">Markdown ishlaydi: ' +
+      '<code>## Sarlavha</code>, <code>**qalin**</code>, <code>- ro\'yxat</code>, <code>1. raqamli</code>, jadval.</p>' +
 
       '<label class="field"><span>Nima oshadi?</span><select class="input" id="ex-ptype">' +
       Object.keys(PTYPE).map(function (k) {
@@ -313,6 +440,10 @@
       }).join('') + '</select></label>' +
 
       '<label class="field"><span>Boshlangan sana</span><input class="input" type="date" id="ex-sdate" value="' + sdate + '"></label>' +
+      '<div style="display:flex;gap:10px">' +
+      '<label class="field" style="flex:1"><span>Boshlanish vaqti</span><input class="input" type="time" id="ex-stime" value="' + (e.start_time || '') + '"></label>' +
+      '<label class="field" style="flex:1"><span>Tugash vaqti</span><input class="input" type="time" id="ex-etime" value="' + (e.end_time || '') + '"></label>' +
+      '</div>' +
       '<p class="muted" id="ex-preview" style="font-size:12.5px;margin:-6px 1px 12px"></p>' +
 
       '<div style="display:flex;gap:10px">' +
@@ -382,6 +513,8 @@
       fd.append('reps', ptype === 'weight' ? (sh.querySelector('#ex-reps').value || 0) : base);
       fd.append('increase', sh.querySelector('#ex-increase').value || 0);
       fd.append('sets', sh.querySelector('#ex-sets').value || 0);
+      fd.append('start_time', sh.querySelector('#ex-stime').value || '');
+      fd.append('end_time', sh.querySelector('#ex-etime').value || '');
       var replaceEl = sh.querySelector('#ex-replace');
       if (replaceEl && replaceEl.checked) fd.append('replace_media', '1');
       var files = sh.querySelector('#ex-media').files;
@@ -433,26 +566,117 @@
     var d = new Date();
     return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
   }
+  function exerciseName(id) {
+    if (!S.data) return null;
+    for (var cat in S.data) {
+      var found = (S.data[cat] || []).find(function (x) { return String(x.id) === String(id); });
+      if (found) return found.name;
+    }
+    return null;
+  }
   function loggedToday(id) {
     var t = today();
-    return sportLog().some(function (x) { return x.d === t && String(x.id) === String(id); });
+    if (sportLog().some(function (x) { return x.d === t && String(x.id) === String(id); })) return true;
+    // Telegram/Boostday orqali bajarilgan bo'lsa ham hisobga olinadi — vazifa
+    // matni mashq nomi bilan aynan bir xil bo'lib yuborilgani uchun (band 25).
+    if (S.boostDone && S.boostDone.length) {
+      var name = exerciseName(id);
+      if (name && S.boostDone.indexOf(name) >= 0) return true;
+    }
+    return false;
   }
 
-  App.actions.sportLog = function (a) {
-    var e = (S.data[a.cat] || []).find(function (x) { return String(x.id) === String(a.id); });
-    if (!e) return;
+  /* Bitta mashqni bugun bajarilgan/bajarilmagan deb belgilaydi. `silent` bo'lsa
+     App.reload() chaqirmaydi (masalan Boostday "Bugungi ishlar" ro'yxatidan
+     turib belgilanganda — o'sha ro'yxat o'zi qayta chiziladi, butun Sport
+     sahifasi emas). Qaytaradi: endi bajarilganmi (true/false) yoki topilmasa null. */
+  function toggleExercise(cat, id, silent) {
+    var e = ((S.data && S.data[cat]) || []).find(function (x) { return String(x.id) === String(id); });
+    if (!e) return null;
     var list = sportLog(), t = today();
-    var idx = list.findIndex(function (x) { return x.d === t && String(x.id) === String(a.id); });
+    var idx = list.findIndex(function (x) { return x.d === t && String(x.id) === String(id); });
+    var nowDone;
     if (idx >= 0) {
       list.splice(idx, 1); saveLog(list);
-      App.toast('Bekor qilindi');
+      if (!silent) App.toast('Bekor qilindi');
+      nowDone = false;
     } else {
-      list.push({ d: t, cat: a.cat, id: e.id, name: e.name, weight: e.weight || 0, sets: e.sets || 0, reps: e.reps || 0 });
+      list.push({ d: t, cat: cat, id: e.id, name: e.name, weight: e.weight || 0, sets: e.sets || 0, reps: e.reps || 0 });
       saveLog(list);
-      App.toast('✅ Bajarildi: ' + e.name);
+      if (!silent) App.toast('✅ Bajarildi: ' + e.name);
       if (window.Activity) Activity.mark();
+      App.call('log_activity', { section: 'sport', object: e.name, amount: 1, unit: 'marta', meta: { cat: cat } }).catch(function () {});
+      nowDone = true;
     }
-    App.reload();
+    if (!silent) App.reload();
+    return nowDone;
+  }
+
+  App.actions.sportLog = function (a) { toggleExercise(a.cat, a.id, false); };
+
+  /* Foydalanuvchi "bu mashqni Bugungi ishlarda ko'rsatma" desa, uning ID'si
+     shu ro'yxatga tushadi — mashq o'zi Sport bo'limida qoladi, faqat
+     birlashtirilgan "Bugungi ishlar" ro'yxatidan chiqib ketadi. */
+  var HIDDEN_KEY = 'sport_today_hidden_v1';
+  function hiddenIds() {
+    try { var v = JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]'); return Array.isArray(v) ? v : []; }
+    catch (e) { return []; }
+  }
+  function saveHidden(arr) { try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(arr)); } catch (e) {} }
+
+  /* Hali BUGUN bajarilmagan (yoki — allExercises=true bo'lsa — mutlaqo BARCHA)
+     mashqlar ro'yxati. `wantHidden` true bo'lsa — teskarisi: faqat
+     YASHIRILGANLARI qaytariladi ("yashiringan mashqlarni qayta yoqish" uchun).
+     MUHIM: bu yerda `isProgressDay` ATAYLAB ishlatilmaydi — u "bugun OG'IRLIK/
+     qiymat oshadimi" degan boshqa savolga javob beradi (mashqning o'zi bugun
+     kerak-kerak emasligiga emas). Avval shu bilan aralashtirilib, progress_mode
+     'manual' bo'lgan mashqlar (masalan futbol/voleybol/badminton — hammasi
+     'manual') "Bugungi ishlar"da HECH QACHON ko'rinmay qolgan edi. Endi
+     ortiqcha mashqni ko'rsatmaslik foydalanuvchining o'zi ✕ bilan yashirishiga
+     qoldirilgan (hideToday/unhideToday). */
+  function scheduledPending(wantHidden, allExercises) {
+    if (!S.data) return [];
+    var out = [];
+    var hidden = hiddenIds();
+    var disabledC = disabledCats();
+    CATS.forEach(function (c) {
+      if (disabledC.indexOf(c.id) >= 0) return;
+      (S.data[c.id] || []).forEach(function (e) {
+        if (!allExercises && loggedToday(e.id)) return;
+        var isHidden = hidden.indexOf(String(e.id)) >= 0;
+        if (!allExercises && isHidden !== !!wantHidden) return;
+        out.push({ cat: c.id, catName: c.n, id: e.id, name: e.name });
+      });
+    });
+    return out;
+  }
+
+  /* Bugun BAJARILGAN mashqlar (Bajarilganlar panelida qayta bosib bekor
+     qilish uchun) — sportLog() dan bugungi sanali yozuvlar. */
+  function doneTodayList() {
+    var t = today();
+    return sportLog().filter(function (x) { return x.d === t; }).map(function (x) {
+      var info = catInfo(x.cat);
+      return { cat: x.cat, catName: info.n, id: x.id, name: x.name };
+    });
+  }
+
+  /* Boostday "Bugungi ishlar" ro'yxati uchun ko'prik — sport mashqlari va
+     Boostday vazifalari BITTA ro'yxatda ko'rinishi shart (band 5.1). */
+  window.SportBridge = {
+    ensureLoaded: function () { return loadAll(); },
+    todayPending: function () { return scheduledPending(false); },
+    hiddenPending: function () { return scheduledPending(true); },
+    doneToday: function () { return doneTodayList(); },
+    allExercises: function () { return scheduledPending(false, true); },
+    hideToday: function (id) {
+      var h = hiddenIds();
+      if (h.indexOf(String(id)) < 0) { h.push(String(id)); saveHidden(h); }
+    },
+    unhideToday: function (id) {
+      saveHidden(hiddenIds().filter(function (x) { return x !== String(id); }));
+    },
+    toggle: function (cat, id) { return toggleExercise(cat, id, true); }
   };
 
   /* ---------- Dam olish taymeri (setlar orasida) ---------- */
@@ -460,9 +684,15 @@
   App.actions.restTimer = function () {
     var last = parseInt(localStorage.getItem('sport_rest_sec') || '90', 10);
     var html =
-      '<div style="text-align:center">' +
-      '<div id="rt-view" style="font-size:52px;font-weight:800;font-family:var(--mono);margin:6px 0 4px">' + fmt(last) + '</div>' +
-      '<p class="muted" id="rt-hint" style="font-size:12.5px;margin:0 0 16px">Vaqtni tanlang va boshlang</p></div>' +
+      '<div style="text-align:center;position:relative;width:160px;height:160px;margin:10px auto">' +
+      '<svg viewBox="0 0 100 100" style="width:100%;height:100%;transform:rotate(-90deg)">' +
+      '<circle cx="50" cy="50" r="45" fill="none" stroke="var(--border)" stroke-width="6"/>' +
+      '<circle id="rt-svg" cx="50" cy="50" r="45" fill="none" stroke="var(--accent)" stroke-width="6" stroke-dasharray="283" stroke-dashoffset="0" style="transition: stroke-dashoffset 1s linear"/>' +
+      '</svg>' +
+      '<div style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center">' +
+      '<div id="rt-view" style="font-size:32px;font-weight:800;font-family:var(--mono);line-height:1">' + fmt(last) + '</div>' +
+      '</div></div>' +
+      '<p class="muted" id="rt-hint" style="text-align:center;font-size:12.5px;margin:0 0 16px">Vaqtni tanlang va boshlang</p>' +
       '<div class="flex" id="rt-presets" style="gap:7px;flex-wrap:wrap;justify-content:center;margin-bottom:16px">' +
       [30, 60, 90, 120, 180].map(function (s) {
         return '<button class="chip-btn' + (s === last ? ' active' : '') + '" data-s="' + s + '">' + fmt(s) + '</button>';
@@ -472,7 +702,16 @@
     var sh = App.sheet(html, { title: 'Dam olish taymeri' });
     var sec = last;
 
-    function fmtNow() { sh.querySelector('#rt-view').textContent = fmt(REST.left > 0 ? REST.left : sec); }
+    function updateSvg(left) {
+      var svg = sh.querySelector('#rt-svg');
+      if (svg) svg.style.strokeDashoffset = (283 - (left / sec) * 283) || 0;
+    }
+
+    function fmtNow() { 
+      var left = Math.max(0, REST.left > 0 ? REST.left : sec);
+      sh.querySelector('#rt-view').textContent = fmt(left);
+      updateSvg(left);
+    }
     sh.querySelectorAll('#rt-presets .chip-btn').forEach(function (b) {
       b.onclick = function () {
         sh.querySelectorAll('#rt-presets .chip-btn').forEach(function (x) { x.classList.remove('active'); });
@@ -486,14 +725,16 @@
     sh.querySelector('#rt-stop').onclick = function () { stop(); fmtNow(); sh.querySelector('#rt-hint').textContent = 'To\'xtatildi'; };
     sh.querySelector('#rt-start').onclick = function () {
       stop(); REST.left = sec;
+      updateSvg(sec);
       sh.querySelector('#rt-hint').textContent = 'Ketmoqda...';
       REST.t = setInterval(function () {
         REST.left--;
         var v = sh.querySelector('#rt-view');
         if (!v) { stop(); return; }               // oyna yopilgan
         v.textContent = fmt(Math.max(0, REST.left));
+        updateSvg(REST.left);
         if (REST.left <= 0) {
-          stop(); v.textContent = '00:00';
+          stop(); v.textContent = '00:00'; updateSvg(0);
           sh.querySelector('#rt-hint').textContent = '✅ Dam tugadi!';
           App.toast('⏱ Dam olish tugadi');
           try { navigator.vibrate && navigator.vibrate([200, 100, 200]); } catch (e) {}
@@ -502,54 +743,4 @@
     };
   };
   function fmt(s) { return ('0' + Math.floor(s / 60)).slice(-2) + ':' + ('0' + (s % 60)).slice(-2); }
-
-  App.view('sport_history', {
-    nav: 'sport',
-    render: function (page) {
-      var logs = sportLog().slice().reverse();
-      page.innerHTML = topbar('Mashg\'ulot tarixi', 'sport') +
-        (logs.length ? '' : App.empty({ icon: 'clock', title: 'Tarix bo\'sh', text: 'Mashq yonidagi ✓ tugmasi bilan bajarilganini belgilang.' })) +
-        '<div id="sp-hist"></div>';
-      App.icons(page);
-      if (!logs.length) return;
-
-      // Kun bo'yicha guruhlash
-      var byDay = {}, order = [];
-      logs.forEach(function (x) {
-        if (!byDay[x.d]) { byDay[x.d] = []; order.push(x.d); }
-        byDay[x.d].push(x);
-      });
-
-      // Og'irlik o'sishi: har mashq bo'yicha eng oxirgi va eng birinchi qiymat
-      var byEx = {};
-      sportLog().forEach(function (x) {
-        if (!x.weight) return;
-        if (!byEx[x.name]) byEx[x.name] = { first: x.weight, last: x.weight, n: 0 };
-        byEx[x.name].last = x.weight; byEx[x.name].n++;
-      });
-      var grown = Object.keys(byEx).filter(function (k) { return byEx[k].last > byEx[k].first; });
-
-      App.el('sp-hist').innerHTML =
-        '<div class="stat-strip" style="margin:0 0 16px">' +
-        '<div class="s"><div class="n">' + order.length + '</div><div class="l">Kun</div></div>' +
-        '<div class="s"><div class="n">' + logs.length + '</div><div class="l">Mashq</div></div>' +
-        '<div class="s"><div class="n" style="color:var(--success)">' + grown.length + '</div><div class="l">O\'sdi</div></div>' +
-        '</div>' +
-        (grown.length
-          ? '<div class="list-label" style="margin-top:0">Og\'irlik o\'sishi</div>' +
-            grown.map(function (k) {
-              var g = byEx[k];
-              return '<div class="list-row"><div class="li-main"><div class="li-title">' + App.esc(k) + '</div>' +
-                '<div class="li-sub">' + g.first + ' kg → ' + g.last + ' kg</div></div>' +
-                '<span class="li-val" style="color:var(--success);font-weight:800">+' + (g.last - g.first) + '</span></div>';
-            }).join('')
-          : '') +
-        '<div class="list-label">Kunlar</div>' +
-        order.map(function (d) {
-          return '<div class="list-row"><div class="li-main"><div class="li-title">' + App.esc(d) + '</div>' +
-            '<div class="li-sub">' + byDay[d].map(function (x) { return App.esc(x.name); }).join(', ') + '</div></div>' +
-            '<span class="li-val">' + byDay[d].length + '</span></div>';
-        }).join('');
-    }
-  });
 })();

@@ -61,5 +61,71 @@
 
   function totalDays() { return read().length; }
 
-  window.Activity = { mark: mark, streak: streak, lastWeek: lastWeek, totalDays: totalDays };
+  /* ---------- Boostday intensivligi (GitHub uslubidagi kunlar) ----------
+     Boostday `stats` javobidagi `daily_series` (14 kun: date, total_tasks,
+     completed_tasks) asosida har kun uchun 0-4 daraja hisoblaymiz.
+     Daraja MUTLAQ son emas, oynadagi ENG KATTA qiymatga nisbatan beriladi —
+     shunda kam vazifa qiladigan kunlarda ham farq ko'rinadi (GitHub ham
+     foydalanuvchi taqsimotiga moslashadi). */
+
+  var boostCache = null; // {at: ms, map: {date: completed}}
+  var BOOST_TTL = 60000;
+
+  function boostSeries() {
+    if (boostCache && (Date.now() - boostCache.at) < BOOST_TTL) {
+      return Promise.resolve(boostCache.map);
+    }
+    if (!window.App || !App.call) return Promise.resolve(null);
+    return App.call('boost_stats', {}).then(function (j) {
+      var map = {};
+      (j && j.daily_series || []).forEach(function (d) {
+        if (d && d.date) map[d.date] = +d.completed_tasks || 0;
+      });
+      boostCache = { at: Date.now(), map: map };
+      return map;
+    }).catch(function () {
+      // Boostday ulanmagan/ruxsat yo'q — mavjud lokal ko'rsatkich bilan davom etamiz
+      return null;
+    });
+  }
+
+  function levelOf(count, max) {
+    if (!count) return 0;
+    if (max <= 0) return 0;
+    var q = count / max;
+    if (q > 0.75) return 4;
+    if (q > 0.5) return 3;
+    if (q > 0.25) return 2;
+    return 1;
+  }
+
+  /* lastWeek() ning Boostday bilan boyitilgan varianti:
+     [{label, active, today, count, level}] — level 0..4 */
+  function lastWeekBoost() {
+    var base = lastWeek();
+    return boostSeries().then(function (map) {
+      if (!map) return base; // fallback: eski on/off ko'rinish
+      var now = new Date(), counts = [];
+      for (var i = 6; i >= 0; i--) {
+        var d = new Date(now);
+        d.setDate(now.getDate() - i);
+        counts.push(map[todayKey(d)] || 0);
+      }
+      // Darajani oxirgi 14 kunning eng kattasiga nisbatan beramiz — bir hafta
+      // sust bo'lsa ham masshtab sakrab ketmasin.
+      var max = 0;
+      Object.keys(map).forEach(function (k) { if (map[k] > max) max = map[k]; });
+      return base.map(function (d, i) {
+        d.count = counts[i];
+        d.level = levelOf(counts[i], max);
+        if (d.count > 0) d.active = true;
+        return d;
+      });
+    });
+  }
+
+  window.Activity = {
+    mark: mark, streak: streak, lastWeek: lastWeek, totalDays: totalDays,
+    lastWeekBoost: lastWeekBoost
+  };
 })();

@@ -6,3 +6,7 @@ logs/
 uploads/
 Boostdaybot/*.log
 Boostdaybot/*.sqlite
+
+# Ilova belgisi — FOYDALANUVCHI ma'lumoti, serverda `save_app_icon` uni ustiga yozadi.
+# Git'da saqlansa, deploy vaqtida eski nusxa serverdagi haqiqiy belgini bosib ketardi.
+assets/icons/custom-app-icon-*.png

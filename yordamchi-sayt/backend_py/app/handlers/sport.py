@@ -6,6 +6,7 @@ import re
 import uuid
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from urllib.parse import parse_qs, urlparse
 
 from fastapi import Request
@@ -17,14 +18,16 @@ from ..errors import ApiError, success
 from ..owner import owner_context
 from .common import s, to_float, to_int
 
-# Mashqda nima o'sadi: og'irlik (shtanga), takror (turnik/brus), vaqt (planka)
-PROGRESS_TYPES = {"weight", "reps", "time"}
+# Mashqda nima o'sadi: og'irlik (shtanga), takror (turnik/brus), vaqt (planka),
+# daqiqa va masofa (o'yin sportlari — basketbol/futbol mashqlari)
+PROGRESS_TYPES = {"weight", "reps", "time", "min", "dist"}
 # Qachon o'sadi: har kuni / juft kunlari / toq kunlari / kun ora / qo'lda
 PROGRESS_MODES = {"daily", "even", "odd", "alternate", "manual"}
 
 CATEGORIES = [
     "turnik", "brus", "ajimaniya", "full", "grud", "bitseps",
     "triseps", "orqa", "yelka", "oyoq", "kardio", "armwresling",
+    "futbol", "voleybol", "badminton", "basketbol",
 ]
 
 IMAGE_EXT = {"jpg", "jpeg", "png", "gif", "webp", "bmp", "avif"}
@@ -69,14 +72,16 @@ def _sync_value(ctx: dict) -> str:
     )
     if row and row.get("meta_value"):
         return str(row["meta_value"])
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    # DB'dan o'qib bo'lmasa ham server GMT'da bo'lgani uchun Toshkent vaqtiga aylantiramiz
+    # (aks holda mijozning "oxirgi yangilanish" solishtiruvi soatlab noto'g'ri chiqib qolardi).
+    return datetime.now(ZoneInfo("Asia/Tashkent")).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _build_data(ctx: dict) -> dict[str, list]:
     data = _empty_data()
     rows = db.fetch_all(
         "SELECT id, category, name, description, weight, increase_amount, set_count, rep_count, "
-        "progress_type, progress_mode, start_date, updated_at "
+        "progress_type, progress_mode, start_date, start_time, end_time, updated_at "
         "FROM sport_exercises WHERE owner_type = :ot AND owner_key = :ok AND is_deleted = 0 ORDER BY id ASC",
         {"ot": ctx["owner_type"], "ok": ctx["owner_key"]},
     )
@@ -113,15 +118,39 @@ def _build_data(ctx: dict) -> dict[str, list]:
             "progress_type": str(r["progress_type"] or "weight"),
             "progress_mode": str(r["progress_mode"] or "daily"),
             "start_date": str(r["start_date"]) if r["start_date"] else "",
+            "start_time": str(r["start_time"]) if r["start_time"] else "",
+            "end_time": str(r["end_time"]) if r["end_time"] else "",
             "media": media_map.get(rid, []),
             "updated_at": str(r["updated_at"]),
         })
     return data
 
 
+def _today_boost_done(ctx: dict) -> list[str]:
+    """Bugun Boostday (Telegram/sayt) orqali bajarilgan mashq NOMLARI.
+
+    Sport mashqi Boostdayga yuborilganda vazifa matni mashq nomi bilan AYNAN
+    bir xil bo'ladi (band 25) — shuning uchun ID-bog'lash jadvali shart emas:
+    bugungi `section='sport'` activity_log yozuvlaridagi nomlar ro'yxati
+    to'g'ridan-to'g'ri "bajarilgan" deb tan olinadi. Frontend buni localStorage
+    (`sport_log_v1`) bilan birlashtiradi.
+    """
+    rows = db.fetch_all(
+        "SELECT DISTINCT object_name FROM activity_log "
+        "WHERE owner_type = :ot AND owner_key = :ok AND section = 'sport' "
+        "AND occurred_at >= CURRENT_DATE",
+        {"ot": ctx["owner_type"], "ok": ctx["owner_key"]},
+    )
+    return [str(r["object_name"]) for r in rows if r["object_name"]]
+
+
 def get_all(request: Request, body: dict):
     ctx = owner_context(request)
-    return success({"last_global_update": _sync_value(ctx), "data": _build_data(ctx)})
+    return success({
+        "last_global_update": _sync_value(ctx),
+        "data": _build_data(ctx),
+        "today_boost_done": _today_boost_done(ctx),
+    })
 
 
 def check_updates(request: Request, body: dict, last_sync: str):
@@ -237,6 +266,8 @@ async def save_exercise(request: Request):
     if progress_mode not in PROGRESS_MODES:
         progress_mode = "daily"
     start_date = s(form.get("start_date")) or None
+    start_time = s(form.get("start_time")) or ""
+    end_time = s(form.get("end_time")) or ""
 
     if category not in CATEGORIES:
         raise ApiError("Noto'g'ri sport kategoriyasi", 422)
@@ -261,23 +292,23 @@ async def save_exercise(request: Request):
                 text(
                     "UPDATE sport_exercises SET category = :c, name = :n, description = :d, weight = :w, "
                     "increase_amount = :inc, set_count = :sc, rep_count = :rc, is_deleted = 0, "
-                    "progress_type = :pt, progress_mode = :pm, start_date = :sd "
+                    "progress_type = :pt, progress_mode = :pm, start_date = :sd, start_time = :st, end_time = :et "
                     "WHERE id = :id AND owner_type = :ot AND owner_key = :ok"
                 ),
                 {"c": category, "n": name, "d": desc, "w": weight, "inc": increase, "sc": sets, "rc": reps,
-                 "pt": progress_type, "pm": progress_mode, "sd": start_date,
+                 "pt": progress_type, "pm": progress_mode, "sd": start_date, "st": start_time, "et": end_time,
                  "id": exercise_id, "ot": ctx["owner_type"], "ok": ctx["owner_key"]},
             )
         else:
             res = conn.execute(
                 text(
                     "INSERT INTO sport_exercises (owner_type, owner_key, category, name, description, weight, "
-                    "increase_amount, set_count, rep_count, progress_type, progress_mode, start_date) "
-                    "VALUES (:ot, :ok, :c, :n, :d, :w, :inc, :sc, :rc, :pt, :pm, :sd) RETURNING id"
+                    "increase_amount, set_count, rep_count, progress_type, progress_mode, start_date, start_time, end_time) "
+                    "VALUES (:ot, :ok, :c, :n, :d, :w, :inc, :sc, :rc, :pt, :pm, :sd, :st, :et) RETURNING id"
                 ),
                 {"ot": ctx["owner_type"], "ok": ctx["owner_key"], "c": category, "n": name, "d": desc,
                  "w": weight, "inc": increase, "sc": sets, "rc": reps,
-                 "pt": progress_type, "pm": progress_mode, "sd": start_date},
+                 "pt": progress_type, "pm": progress_mode, "sd": start_date, "st": start_time, "et": end_time},
             )
             exercise_id = int(res.scalar() or 0)
 

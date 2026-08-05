@@ -11,7 +11,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .config import settings
 from .errors import ApiError, register_exception_handlers
-from .handlers import auth, boost, dictionary, goals, language_topics, misc, quiz, reja, sport, storage
+from .handlers import activity, auth, boost, dictionary, goals, language_topics, lms, misc, quiz, reja, sport, storage
 from . import db, security
 
 # --- Log sozlash (aylanuvchi fayl — cheksiz o'smaydi) ---
@@ -152,9 +152,20 @@ def _dispatch_query_action(request: Request, action: str, body: dict, q):
         "rename_topic": lambda: language_topics.rename_topic(request, body),
         "upload_topic_content": lambda: language_topics.upload_topic_content(request, body),
         "delete_topic": lambda: language_topics.delete_topic(request, body),
+        "delete_lang_topics": lambda: language_topics.delete_lang_topics(request, body),
         "save_app_icon": lambda: misc.save_app_icon(request, body),
         "log_client": lambda: misc.log_client(request, body),
         "health": lambda: misc.health(request, body),
+        "log_activity": lambda: activity.log_activity(request, body),
+        "get_activity_log": lambda: activity.get_activity_log(
+            request, body, q.get("from", ""), q.get("to", ""), q.get("section", "")
+        ),
+        # LMS (lms_connect/lms_sync — tarmoqqa chiqadi, shuning uchun async
+        # tarmoqda alohida ushlanadi, quyidagi api_entry'ga qarang)
+        "lms_status": lambda: lms.get_status(request, body),
+        "lms_schedule": lambda: lms.get_schedule(request, body, q.get("from", ""), q.get("to", "")),
+        "lms_options": lambda: lms.set_options(request, body),
+        "lms_disconnect": lambda: lms.disconnect(request, body),
     }
 
     handler = table.get(action)
@@ -192,6 +203,12 @@ async def api_entry(request: Request):
         return reja.serve(request, file_id, q.get("token", ""), str(q.get("download") or "") == "1")
 
     body = await _read_json_body(request)
+
+    # --- LMS: tashqi saytga (lms.tuit.uz) chiqadigan async amallar ---
+    if action == "lms_connect":
+        return await lms.connect(request, body)
+    if action == "lms_sync":
+        return await lms.sync(request, body)
 
     if action != "":
         return _dispatch_query_action(request, action, body, q)

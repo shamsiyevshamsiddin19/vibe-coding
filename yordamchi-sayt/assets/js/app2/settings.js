@@ -25,7 +25,7 @@
     nav: 'settings',
     render: function (page) {
       var theme = ls('app_theme', 'auto');
-      var avatar = ls('user_avatar', '') || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(ls('user_name', 'Yordamchi')) + '&background=3b91f0&color=fff&size=180';
+      var avatar = ls('user_avatar', '') || App.avatarUrl(ls('user_name', 'Yordamchi'));
       var icon = App.appIconSrc();
 
       page.innerHTML =
@@ -43,15 +43,18 @@
         Object.keys(THEME_LABEL).map(function (v) {
           return '<button class="' + (theme === v ? 'active' : '') + '" data-act="setTheme" data-arg=\'' + App.arg({ v: v }) + '\'>' + THEME_LABEL[v] + '</button>';
         }).join('') + '</div></div>' +
-        '<div class="list-row" style="border-bottom:none;padding:9px 1px 15px;flex-direction:column;align-items:stretch;gap:8px">' +
-        '<div class="between"><span style="font-size:14.5px;font-weight:600">Shrift o\'lchami</span>' +
-        '<span class="muted mono" id="fs-val" style="font-size:12.5px">' + ls('app_font_size', '15') + 'px</span></div>' +
-        '<input type="range" id="fs-range" min="13" max="19" step="1" value="' + ls('app_font_size', '15') + '" style="width:100%;accent-color:var(--accent)">' +
-        '</div>' +
+
 
         '<button class="list-row" data-act="pickIcon">' +
         '<img data-app-icon src="' + icon + '" style="width:34px;height:34px;border-radius:10px;object-fit:cover;flex-shrink:0">' +
         '<div class="li-main"><div class="li-title">Ilova belgisi</div><div class="li-sub">Bosh ekran yorlig\'i uchun</div></div>' +
+        '<span class="li-chev" data-icon="arrowLeft" data-icon-size="16" style="transform:rotate(180deg)"></span></button>' +
+
+        '<div class="list-label">O\'quv jarayoni</div>' +
+        '<button class="list-row" data-act="sessiya">' +
+        '<span class="li-ic" style="background:var(--accent-soft);color:var(--accent)" data-icon="calendar" data-icon-size="15"></span>' +
+        '<div class="li-main"><div class="li-title">Sessiya</div>' +
+        '<div class="li-sub" id="ss-sub">LMS jadvali, semestr va kun sozlamalari</div></div>' +
         '<span class="li-chev" data-icon="arrowLeft" data-icon-size="16" style="transform:rotate(180deg)"></span></button>' +
 
         '<div class="between list-label"><span>Deadlinelar</span>' +
@@ -81,12 +84,9 @@
 
       App.icons(page);
       renderDeadlines();
+      renderSessiyaSub();
 
-      App.el('fs-range').oninput = function () {
-        localStorage.setItem('app_font_size', this.value);
-        App.el('fs-val').textContent = this.value + 'px';
-        App.applyFontSize();
-      };
+
 
       App.el('av-file').onchange = function (e) {
         var f = e.target.files[0]; if (!f) return;
@@ -104,7 +104,15 @@
             // bosh ekraniga yorliq QAYTA qo'shilganda yangi belgi tushishi uchun kerak
             // (Android eski yorliqning belgisini keshda saqlaydi, o'zi yangilamaydi).
             App.call('save_app_icon', { icon: data })
-              .then(function () { App.toast('✅ Belgi yangilandi'); })
+              .then(function (r) {
+                /* Server qaytargan versiyani SAQLASH shart: fayl nomi o'zgarmaydi
+                   (ustiga yoziladi), shuning uchun kesh faqat `?v=` bilan yangilanadi.
+                   Ilgari bu qiymat tashlab yuborilardi va ilova ochilganda avval
+                   ESKI keshlangan belgi ko'rinib, keyin yangisiga almashardi. */
+                if (r && r.version) localStorage.setItem('app_icon_version', String(r.version));
+                App.applyAppIcon();
+                App.toast('✅ Belgi yangilandi');
+              })
               .catch(function (err) { App.toast('⚠️ Serverga saqlanmadi: ' + err.message); });
             App.reload();
           });
@@ -115,7 +123,7 @@
 
   App.actions.editProfile = function () {
     var html =
-      '<div class="flex" style="margin-bottom:16px"><img id="pf-av" src="' + (ls('user_avatar', '') || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(ls('user_name', 'Y')) + '&background=3b91f0&color=fff') + '" style="width:56px;height:56px;border-radius:50%;object-fit:cover">' +
+      '<div class="flex" style="margin-bottom:16px"><img id="pf-av" src="' + (ls('user_avatar', '') || App.avatarUrl(ls('user_name', 'Y'))) + '" style="width:56px;height:56px;border-radius:50%;object-fit:cover">' +
       '<button class="btn sec sm" data-act="pickAvatar"><span data-icon="camera" data-icon-size="15"></span>Rasm</button></div>' +
       '<label class="field"><span>Ism</span><input class="input" id="set-name" value="' + App.esc(ls('user_name', '')) + '" placeholder="Ismingiz"></label>' +
       '<label class="field"><span>Shior (bio)</span><input class="input" id="set-bio" value="' + App.esc(ls('user_bio', '')) + '" placeholder="Maqsad sari olg\'a!"></label>' +
@@ -202,28 +210,200 @@
   };
 
   App.actions.setTheme = function (a) {
-    if (a.v === 'auto') { document.documentElement.removeAttribute('data-theme'); localStorage.setItem('app_theme', 'auto'); }
-    else { document.documentElement.setAttribute('data-theme', a.v); localStorage.setItem('app_theme', a.v); }
+    // Tanlov localStorage'ga yoziladi -> remote-storage uni serverga
+    // sinxronlaydi -> boshqa qurilmada bootstrap qaytadan qo'llaydi.
+    try { localStorage.setItem('app_theme', a.v); } catch (e) {}
+    App.applyTheme();   // data-theme + brauzer paneli rangi
     App.reload();
   };
 
-  App.actions.addDeadline = function () {
-    var html =
-      '<label class="field"><span>Nomi</span><input class="input" id="dl-n" placeholder="Masalan: IELTS"></label>' +
-      '<label class="field"><span>Boshlanish</span><input class="input" type="date" id="dl-s"></label>' +
-      '<label class="field"><span>Tugash</span><input class="input" type="date" id="dl-e"></label>' +
-      '<button class="btn" id="dl-save">Qo\'shish</button>';
-    var sh = App.sheet(html, { title: 'Yangi deadline' });
-    sh.querySelector('#dl-save').onclick = function () {
-      var n = sh.querySelector('#dl-n').value.trim(), s = sh.querySelector('#dl-s').value, e = sh.querySelector('#dl-e').value;
-      if (!n || !e) return App.toast('Nomi va tugash sanasi kerak');
-      var arr = dls(); arr.push({ id: 'dl_' + Date.now(), name: n, start: s, end: e, status: '' }); saveDls(arr);
-      App.closeSheet(); App.reload();
+  /* =========================================================
+     SESSIYA — o'quv jarayoni sozlamalari.
+     LMS (lms.tuit.uz) hisobi shu yerda ulanadi: parol SERVERDA shifrlangan
+     holda saqlanadi va hech qachon qaytarilmaydi (localStorage'ga ham
+     yozilmaydi — u brauzerga va sinxronga tushib ketardi).
+     Tortilgan darslar Kun hisobi va bosh sahifadagi "Bugungi reja"da
+     qo'lda kiritilgan kurs/ish vaqtlari bilan BIRGA ko'rinadi.
+     ========================================================= */
+  function renderSessiyaSub() {
+    var el = App.el('ss-sub'); if (!el) return;
+    App.call('lms_status').then(function (j) {
+      var e = App.el('ss-sub'); if (!e) return;
+      if (!j.connected) { e.textContent = 'LMS ulanmagan — bosib ulang'; return; }
+      var bits = [j.semester_name || 'semestr tanlanmagan'];
+      if (j.lessons) bits.push(j.lessons + ' ta dars');
+      if (j.last_error) bits.push('⚠️ ' + j.last_error);
+      e.textContent = bits.join(' · ');
+    }).catch(function () {});
+  }
+
+  App.actions.sessiya = function () {
+    var sh = App.sheet('<div id="ss-body"><div class="load-wrap"><div class="spinner"></div></div></div>',
+      { title: 'Sessiya' });
+    App.icons(sh);
+    loadSessiya();
+  };
+
+  function loadSessiya() {
+    App.call('lms_status').then(drawSessiya).catch(function (e) {
+      var b = App.el('ss-body');
+      if (b) b.innerHTML = App.empty({ icon: 'alert', title: 'Yuklanmadi', text: e.message });
+    });
+  }
+
+  function drawSessiya(st) {
+    var box = App.el('ss-body'); if (!box) return;
+    var sems = st.semesters || [];
+
+    if (!st.connected) {
+      box.innerHTML =
+        '<p class="muted" style="font-size:12.5px;margin:0 0 14px;line-height:1.6">' +
+        'LMS (lms.tuit.uz) hisobingizni ulasangiz, dars jadvali avtomatik tortiladi va ' +
+        'Kun hisobida o\'zingiz qo\'shgan kurs/ish vaqtlari bilan birga chiqadi.<br>' +
+        '<b>Parol serverda shifrlanadi</b> va brauzerga hech qachon qaytarilmaydi.</p>' +
+        '<label class="field"><span>Login (talaba ID)</span>' +
+        '<input class="input" id="ss-login" autocomplete="username" placeholder="masalan: 1BK00000"></label>' +
+        '<label class="field"><span>Parol</span>' +
+        '<input class="input" id="ss-pass" type="password" autocomplete="current-password"></label>' +
+        '<button class="btn" id="ss-connect">Ulash va jadvalni tortish</button>';
+      box.querySelector('#ss-connect').onclick = function () {
+        var login = box.querySelector('#ss-login').value.trim();
+        var pass = box.querySelector('#ss-pass').value;
+        if (!login || !pass) return App.toast('Login va parolni kiriting');
+        var btn = box.querySelector('#ss-connect');
+        btn.disabled = true; btn.textContent = 'Ulanmoqda...';
+        App.call('lms_connect', { login: login, password: pass }).then(function (j) {
+          App.toast('✅ Ulandi — ' + (j.synced || 0) + ' ta dars');
+          drawSessiya(j);
+          renderSessiyaSub();
+          if (window.LmsDay) { LmsDay.setConnected(true); LmsDay.clear(); }
+        }).catch(function (e) {
+          App.toast('⚠️ ' + e.message);
+          btn.disabled = false; btn.textContent = 'Ulash va jadvalni tortish';
+        });
+      };
+      return;
+    }
+
+    box.innerHTML =
+      '<div class="list-row" style="border-bottom:none">' +
+      '<span class="li-ic" style="background:var(--success-soft);color:var(--success)" data-icon="check" data-icon-size="15"></span>' +
+      '<div class="li-main"><div class="li-title">' + App.esc(st.student_name || st.login) + '</div>' +
+      '<div class="li-sub">' + App.esc(st.login) + ' · ' + (st.lessons || 0) + ' ta dars saqlangan</div></div></div>' +
+      (st.last_sync ? '<p class="muted" style="font-size:11.5px;margin:-4px 1px 12px">Oxirgi yangilash: ' + App.esc(st.last_sync) + '</p>' : '') +
+      (!st.lessons && !st.last_error
+        ? '<p class="muted" style="font-size:12px;margin:-4px 1px 12px;line-height:1.55">' +
+          'LMS tizimiga ulangan, ammo hozirda darslar topilmadi (ta\'til bo\'lishi mumkin). ' +
+          'O\'zingiz kiritgan mashg\'ulot va ishlar qoladi.</p>'
+        : '') +
+      (st.last_error ? '<p style="font-size:12px;color:var(--danger);margin:-4px 1px 12px">⚠️ ' + App.esc(st.last_error) + '</p>' : '') +
+
+      '<label class="list-row" style="cursor:pointer">' +
+      '<div class="li-main"><div class="li-title">Avtomatik yangilash</div>' +
+      '<div class="li-sub">Kun hisobi ochilganda kuniga bir marta jadvalni yangilaydi</div></div>' +
+      '<input type="checkbox" id="ss-auto" style="width:20px;height:20px;accent-color:var(--success)"' +
+      (st.auto_sync ? ' checked' : '') + '></label>' +
+
+      '<button class="btn" id="ss-sync" style="margin-top:6px">Jadvalni hozir yangilash</button>' +
+
+      '<div class="list-label" style="margin-top:18px">Darsdan tashqari</div>' +
+      '<button class="list-row" data-act="sessiyaKun">' +
+      '<span class="li-ic" data-icon="calendar" data-icon-size="15"></span>' +
+      '<div class="li-main"><div class="li-title">Kurs va ish vaqtlarini qo\'shish</div>' +
+      '<div class="li-sub">Kun hisobida: ish, mustaqil o\'qish, sport, uyqu — vaqti bilan</div></div>' +
+      '<span class="li-chev" data-icon="arrowLeft" data-icon-size="16" style="transform:rotate(180deg)"></span></button>' +
+
+      '<button class="btn ghost" id="ss-off" style="margin-top:14px;color:var(--danger);border-color:var(--danger-soft)">Hisobni uzish</button>';
+    App.icons(box);
+
+    var semSel = box.querySelector('#ss-sem');
+    box.querySelector('#ss-sync').onclick = function () {
+      var btn = box.querySelector('#ss-sync');
+      btn.disabled = true; btn.textContent = 'Yangilanmoqda...';
+      App.call('lms_sync', semSel ? { semester_id: semSel.value } : {}).then(function (j) {
+        App.toast('✅ ' + (j.synced || 0) + ' ta dars yangilandi');
+        if (window.LmsDay) { LmsDay.setConnected(true); LmsDay.clear(); }
+        drawSessiya(j); renderSessiyaSub();
+      }).catch(function (e) {
+        App.toast('⚠️ ' + e.message);
+        btn.disabled = false; btn.textContent = 'Jadvalni hozir yangilash';
+      });
     };
+    box.querySelector('#ss-auto').onchange = function () {
+      App.call('lms_options', { auto_sync: this.checked }).catch(function (e) { App.toast('⚠️ ' + e.message); });
+    };
+    box.querySelector('#ss-off').onclick = function () {
+      App.confirm('LMS hisobi uziladi va tortilgan darslar o\'chiriladi. Qo\'lda kiritgan mashg\'ulotlaringizga tegilmaydi.', function () {
+        App.call('lms_disconnect').then(function () {
+          // Uzilgach `lmsDup` bayroqlari e'tiborga olinmaydi — qo'lda kiritilgan
+          // dars jadvali avvalgidek to'liq qaytadi.
+          if (window.LmsDay) { LmsDay.setConnected(false); LmsDay.clear(); }
+          App.toast('Uzildi'); loadSessiya(); renderSessiyaSub();
+        }).catch(function (e) { App.toast('⚠️ ' + e.message); });
+      }, { danger: true, yes: 'Uzish' });
+    };
+  }
+
+  App.actions.sessiyaKun = function () { App.closeSheet(); App.go('kun'); };
+
+  /* Qo'shish va tahrirlash bitta oyna: `a.id` bo'lsa — tahrirlash. */
+  function deadlineSheet(existing) {
+    var d = existing || { name: '', start: '', end: '', status: '' };
+    var html =
+      '<label class="field"><span>Nomi</span><input class="input" id="dl-n" placeholder="Masalan: IELTS" value="' + App.esc(d.name || '') + '"></label>' +
+      '<label class="field"><span>Boshlanish</span><input class="input" type="date" id="dl-s" value="' + App.esc(d.start || '') + '"></label>' +
+      '<label class="field"><span>Tugash</span><input class="input" type="date" id="dl-e" value="' + App.esc(d.end || '') + '"></label>' +
+      (existing
+        ? '<label class="list-row" style="cursor:pointer"><div class="li-main"><div class="li-title">Bajarildi</div>' +
+          '<div class="li-sub">Belgilansa, ro\'yxatda va grafikda faol deadline sifatida chiqmaydi</div></div>' +
+          '<input type="checkbox" id="dl-done" style="width:20px;height:20px;accent-color:var(--success)"' +
+          (d.status === 'done' ? ' checked' : '') + '></label>'
+        : '') +
+      '<button class="btn" id="dl-save">' + (existing ? 'Saqlash' : 'Qo\'shish') + '</button>' +
+      (existing
+        ? '<button class="btn ghost" id="dl-del" style="margin-top:10px;color:var(--danger);border-color:var(--danger-soft)">O\'chirish</button>'
+        : '');
+    var sh = App.sheet(html, { title: existing ? d.name : 'Yangi deadline' });
+    App.icons(sh);
+
+    sh.querySelector('#dl-save').onclick = function () {
+      var n = sh.querySelector('#dl-n').value.trim();
+      var s = sh.querySelector('#dl-s').value, e = sh.querySelector('#dl-e').value;
+      if (!n || !e) return App.toast('Nomi va tugash sanasi kerak');
+      if (s && e && s > e) return App.toast('Boshlanish sanasi tugashdan keyin bo\'lmasin');
+      var doneEl = sh.querySelector('#dl-done');
+      var arr = dls();
+      if (existing) {
+        arr = arr.map(function (x) {
+          return x.id === existing.id
+            ? { id: x.id, name: n, start: s, end: e, status: (doneEl && doneEl.checked) ? 'done' : '' }
+            : x;
+        });
+      } else {
+        arr.push({ id: 'dl_' + Date.now(), name: n, start: s, end: e, status: '' });
+      }
+      saveDls(arr);
+      App.closeSheet(); App.toast('✅ Saqlandi'); App.reload();
+    };
+
+    var delBtn = sh.querySelector('#dl-del');
+    if (delBtn) delBtn.onclick = function () {
+      App.confirm('"' + d.name + '" deadline o\'chiriladi.', function () {
+        saveDls(dls().filter(function (x) { return x.id !== existing.id; }));
+        App.closeSheet(); App.reload();
+      }, { danger: true, yes: 'O\'chirish' });
+    };
+  }
+
+  App.actions.addDeadline = function () { deadlineSheet(null); };
+  App.actions.editDeadline = function (a) {
+    var d = dls().filter(function (x) { return x.id === a.id; })[0];
+    if (d) deadlineSheet(d);
   };
-  App.actions.delDeadline = function (a) {
-    saveDls(dls().filter(function (d) { return d.id !== a.id; })); App.reload();
-  };
+  /* Eslatma: deadline o'chirish `deadlineSheet` ichidagi "O'chirish" tugmasi
+     orqali (tasdiqlash bilan) bajariladi. Ilgari shu yerda tasdiqlashsiz
+     `delDeadline` action ham turardi — hech qayerdan chaqirilmasdi, shuning
+     uchun olib tashlandi (bitta ish uchun ikkita yo'l qolmasin). */
 
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function countdownText(target) {
@@ -257,11 +437,21 @@
     var arr = dls();
     if (!arr.length) { box.innerHTML = '<p class="muted" style="font-size:13px;margin:0 1px 4px">Deadline yo\'q</p>'; return; }
     box.innerHTML = arr.map(function (d) {
-      return '<div class="list-row"><div class="li-ic" style="background:var(--warn);color:#3a2a08"><span data-icon="calendar" data-icon-size="15"></span></div>' +
-        '<div class="li-main"><div class="li-title">' + App.esc(d.name) + '</div><div class="li-sub dl-count" id="dlc-' + d.id + '"></div></div>' +
-        '<button class="icon-btn ghost" style="width:28px;height:28px" data-act="delDeadline" data-arg=\'' + App.arg({ id: d.id }) + '\'><span data-icon="trash" data-icon-size="14"></span></button></div>';
+      var done = d.status === 'done';
+      return '<div class="list-row"' + (done ? ' style="opacity:.55"' : '') + '>' +
+        '<div class="li-ic" style="background:' + (done ? 'var(--success)' : 'var(--warn)') + ';color:#3a2a08">' +
+        '<span data-icon="' + (done ? 'check' : 'calendar') + '" data-icon-size="15"></span></div>' +
+        '<button class="li-main li-btn" data-act="editDeadline" data-arg=\'' + App.arg({ id: d.id }) + '\'>' +
+        '<div class="li-title"' + (done ? ' style="text-decoration:line-through"' : '') + '>' + App.esc(d.name) + '</div>' +
+        (done
+          ? '<div class="li-sub">Bajarildi</div>'
+          : '<div class="li-sub dl-count" id="dlc-' + d.id + '"></div>') +
+        '</button>' +
+        App.dlDates(d) +
+        '<button class="icon-btn ghost" style="width:28px;height:28px" data-act="editDeadline" data-arg=\'' + App.arg({ id: d.id }) + '\'><span data-icon="edit" data-icon-size="14"></span></button></div>';
     }).join('');
     App.icons(box);
-    arr.forEach(function (d) { startCountdown(d.id, new Date(d.end)); });
+    // Sanoq faqat bajarilmaganlarida ketadi (bajarilganida matn o'rnini egallagan)
+    arr.forEach(function (d) { if (d.status !== 'done') startCountdown(d.id, new Date(d.end)); });
   }
 })();

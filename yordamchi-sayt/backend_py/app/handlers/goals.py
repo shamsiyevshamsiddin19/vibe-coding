@@ -10,6 +10,15 @@ from ..errors import ApiError, success
 from ..owner import owner_context
 from .common import s, to_int
 
+# Maqsad hajmi — halqa shu uchtaga bo'linadi (LeetCode uslubi).
+GOAL_SIZES = {"katta", "orta", "kichik"}
+DEFAULT_SIZE = "orta"
+
+
+def clean_size(value) -> str:
+    v = s(value).lower()
+    return v if v in GOAL_SIZES else DEFAULT_SIZE
+
 
 def get_global_data(request: Request, body: dict):
     ctx = owner_context(request)
@@ -36,7 +45,7 @@ def get_global_data(request: Request, body: dict):
     ]
 
     goal_rows = db.fetch_all(
-        "SELECT id, folder_id, section_id, text, completed FROM goals "
+        "SELECT id, folder_id, section_id, text, completed, completed_at, size FROM goals "
         "WHERE owner_type = :ot AND owner_key = :ok "
         "ORDER BY folder_id IS NOT NULL, folder_id, section_id IS NOT NULL, section_id, sort_order, id",
         {"ot": ctx["owner_type"], "ok": ctx["owner_key"]},
@@ -48,6 +57,8 @@ def get_global_data(request: Request, body: dict):
             "section_id": "default" if not r["section_id"] else int(r["section_id"]),
             "text": r["text"],
             "completed": int(r["completed"]),
+            "completed_at": r["completed_at"].isoformat() if r["completed_at"] else None,
+            "size": clean_size(r["size"]),
         }
         for r in goal_rows
     ]
@@ -210,27 +221,48 @@ def add_goal(request: Request, body: dict):
         )
 
     new_id = db.execute_returning_id(
-        "INSERT INTO goals (owner_type, owner_key, folder_id, section_id, text, completed, sort_order) "
-        "VALUES (:ot, :ok, :fid, :sid, :t, 0, :so)",
+        "INSERT INTO goals (owner_type, owner_key, folder_id, section_id, text, completed, sort_order, size) "
+        "VALUES (:ot, :ok, :fid, :sid, :t, 0, :so, :size)",
         {
             "ot": ctx["owner_type"], "ok": ctx["owner_key"], "fid": folder_id, "sid": section_id,
-            "t": text_val, "so": int(sort_order or 0),
+            "t": text_val, "so": int(sort_order or 0), "size": clean_size(body.get("size")),
         },
     )
     return success({"id": new_id})
 
 
 def toggle_goal(request: Request, body: dict):
+    """Maqsad holatini almashtiradi.
+
+    MUHIM: bir xil nomli maqsad bir nechta jild/bo'limda turishi mumkin
+    (masalan "Kitob o'qish" ham "Shaxsiy", ham "O'quv" jildida). Foydalanuvchi
+    ularni BITTA ish deb hisoblaydi, shuning uchun bittasi belgilansa —
+    o'sha nomdagi hammasi birga o'zgaradi. Nom bo'sh joy va katta-kichik
+    harf farqisiz solishtiriladi.
+    """
     goal_id = to_int(body.get("id"))
     if goal_id <= 0:
         raise ApiError("Maqsad ID kelmadi.")
     ctx = owner_context(request)
-    db.execute(
-        "UPDATE goals SET completed = CASE WHEN completed = 1 THEN 0 ELSE 1 END "
-        "WHERE id = :id AND owner_type = :ot AND owner_key = :ok",
+
+    row = db.fetch_one(
+        "SELECT text, completed FROM goals WHERE id = :id AND owner_type = :ot AND owner_key = :ok",
         {"id": goal_id, "ot": ctx["owner_type"], "ok": ctx["owner_key"]},
     )
-    return success()
+    if not row:
+        raise ApiError("Maqsad topilmadi.", 404)
+
+    yangi = 0 if int(row["completed"]) == 1 else 1
+
+    db.execute(
+        "UPDATE goals SET completed = :c, "
+        "completed_at = CASE WHEN :c = 1 THEN CURRENT_TIMESTAMP ELSE NULL END, "
+        "updated_at = CURRENT_TIMESTAMP "
+        "WHERE owner_type = :ot AND owner_key = :ok "
+        "AND lower(btrim(text)) = lower(btrim(:t))",
+        {"c": yangi, "t": row["text"], "ot": ctx["owner_type"], "ok": ctx["owner_key"]},
+    )
+    return success({"completed": yangi})
 
 
 def edit_goal(request: Request, body: dict):
@@ -239,9 +271,16 @@ def edit_goal(request: Request, body: dict):
     if goal_id <= 0 or text_val == "":
         raise ApiError("Maqsadni tahrirlash uchun ma'lumot yetarli emas.")
     ctx = owner_context(request)
+    p = {"t": text_val, "id": goal_id, "ot": ctx["owner_type"], "ok": ctx["owner_key"]}
+    # `size` faqat yuborilgan bo'lsa yangilanadi — eski chaqiruvlar (matn tahriri)
+    # hajmni beixtiyor standart qiymatga qaytarib yubormasin.
+    extra = ""
+    if body.get("size") is not None:
+        extra = ", size = :size"
+        p["size"] = clean_size(body.get("size"))
     db.execute(
-        "UPDATE goals SET text = :t WHERE id = :id AND owner_type = :ot AND owner_key = :ok",
-        {"t": text_val, "id": goal_id, "ot": ctx["owner_type"], "ok": ctx["owner_key"]},
+        f"UPDATE goals SET text = :t{extra} WHERE id = :id AND owner_type = :ot AND owner_key = :ok",
+        p,
     )
     return success()
 

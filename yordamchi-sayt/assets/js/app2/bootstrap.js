@@ -4,13 +4,17 @@
 
   var NAV = [
     { v: 'home', n: 'Bosh', ic: 'home' },
+    { v: 'goals', n: 'Maqsadlar', ic: 'check' },
+    { v: 'stats', n: 'Statistika', ic: 'chart' },
+    { v: 'tarix', n: 'Tarix', ic: 'clock' },
     { v: 'fanlar', n: 'Testlar', ic: 'book' },
-    { v: 'languages', n: 'Tillar', ic: 'globe' },
+    { v: 'languages', n: 'Learn', ic: 'globe' },
     { v: 'coding', n: 'Coding', ic: 'code' },
     { v: 'sport', n: 'Sport', ic: 'trophy' },
     { v: 'boost', n: 'Boostday', ic: 'message' },
     { v: 'kun', n: 'Kun hisobi', ic: 'calendar' },
     { v: 'arxiv', n: 'Arxiv', ic: 'archive' },
+    { v: 'qoidalar', n: 'Qoidalar', ic: 'file' },
     { v: 'settings', n: 'Sozlamalar', ic: 'settings' }
   ];
   var BOTTOM = ['home', 'fanlar', 'languages', 'sport', '__more__'];
@@ -37,6 +41,21 @@
       return '<button class="side-link" data-nav="' + i.v + '" data-act="go" data-arg=\'' + App.arg({ v: i.v }) + '\'>' +
         '<span data-icon="' + i.ic + '" data-icon-size="20"></span>' + i.n + '</button>';
     }).join('');
+    
+    // Global harakat tugmalari
+    var pbtn = document.getElementById('global-pomo-btn');
+    if (!pbtn) {
+      pbtn = document.createElement('button');
+      pbtn.id = 'global-pomo-btn';
+      pbtn.className = 'side-link';
+      pbtn.style.marginTop = 'auto';
+      pbtn.style.background = 'var(--accent-soft)';
+      pbtn.style.color = 'var(--accent)';
+      pbtn.innerHTML = '<span data-icon="clock" data-icon-size="20"></span>Pomodoro';
+      pbtn.setAttribute('data-act', 'pomoToggle');
+      el.appendChild(pbtn);
+    }
+    
     App.icons(el);
   }
 
@@ -72,11 +91,34 @@
   };
   App.actions.goClose = function (a) { App.closeSheet(); App.go(a.v); };
 
+  /* Belgini serverga BIR MARTA ko'chirish (o'zini o'zi tuzatish).
+     Muammo: `save_app_icon` chaqiruvi kodga keyinroq qo'shilgan, shuning uchun
+     undan OLDIN belgi qo'ygan foydalanuvchida rasm faqat localStorage'da qoladi —
+     serverdagi PNG va manifest esa eski holicha turadi (telefon bosh ekranidagi
+     yorliqda va yangi qurilmada eski belgi ko'rinadi). `app_icon_version` yo'qligi
+     aynan shu holatni bildiradi: bir marta yuboramiz va versiyani saqlaymiz. */
+  function syncIconToServer() {
+    try {
+      if (localStorage.getItem('app_icon_version')) return;         // allaqachon yuborilgan
+      var full = localStorage.getItem('app_custom_icon');
+      if (!full || full.indexOf('data:image/') !== 0) return;        // yuborishga narsa yo'q
+      App.call('save_app_icon', { icon: full })
+        .then(function (r) {
+          if (r && r.version) localStorage.setItem('app_icon_version', String(r.version));
+          App.applyAppIcon();
+        })
+        .catch(function () {});   // jimgina: bu fon vazifasi, foydalanuvchini bezovta qilmaydi
+    } catch (e) {}
+  }
+
   function boot() {
     // Serverdan sinxronlangan belgini hamma joyga qo'llaymiz (yangi qurilmada ham to'g'ri chiqsin)
     App.applyAppIcon();
+    syncIconToServer();
     buildSidebar();
     buildBottom();
+    bindDial();
+    bindSwipe();
     App.boot();
     var sp = document.getElementById('splash');
     if (sp) { sp.classList.add('gone'); setTimeout(function () { sp.remove(); }, 350); }
@@ -94,17 +136,166 @@
     }
   }
 
+  /* ============================================================
+     BO'LIMLAR ORASIDA JEST BILAN O'TISH
+     Ikki yo'l, bitta ro'yxat ustida ishlaydi (`visibleNav()` tartibi):
+       1) Pastki paneldagi tugmani BOSIB TURIB barmoqni o'ngga/chapga surish
+          — iPhone kamerasidagi rejim g'ildiragi kabi (g'ildirak ko'rinadi,
+          qo'yib yuborilganda tanlangan bo'limga o'tadi);
+       2) Sahifani o'ngga/chapga SURISH — Telegram jildlari kabi.
+     ============================================================ */
+
+  function navList() { return visibleNav().map(function (i) { return i.v; }); }
+
+  /* Joriy bo'lim ro'yxatdagi qaysi o'rinda. Ko'rinish o'z `nav` nomiga ega
+     bo'lishi mumkin (masalan `reading_doc` -> `languages`), shuning uchun
+     avval faol tugmadan o'qiymiz. */
+  function currentIndex(list) {
+    var active = document.querySelector('.botnav a.active, .side-link.active');
+    var v = active ? active.getAttribute('data-nav') : null;
+    if (!v || v === '__more__') v = App.currentView && App.currentView();
+    var i = list.indexOf(v);
+    return i < 0 ? 0 : i;
+  }
+
+  function goIndex(list, i) {
+    i = Math.max(0, Math.min(list.length - 1, i));
+    if (list[i]) App.go(list[i]);
+  }
+
+  /* ---------- 1) Pastki paneldagi g'ildirak ---------- */
+  var DIAL = null;   // { list, start, idx, startIdx, el, moved }
+  var STEP = 44;     // necha px surilganda bitta bo'lim almashadi
+
+  function dialOverlay() {
+    var el = document.getElementById('nav-dial');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'nav-dial';
+      el.className = 'nav-dial';
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  function paintDial() {
+    if (!DIAL) return;
+    var el = DIAL.el, list = DIAL.list;
+    el.innerHTML = '<div class="nd-strip">' + list.map(function (v, i) {
+      var item = NAV.find(function (x) { return x.v === v; }) || { n: v, ic: 'home' };
+      return '<div class="nd-item' + (i === DIAL.idx ? ' on' : '') + '">' +
+        '<span class="nd-ic" data-icon="' + item.ic + '" data-icon-size="20"></span>' +
+        '<span class="nd-n">' + App.esc(item.n) + '</span></div>';
+    }).join('') + '</div>';
+    App.icons(el);
+    // Tanlangan element markazga keladi
+    var strip = el.querySelector('.nd-strip');
+    var cur = el.querySelectorAll('.nd-item')[DIAL.idx];
+    if (strip && cur) {
+      strip.style.transform = 'translateX(' + (el.offsetWidth / 2 - cur.offsetLeft - cur.offsetWidth / 2) + 'px)';
+    }
+  }
+
+  function dialEnd(commit) {
+    if (!DIAL) return;
+    var d = DIAL; DIAL = null;
+    d.el.classList.remove('show');
+    setTimeout(function () { if (!DIAL && d.el.parentNode) d.el.remove(); }, 200);
+    if (commit && d.moved && d.idx !== d.startIdx) goIndex(d.list, d.idx);
+  }
+
+  function bindDial() {
+    var nav = document.getElementById('botnav');
+    if (!nav || nav._dialBound) return;
+    nav._dialBound = true;
+
+    nav.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      var list = navList();
+      if (list.length < 2) return;
+      DIAL = {
+        list: list, startX: e.touches[0].clientX,
+        startIdx: currentIndex(list), idx: currentIndex(list),
+        el: dialOverlay(), moved: false
+      };
+    }, { passive: true });
+
+    nav.addEventListener('touchmove', function (e) {
+      if (!DIAL || e.touches.length !== 1) return;
+      var dx = e.touches[0].clientX - DIAL.startX;
+      if (!DIAL.moved) {
+        if (Math.abs(dx) < 12) return;      // oddiy bosishni buzmaymiz
+        DIAL.moved = true;
+        DIAL.el.classList.add('show');
+      }
+      // Surish YO'NALISHI: o'ngga -> ro'yxat bo'ylab oldinga
+      var next = DIAL.startIdx + Math.round(dx / STEP);
+      next = Math.max(0, Math.min(DIAL.list.length - 1, next));
+      if (next !== DIAL.idx) {
+        DIAL.idx = next;
+        if (navigator.vibrate) { try { navigator.vibrate(8); } catch (x) {} }
+      }
+      paintDial();
+      e.preventDefault();                    // sahifa siljimasin
+    }, { passive: false });
+
+    nav.addEventListener('touchend', function () { dialEnd(true); }, { passive: true });
+    nav.addEventListener('touchcancel', function () { dialEnd(false); }, { passive: true });
+  }
+
+  /* ---------- 2) Sahifani surish (Telegram jildlari kabi) ---------- */
+  function bindSwipe() {
+    var page = document.getElementById('page');
+    if (!page || page._swipeBound) return;
+    page._swipeBound = true;
+
+    var sx = 0, sy = 0, on = false, list = null;
+
+    /* Gorizontal siljiydigan yoki matn tanlanadigan joylarda ishlamasin —
+       aks holda heatmap lentasi, chiplar va inputlar buzilardi. */
+    function blocked(t) {
+      if (!t || !t.closest) return true;
+      if (t.closest('input,textarea,select,.sheet,.rd-pop,.rd-player')) return true;
+      var el = t;
+      while (el && el !== page) {
+        if (el.scrollWidth > el.clientWidth + 4) {
+          var ox = getComputedStyle(el).overflowX;
+          if (ox === 'auto' || ox === 'scroll') return true;
+        }
+        el = el.parentElement;
+      }
+      return false;
+    }
+
+    page.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1 || blocked(e.target)) { on = false; return; }
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+      on = true; list = navList();
+    }, { passive: true });
+
+    page.addEventListener('touchend', function (e) {
+      if (!on) return;
+      on = false;
+      var t = e.changedTouches[0];
+      var dx = t.clientX - sx, dy = t.clientY - sy;
+      // Aniq gorizontal harakat bo'lsagina: uzunligi yetarli va burchagi tor
+      if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
+      var i = currentIndex(list);
+      goIndex(list, dx < 0 ? i + 1 : i - 1);   // chapga surish -> keyingisi
+    }, { passive: true });
+  }
+
   // Avval kirish tekshiriladi — kirilmagan bo'lsa ilova umuman ochilmaydi.
   function start() {
     // 1) Darhol: localStorage'da belgi bo'lsa qo'llaymiz (sidebar inline skriptdan keyin turadi).
+    App.applyTheme();
     App.applyAppIcon();
-    App.applyFontSize();
     // 2) Serverdan sinxronlash tugagach yana qo'llaymiz — yangi qurilmada localStorage
     //    dastlab bo'sh bo'ladi, belgi faqat shundan keyin paydo bo'ladi. Bu kirish
     //    ekranida ham to'g'ri chiqishi uchun auth'dan mustaqil ishlaydi.
     if (window.RemoteStorageBridge && window.RemoteStorageBridge.whenReady) {
       window.RemoteStorageBridge.whenReady()
-        .then(function () { App.applyAppIcon(); App.applyFontSize(); })
+        .then(function () { App.applyTheme(); App.applyAppIcon(); })
         .catch(function () {});
     }
     if (window.Auth && window.Auth.gate) window.Auth.gate(afterAuth);
@@ -117,7 +308,67 @@
   // Service worker
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('service-worker.js?v=20260727n1').catch(function () {});
+      navigator.serviceWorker.register('service-worker.js').then(function (reg) {
+        /* Kesh yetarlimi? Brauzer joy bo'shatish uchun uni tozalab yuborishi
+           mumkin — bunda ilova internetsiz ochilmay qoladi. Kam bo'lsa SW dan
+           qayta to'ldirishni so'raymiz (yetarli bo'lsa hech narsa qilmaymiz —
+           har yuklanishda fayllarni bekorga qayta yuklamaslik uchun). */
+        if (!window.caches) return;
+        caches.keys().then(function (keys) {
+          var shell = keys.filter(function (k) { return k.indexOf('yordamchi-shell') === 0; })[0];
+          function ask() {
+            var sw = reg.active || navigator.serviceWorker.controller;
+            if (sw) sw.postMessage('precache');
+          }
+          if (!shell) { ask(); return; }
+          caches.open(shell).then(function (c) { return c.keys(); })
+            .then(function (list) { if (list.length < 10) ask(); });
+        }).catch(function () {});
+      }).catch(function () {});
     });
   }
+
+  /* ---------------- Oflayn rejim ----------------
+     Ilova internetsiz ham ishlaydi: app shell va oxirgi o'qilgan ma'lumot
+     service worker keshida, mahalliy o'zgarishlar esa localStorage'da
+     (remote-storage ko'prigi ularni navbatga qo'yib, ulanish tiklanganda
+     serverga yuboradi). Bu yerda faqat ikki narsa:
+       1) foydalanuvchiga holatni ko'rsatish,
+       2) ulanish qaytganda navbatni DARHOL bo'shatish. */
+
+  function offlineBar() {
+    var el = document.getElementById('offline-bar');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'offline-bar';
+      el.innerHTML = '<span class="ob-dot"></span><span class="ob-t"></span>';
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  function showOffline() {
+    var el = offlineBar();
+    el.querySelector('.ob-t').textContent = 'Internet yo\'q — oflayn rejim';
+    el.classList.remove('back');
+    el.classList.add('show');
+  }
+
+  function showBack() {
+    var el = offlineBar();
+    el.querySelector('.ob-t').textContent = 'Internet tiklandi — sinxronlanmoqda';
+    el.classList.add('show', 'back');
+    // Navbatdagi o'zgarishlarni darhol yuboramiz (ilgari faqat sahifa
+    // yashirilganda/yopilganda yuborilardi — ulanish qaytgani sezilmasdi).
+    try {
+      if (window.RemoteStorageBridge && window.RemoteStorageBridge.flush) {
+        window.RemoteStorageBridge.flush();
+      }
+    } catch (e) {}
+    setTimeout(function () { el.classList.remove('show'); }, 2600);
+  }
+
+  window.addEventListener('offline', showOffline);
+  window.addEventListener('online', showBack);
+  if (!navigator.onLine) showOffline();
 })();

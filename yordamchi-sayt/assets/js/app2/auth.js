@@ -92,7 +92,21 @@
   /* --- Chiqish --- */
   App.actions.logout = function () {
     App.confirm('Tizimdan chiqasizmi?', function () {
-      post({ amal: 'chiqish' }).catch(function () {}).then(function () { location.reload(); });
+      /* Oflayn rejim uchun API javoblari service worker keshida saqlanadi
+         (maqsad, lug'at, mavzular va h.k.). Chiqishda uni ham tozalaymiz —
+         aks holda chiqqandan keyin ham internetsiz holatda eski shaxsiy
+         ma'lumot ko'rinib qolardi. */
+      var clearData = (window.caches && caches.keys)
+        ? caches.keys().then(function (keys) {
+            return Promise.all(keys
+              .filter(function (k) { return k.indexOf('yordamchi-data') === 0; })
+              .map(function (k) { return caches.delete(k); }));
+          }).catch(function () {})
+        : Promise.resolve();
+
+      post({ amal: 'chiqish' }).catch(function () {})
+        .then(function () { return clearData; })
+        .then(function () { location.reload(); });
     }, { yes: 'Chiqish' });
   };
 
