@@ -2,8 +2,8 @@
 
 Kodda hech qanday token/parol/ID qattiq yozilmagan: hammasi `.env` orqali
 beriladi (namuna uchun `.env.example` ga qarang). DB_* qiymatlari saytning
-`backend_py/.env` dagi DB_* bilan bir xil bo'lishi kerak — ikkalasi bitta
-PostgreSQL bazasidan foydalanadi.
+`Yordamchisayt/backend_py/.env` dagi DB_* bilan bir xil bo'lishi kerak —
+ikkalasi bitta PostgreSQL bazasidan foydalanadi.
 """
 
 from __future__ import annotations
@@ -45,16 +45,16 @@ def _admin_ids() -> list[int]:
 
 class Settings:
     BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
-    BOT_USERNAME: str = os.getenv("BOT_USERNAME", "")
+    BOT_USERNAME: str = os.getenv("BOT_USERNAME", "boostdaybot")
     BOT_ID: int = _int("BOT_ID", 0)
     ADMIN_IDS: list[int] = _admin_ids()
     WEBHOOK_SECRET: str = os.getenv("WEBHOOK_SECRET", "")
-    # Sayt backend'i initData'siz murojaat qilganda talab qilinadigan maxfiy kalit.
+    # Sayt (y.wstore.uz) initData'siz murojaat qilganda talab qilinadigan maxfiy kalit.
     # Bo'sh bo'lsa — initData'siz murojaat UMUMAN qabul qilinmaydi (xavfsiz default).
     SITE_SECRET: str = os.getenv("SITE_SECRET", "")
     WEB_APP_URL: str = os.getenv("WEB_APP_URL", "")
     # Per-user Telegram Mini App manzili (bot tugmasi va menu shu yerni ochadi).
-    MINIAPP_URL: str = os.getenv("MINIAPP_URL", "")
+    MINIAPP_URL: str = os.getenv("MINIAPP_URL", "https://y.wstore.uz/boost/app")
 
     TIMEZONE: str = os.getenv("TIMEZONE", "Asia/Tashkent")
 

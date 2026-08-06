@@ -5,11 +5,14 @@ from __future__ import annotations
 import calendar
 import html
 import json
+import logging
 import re
 from datetime import datetime, timedelta
 
 from . import db
 from .config import settings
+
+logger = logging.getLogger("boostday")
 
 DT_FMT = "%Y-%m-%d %H:%M:%S"
 
@@ -26,6 +29,135 @@ def now_str() -> str:
 
 def today_str() -> str:
     return now().strftime("%Y-%m-%d")
+
+
+# --- Sport <-> Boostday bog'lanishi ---
+# Vazifa matni Sport bo'limidagi mashq nomiga mos kelsa, uning bajarilishi
+# activity_log'ga section='sport' bilan yoziladi — Sport bo'limi, Statistika va
+# Tarix hammasi bitta manbadan oziqlanadi.
+#
+# MUHIM (oldingi versiyadagi ikkita xato):
+#   1) `log_task_finished` HAR DOIM section='boostday' yozardi, sayt esa
+#      section='sport' bo'yicha qidirardi — Telegramda belgilangan mashq Sport
+#      bo'limiga HECH QACHON yetib bormasdi.
+#   2) "vazifa matni mashq nomi bilan AYNAN bir xil" deb hisoblangan edi, lekin
+#      haqiqiy ma'lumotda matn "21:31 - 21:40 | Klassik otjimaniya" ko'rinishida —
+#      vaqt prefiksi bor. Shuning uchun taqqoslashdan oldin NORMALLASHTIRILADI.
+#
+# Kanal mavzusi (`channel_topics`) bu yerda ishlatilmaydi: bitta kanalda ham
+# sport, ham boshqa (masalan rus tili) vazifalari bo'ladi, ya'ni kanal darajasi
+# vazifani ajratish uchun yetarli emas. Nom bo'yicha moslik aniq va per-vazifa.
+
+_TIME_PREFIX_RE = re.compile(r"^\s*\d{1,2}:\d{2}\s*[-–—]\s*\d{1,2}:\d{2}\s*\|\s*")
+
+# O'zbekcha matnda apostrof bir necha xil belgi bilan yoziladi (klaviatura,
+# nusxa-ko'chirish, avtomatik almashtirish). "To'pni" va "Toʻpni" — turli
+# belgilar, ular birxillashtirilmasa mashq nomi bilan mos kelmay qoladi.
+_APOS = str.maketrans({"ʻ": "'", "ʼ": "'", "‘": "'",
+                       "’": "'", "`": "'", "´": "'"})
+
+
+def normalize_task_name(text) -> str:
+    """Vazifa matnini taqqoslash uchun toza nomga keltiradi.
+
+    "21:31 - 21:40 | Klassik otjimaniya" -> "Klassik otjimaniya"
+    Apostrof turlari birxillashtiriladi, ketma-ket bo'shliqlar bittaga keladi.
+    """
+    s = _TIME_PREFIX_RE.sub("", str(text or "")).translate(_APOS)
+    return " ".join(s.split()).strip()
+
+
+def sport_exercise_name(task_text) -> str:
+    """Vazifa sport mashqiga mos kelsa uning KANONIK nomini, aks holda '' qaytaradi.
+
+    Kanonik nom muhim: activity_log'ga mashqning bazadagi nomi yoziladi, shunda
+    sayt tomoni uni to'g'ridan-to'g'ri taniydi (vaqt prefiksisiz, bir xil registr).
+    """
+    clean = normalize_task_name(task_text)
+    if not clean:
+        return ""
+    try:
+        row = db.one(
+            "SELECT name FROM sport_exercises WHERE lower(trim(name)) = lower(:n) LIMIT 1",
+            {"n": clean},
+        )
+    except Exception:  # noqa: BLE001 — sport jadvali bo'lmasa ham bot ishlayversin
+        logger.exception("sport_exercises so'rovi bajarilmadi")
+        return ""
+    return str(row["name"]) if row else ""
+def channel_topics(channel_id: str) -> list[str]:
+    if not channel_id:
+        return []
+    row = db.one("SELECT topics FROM user_channels WHERE channel_id = :c AND topics != '' LIMIT 1", {"c": channel_id})
+    if not row or not row.get("topics"):
+        return []
+    return [t.strip() for t in str(row["topics"]).split(",") if t.strip()]
+
+
+def group_name_for_index(groups: list, index: int) -> str:
+    """flatten_task_groups() bilan bir xil tartibda — index qaysi bo'limga tegishli ekanini topadi."""
+    i = 0
+    for g in groups:
+        n = len(g.get("tasks") or [])
+        if index < i + n:
+            return g.get("name") or ""
+        i += n
+    return ""
+
+
+def unlog_task_finished(task_text: str) -> None:
+    """Vazifa QAYTA OCHILGANDA bugungi jurnal yozuvini olib tashlaydi.
+
+    Nega kerak: sport vazifasi `activity_log`ga yoziladi va Sport bo'limi
+    "bugun bajarilganmi" degan savolga shu jadval orqali javob beradi.
+    Yozuv o'chirilmasa, Telegramda belgini olib tashlagan bilan ham mashq
+    saytda "bajarilgan" bo'lib turaverardi.
+    """
+    try:
+        sport = sport_exercise_name(task_text)
+        if not sport:
+            return          # sport bo'lmagan vazifa uchun tarix saqlanadi
+        db.run(
+            "DELETE FROM activity_log WHERE owner_type = 'global' AND owner_key = 'shared' "
+            "AND section = 'sport' AND object_name = :obj AND occurred_at >= CURRENT_DATE",
+            {"obj": sport[:255]},
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("activity_log yozuvini o'chirib bo'lmadi")
+
+
+def log_task_finished(plan: dict, task_text: str, group_name: str = "") -> None:
+    """Bajarilgan vazifani umumiy jurnalga yozadi.
+
+    Vazifa sport mashqi bo'lsa section='sport' (o'z sohasiga) yoziladi —
+    shunda Sport bo'limi, Statistika va Tarix uni bir xil ko'radi. Aks holda
+    section='boostday'. `meta.via` manbani saqlaydi.
+    """
+    try:
+        sport = sport_exercise_name(task_text)
+        section = "sport" if sport else "boostday"
+        obj = (sport or str(task_text or ""))[:255]
+
+        # Sport uchun kuniga BITTA yozuv: bir mashq Telegramdan ham, saytdan ham
+        # belgilanishi mumkin — statistikada ikki marta sanalmasligi kerak.
+        if section == "sport":
+            dup = db.one(
+                "SELECT 1 FROM activity_log WHERE owner_type = 'global' AND owner_key = 'shared' "
+                "AND section = 'sport' AND object_name = :obj AND occurred_at >= CURRENT_DATE LIMIT 1",
+                {"obj": obj},
+            )
+            if dup:
+                return
+
+        db.log_activity(section, object_name=obj, amount=1, unit="vazifa",
+                         meta=json.dumps({
+                             "plan_type": plan.get("plan_type"),
+                             "via": "boostday",
+                             "group": group_name or "Umumiy",
+                             "task": normalize_task_name(task_text) if sport else "",
+                         }, ensure_ascii=False))
+    except Exception:  # noqa: BLE001
+        logger.exception("activity_log yozib bo'lmadi (plan_id=%s)", plan.get("id"))
 
 
 def date_str(value) -> str:
@@ -109,11 +241,11 @@ def escape_html(text: str) -> str:
 
 
 def bot_signature() -> str:
-    """Post oxiridagi bot imzosi (masalan "@mening_botim").
+    """Post oxiridagi bot imzosi (masalan "@boostdaybot").
 
-    Bot useri `.env` dagi BOT_USERNAME dan olinadi — kodda qattiq yozilmagan,
+    Bot useri `.env` dagi BOT_USERNAME dan olinadi — kodda QATTIQ YOZILMAYDI,
     shuning uchun loyihani boshqa bot uchun ishlatganda hech narsani
-    tahrirlash shart emas. BOT_USERNAME berilmasa imzo umuman qo'shilmaydi.
+    tahrirlash shart emas. BOT_USERNAME bo'sh bo'lsa imzo umuman qo'shilmaydi.
     """
     username = (settings.BOT_USERNAME or "").strip().lstrip("@")
     return f"@{username}" if username else ""

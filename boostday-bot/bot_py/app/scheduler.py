@@ -34,6 +34,8 @@ def run_all() -> None:
     run_reminders(now_str)
     run_challenge_plans(today, now_str)
     run_daily_todo_posts(today, now_str)
+    run_habit_reminders(n)
+    run_habits_standalone_if_needed(n)
     run_calendar_posts(today, now_str)
     run_super_todo_alerts(now_str)
     run_daily_reports_if_needed(n)
@@ -179,13 +181,141 @@ def run_daily_todo_posts(today: str, now_str: str) -> None:
         last_run_date = str(plan["last_run"])[:10] if plan.get("last_run") else ""
         if last_run_date != today:
             reset_task_statuses(flatten_task_groups(groups))
-        response = send_message(plan["channel_id"], build_todo_text(groups, "Har kungi rejalar"),
+        # Kunlik odatlar shu xabarga ALOHIDA bo'lim bo'lib qo'shiladi.
+        from .webapp import habits_text_block
+        body = build_todo_text(groups, "Har kungi rejalar") + habits_text_block(
+            int(plan.get("owner_id") or 0), _parse(now_str))
+        response = send_message(plan["channel_id"], body,
                                 todo_keyboard(int(plan["id"]), groups, plan["plan_type"]))
         message_id = (response or {}).get("result", {}).get("message_id")
         db.run("UPDATE plans SET tasks = :t, message_id = :mid, last_run = :n, next_run_at = :nra, updated_at = :n WHERE id = :id",
                {"t": encode_task_groups(groups), "mid": message_id, "n": now_str,
                 "nra": next_daily_run_after(plan["time"], _parse(now_str)), "id": plan["id"]})
         add_sent_log(int(plan["id"]), now_str, "daily_todo")
+
+
+def run_habit_reminders(n: datetime) -> None:
+    """Kunlik odatlar uchun oldindan ogohlantirish.
+
+    Har odatda `remind` maydonida daqiqalar ro'yxati bo'ladi (masalan
+    `60,30,15,5`). Cron har DAQIQADA ishlagani uchun aniq mos kelgan
+    daqiqada bitta xabar yuboriladi; `habit_sent` jadvali takror
+    yuborilishining oldini oladi (UNIQUE cheklov bilan).
+
+    `offset_min = 0` — "vaqti bo'ldi" xabari.
+    Allaqachon bajarilgan (belgilangan) odat uchun eslatma YUBORILMAYDI.
+    """
+    from .webapp import habit_mode_matches      # aylanma importdan qochish
+
+    if not db.table_exists("habits"):
+        return
+    today = n.strftime("%Y-%m-%d")
+    rows = db.all_(
+        "SELECT id, owner_id, name, at_time, week_mode, remind, note "
+        "FROM habits WHERE is_deleted = 0 AND is_active = 1")
+    if not rows:
+        return
+
+    done = {int(r["habit_id"]) for r in
+            db.all_("SELECT habit_id FROM habit_log WHERE done_date = :d", {"d": today})}
+
+    for h in rows:
+        hid = int(h["id"])
+        if hid in done:
+            continue
+        if not habit_mode_matches(h["week_mode"], n):
+            continue
+
+        try:
+            hh, mm = str(h["at_time"]).split(":")
+            target = n.replace(hour=int(hh), minute=int(mm), second=0, microsecond=0)
+        except (ValueError, TypeError):
+            continue
+
+        # Necha daqiqa qoldi (manfiy bo'lsa vaqt o'tib ketgan)
+        left = int((target - n).total_seconds() // 60)
+        offsets = [0]
+        for part in str(h["remind"] or "").split(","):
+            part = part.strip()
+            if part.isdigit():
+                offsets.append(int(part))
+        if left not in offsets:
+            continue
+
+        # Takror yuborilmasin
+        already = db.one(
+            "SELECT id FROM habit_sent WHERE habit_id=:h AND sent_date=:d AND offset_min=:o",
+            {"h": hid, "d": today, "o": left})
+        if already:
+            continue
+
+        if left == 0:
+            head = f"⏰ <b>{h['name']}</b> — vaqti bo'ldi!"
+        elif left >= 60:
+            hours = left // 60
+            rest = left % 60
+            qoldi = f"{hours} soat" + (f" {rest} daqiqa" if rest else "")
+            head = f"🔔 <b>{h['name']}</b> — {qoldi} qoldi ({h['at_time']})"
+        else:
+            head = f"🔔 <b>{h['name']}</b> — {left} daqiqa qoldi ({h['at_time']})"
+
+        text = head
+        if h.get("note"):
+            text += f"\n<i>{h['note']}</i>"
+
+        try:
+            send_user_message_by_id(int(h["owner_id"]), text)
+            db.run("INSERT INTO habit_sent (habit_id, sent_date, offset_min) "
+                   "VALUES (:h,:d,:o) ON CONFLICT DO NOTHING",
+                   {"h": hid, "d": today, "o": left})
+        except Exception:  # noqa: BLE001 — bitta odat yiqilsa qolgani yuborilaversin
+            logger.exception("HABIT_REMINDER xato habit_id=%s", hid)
+
+
+def run_habits_standalone_if_needed(n: datetime) -> None:
+    """Ertaga reja bo'lmasa — odatlar ro'yxati O'ZI yuboriladi.
+
+    Odatda odatlar Boostday'ning kunlik xabariga qo'shiladi
+    (`run_daily_todo_posts` -> `habits_text_block`). Ammo o'sha kuni
+    birorta ham `daily_todo` reja yuborilmasa, foydalanuvchi kunlik
+    odatlar ro'yxatini umuman ko'rmay qolardi — shuning uchun kunning
+    BELGILANGAN vaqtida alohida xabar ketadi.
+    """
+    from .webapp import habits_text_block
+
+    if not db.table_exists("habits"):
+        return
+    # Kuniga bir marta, ertalab 08:00 da
+    if n.hour != 8 or n.minute != 0:
+        return
+    today = n.strftime("%Y-%m-%d")
+
+    owners = db.all_("SELECT DISTINCT owner_id FROM habits WHERE is_deleted=0 AND is_active=1")
+    for row in owners:
+        oid = int(row["owner_id"])
+        # Bugun shu egaga daily_todo yuborilganmi?
+        posted = db.one(
+            "SELECT s.id FROM sent_logs s JOIN plans p ON p.id = s.plan_id "
+            "WHERE p.owner_id = :u AND p.plan_type = 'daily_todo' AND s.note = 'daily_todo' "
+            "AND s.sent_at >= :d LIMIT 1",
+            {"u": oid, "d": today + " 00:00:00"})
+        if posted:
+            continue      # reja ketgan — odatlar o'sha xabarda bor
+
+        block = habits_text_block(oid, n)
+        if not block:
+            continue
+        already = db.one(
+            "SELECT id FROM habit_sent WHERE habit_id = 0 AND sent_date = :d AND offset_min = :o",
+            {"d": today, "o": -1})
+        if already:
+            continue
+        try:
+            send_user_message_by_id(oid, "📋 <b>Bugungi ro'yxat</b>" + block)
+            db.run("INSERT INTO habit_sent (habit_id, sent_date, offset_min) "
+                   "VALUES (0,:d,-1) ON CONFLICT DO NOTHING", {"d": today})
+        except Exception:  # noqa: BLE001
+            logger.exception("HABITS_STANDALONE xato owner_id=%s", oid)
 
 
 def run_calendar_posts(today: str, now_str: str) -> None:

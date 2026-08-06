@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import calendar
 import json
+import logging
 import re
 from datetime import datetime, timedelta
 
 from . import db
 from .config import settings
 from .helpers import decode_task_groups, encode_task_groups, flatten_task_groups, now
+
+logger = logging.getLogger("boostday")
 
 DT_FMT = "%Y-%m-%d %H:%M:%S"
 ALLOWED_TYPES = ["daily_plan", "challenge", "reminder", "todo", "super_todo", "daily_todo"]
@@ -100,9 +103,27 @@ def list_channels(owner_id: int = 0) -> list:
     if not db.table_exists("user_channels"):
         return []
     if owner_id > 0:
-        return db.all_("SELECT id, user_id, channel_id, channel_name, channel_username FROM user_channels "
+        return db.all_("SELECT id, user_id, channel_id, channel_name, channel_username, topics FROM user_channels "
                        "WHERE user_id = :u ORDER BY id DESC", {"u": owner_id})
-    return db.all_("SELECT id, user_id, channel_id, channel_name, channel_username FROM user_channels ORDER BY id DESC")
+    return db.all_("SELECT id, user_id, channel_id, channel_name, channel_username, topics FROM user_channels ORDER BY id DESC")
+
+
+# Sport/Til/Dasturlash bo'limidan mashq yuborilganda avtomatik tanlash uchun
+# ruxsat etilgan mavzular. Frontend'dagi TOPICS (assets/js/app2/boost.js) bilan
+# AYNAN bir xil bo'lishi shart — aks holda saytda belgilangan mavzu shu yerda
+# jimgina olib tashlanadi ("Saqlandi" chiqadi, lekin hech narsa yozilmaydi).
+CHANNEL_TOPICS = {"sport", "english", "russian", "dasturlash"}
+
+
+def _clean_topics(raw: str) -> str:
+    """Vergul bilan ajratilgan mavzular satrini tekshirib, ruxsat etilganlarini qaytaradi."""
+    seen, clean = set(), []
+    for t in (raw or "").split(","):
+        t = t.strip().lower()
+        if t in CHANNEL_TOPICS and t not in seen:
+            seen.add(t)
+            clean.append(t)
+    return ",".join(clean)
 
 
 def list_plans(owner_id: int = 0) -> list:
@@ -248,6 +269,42 @@ def save_plan(payload: dict) -> int:
     return db.run_returning_id(sql, filtered)
 
 
+def refresh_telegram_message(plan_id: int) -> None:
+    """Saytdan o'zgartirilgan rejaning Telegramdagi xabarini yangilaydi.
+
+    Bot vazifa ro'yxatini kanalga tugmalar bilan yuboradi va `message_id` ni
+    saqlaydi. Saytdan belgilash faqat bazani o'zgartirsa, Telegramdagi eski
+    tugmalar belgilanmagan holicha qolib ketardi (ikki joyda ikki xil holat).
+    Shuning uchun saqlashdan keyin o'sha xabarni qayta chizamiz.
+
+    Xato bo'lsa (xabar o'chirilgan, juda eski, bot chiqarilgan) — jim o'tamiz:
+    saqlashning o'zi muvaffaqiyatli bo'lgan, uni bekor qilish noto'g'ri bo'lardi.
+    """
+    from .helpers import build_todo_text, decode_task_groups, todo_keyboard
+    from .tg import edit_message
+
+    try:
+        plan = db.one("SELECT * FROM plans WHERE id = :id", {"id": int(plan_id)})
+        if not plan:
+            return
+        message_id = int(plan.get("message_id") or 0)
+        if message_id <= 0:
+            return                      # hali yuborilmagan — yangilanadigan xabar yo'q
+        if plan.get("plan_type") not in ("todo", "super_todo", "daily_todo"):
+            return                      # tugmali ro'yxat faqat shu turlarda
+
+        groups = decode_task_groups(plan["tasks"])
+        title = {
+            "super_todo": "⏱ Super TO-DO",
+            "daily_todo": "Har kungi rejalar",
+        }.get(plan["plan_type"], "🗓 TO-DO")
+        edit_message(plan["channel_id"], message_id,
+                     build_todo_text(groups, title),
+                     todo_keyboard(int(plan["id"]), groups, plan["plan_type"]))
+    except Exception:  # noqa: BLE001
+        logger.exception("Telegram xabarini yangilab bo'lmadi (plan_id=%s)", plan_id)
+
+
 def channel_belongs_to(channel_id: str, owner_id: int) -> bool:
     if owner_id <= 0 or not db.table_exists("user_channels"):
         return False
@@ -256,7 +313,22 @@ def channel_belongs_to(channel_id: str, owner_id: int) -> bool:
     return bool(row)
 
 
-def add_channel_for_owner(owner_id: int, raw: str) -> dict:
+def _release_topics_from_others(owner_id: int, topics: list[str], keep_channel_row_id: int = 0) -> None:
+    """Har mavzu faqat BITTA kanalga tegishli bo'lishi kerak — yangi kanalga
+    biriktirilganda, o'sha mavzu(lar) boshqa kanallardagi ro'yxatdan olib
+    tashlanadi (kanal o'zi butunlay o'chirilmaydi, faqat shu mavzu(lar) chiqadi)."""
+    if not topics:
+        return
+    others = db.all_("SELECT id, topics FROM user_channels WHERE user_id = :u AND topics != '' AND id != :id",
+                     {"u": owner_id, "id": keep_channel_row_id})
+    for row in others:
+        cur = [t.strip() for t in str(row["topics"] or "").split(",") if t.strip()]
+        new = [t for t in cur if t not in topics]
+        if new != cur:
+            db.run("UPDATE user_channels SET topics = :t WHERE id = :id", {"t": ",".join(new), "id": row["id"]})
+
+
+def add_channel_for_owner(owner_id: int, raw: str, topics: str = "") -> dict:
     """Mini app orqali kanal/guruh ulaydi. Bot admin bo'lishi shart. Natija dict qaytaradi."""
     from .helpers import normalize_channel_candidates, now_str
     from .tg import bot_is_admin, get_chat_info_multi, is_supported_target_chat, target_chat_type_label
@@ -264,6 +336,7 @@ def add_channel_for_owner(owner_id: int, raw: str) -> dict:
     if owner_id <= 0:
         raise JsonResult(False, "Avtorizatsiya kerak")
     raw = (raw or "").strip()
+    clean_topics = _clean_topics(topics)
     candidates = normalize_channel_candidates(raw)
     if not candidates:
         raise JsonResult(False, "Format noto'g'ri. Masalan: @kanal_nomi yoki -100... ID")
@@ -283,15 +356,28 @@ def add_channel_for_owner(owner_id: int, raw: str) -> dict:
 
     existing = db.one("SELECT id FROM user_channels WHERE user_id = :u AND channel_id = :c",
                       {"u": owner_id, "c": channel_id})
+    if clean_topics:
+        _release_topics_from_others(owner_id, clean_topics.split(","), existing["id"] if existing else 0)
+
     ts = now_str()
     if existing:
-        db.run("UPDATE user_channels SET channel_name = :n, channel_username = :un WHERE id = :id",
-               {"n": channel_name, "un": channel_username, "id": existing["id"]})
+        db.run("UPDATE user_channels SET channel_name = :n, channel_username = :un, topics = :t WHERE id = :id",
+               {"n": channel_name, "un": channel_username, "t": clean_topics, "id": existing["id"]})
     else:
-        db.run("INSERT INTO user_channels (user_id, channel_id, channel_name, channel_username, created_at) "
-               "VALUES (:u, :c, :n, :un, :ts)",
-               {"u": owner_id, "c": channel_id, "n": channel_name, "un": channel_username, "ts": ts})
-    return {"channel_id": channel_id, "channel_name": channel_name}
+        db.run("INSERT INTO user_channels (user_id, channel_id, channel_name, channel_username, topics, created_at) "
+               "VALUES (:u, :c, :n, :un, :t, :ts)",
+               {"u": owner_id, "c": channel_id, "n": channel_name, "un": channel_username, "t": clean_topics, "ts": ts})
+    return {"channel_id": channel_id, "channel_name": channel_name, "topics": clean_topics}
+
+
+def set_channel_topics(owner_id: int, channel_row_id: int, topics: str) -> None:
+    if owner_id <= 0 or not db.table_exists("user_channels"):
+        raise JsonResult(False, "Avtorizatsiya kerak")
+    clean_topics = _clean_topics(topics)
+    if clean_topics:
+        _release_topics_from_others(owner_id, clean_topics.split(","), channel_row_id)
+    db.run("UPDATE user_channels SET topics = :t WHERE id = :id AND user_id = :u",
+           {"t": clean_topics, "id": channel_row_id, "u": owner_id})
 
 
 def delete_channel_for_owner(owner_id: int, channel_row_id: int) -> None:
@@ -414,10 +500,172 @@ def build_stats_payload(owner_id: int = 0) -> dict:
             "month": _summarize(rows, month_start.strftime("%Y-%m-%d"), month_end.strftime("%Y-%m-%d")),
             "year": _summarize(rows, year_start.strftime("%Y-%m-%d"), year_end.strftime("%Y-%m-%d")),
         },
-        "daily_series": _daily_series(rows, 14),
+        # 14 emas — sayt endi Dinamika grafigini orqaga (eski kunlarga)
+        # tortib skroll qilishga imkon beradi, shuning uchun bu yerda ham
+        # yetarlicha uzoq tarix qaytarilishi kerak (aks holda 14 kundan
+        # nariga o'tilganda Boostday chizig'i soxta ravishda 0 ko'rsatardi).
+        "daily_series": _daily_series(rows, 400),
         "monthly_series": _monthly_series(rows, 12),
         "plan_breakdown": _count_by_type(plans),
     }
+
+
+# =====================================================================
+#  KUNLIK ODATLAR (habits)
+#  Har kuni belgilangan vaqtda takrorlanadigan shaxsiy ishlar.
+#  Rejimlar: everyday | odd | even | weekend | weekday
+# =====================================================================
+HABIT_MODES = {"everyday", "odd", "even", "weekend", "weekday"}
+HABIT_MODE_LABEL = {
+    "everyday": "Har kuni",
+    "odd": "Toq kunlari",
+    "even": "Juft kunlari",
+    "weekend": "Dam olish kunlari",
+    "weekday": "Ish kunlari",
+}
+
+
+def habit_mode_matches(mode: str, when) -> bool:
+    """Shu kunda odat bajarilishi kerakmi.
+
+    `odd`/`even` — Boostday rejalaridagi bilan AYNI qoida
+    (scheduler.daily_mode_should_send): toq = Du/Chor/Juma,
+    juft = Sesh/Pay/Shan, yakshanba ikkalasida ham yo'q.
+    """
+    mode = (mode or "everyday").lower()
+    n = when.isoweekday()          # 1=Dushanba ... 7=Yakshanba
+    if mode == "everyday":
+        return True
+    if mode == "weekend":
+        return n in (6, 7)
+    if mode == "weekday":
+        return n <= 5
+    if mode in ("odd", "even"):
+        if n == 7:
+            return False
+        is_odd = (n % 2) == 1
+        return is_odd if mode == "odd" else not is_odd
+    return True
+
+
+def _clean_remind(raw: str) -> str:
+    """'60,30,15,5' ko'rinishidagi eslatma oraliqlarini tozalaydi."""
+    out = []
+    for part in str(raw or "").split(","):
+        part = part.strip()
+        if not part.isdigit():
+            continue
+        v = int(part)
+        if 0 <= v <= 720 and v not in out:
+            out.append(v)
+    out.sort(reverse=True)
+    return ",".join(str(v) for v in out)
+
+
+def _valid_time(raw: str) -> str:
+    raw = str(raw or "").strip()
+    if len(raw) == 5 and raw[2] == ":" and raw[:2].isdigit() and raw[3:].isdigit():
+        h, m = int(raw[:2]), int(raw[3:])
+        if 0 <= h < 24 and 0 <= m < 60:
+            return f"{h:02d}:{m:02d}"
+    return "22:00"
+
+
+def list_habits(owner_id: int, for_date=None) -> list:
+    """Odatlar ro'yxati. `for_date` berilsa har biriga `today`/`done` qo'shiladi."""
+    if not db.table_exists("habits"):
+        return []
+    rows = db.all_(
+        "SELECT id, name, at_time, week_mode, remind, note, sort_order, is_active "
+        "FROM habits WHERE owner_id = :u AND is_deleted = 0 "
+        "ORDER BY at_time ASC, sort_order ASC, id ASC",
+        {"u": owner_id},
+    )
+    done_ids = set()
+    if for_date is not None and rows:
+        d = for_date.strftime("%Y-%m-%d")
+        for r in db.all_("SELECT habit_id FROM habit_log WHERE done_date = :d", {"d": d}):
+            done_ids.add(int(r["habit_id"]))
+
+    out = []
+    for r in rows:
+        item = {
+            "id": int(r["id"]), "name": r["name"], "time": r["at_time"],
+            "week_mode": r["week_mode"], "remind": r["remind"],
+            "note": r["note"] or "", "is_active": int(r["is_active"] or 0),
+            "mode_label": HABIT_MODE_LABEL.get(r["week_mode"], r["week_mode"]),
+        }
+        if for_date is not None:
+            item["today"] = bool(item["is_active"]) and habit_mode_matches(r["week_mode"], for_date)
+            item["done"] = int(r["id"]) in done_ids
+        out.append(item)
+    return out
+
+
+def save_habit(owner_id: int, payload: dict) -> int:
+    name = str(payload.get("name") or "").strip()[:255]
+    if not name:
+        raise JsonResult(False, "Nomi kiritilmadi")
+    data = {
+        "u": owner_id, "n": name,
+        "t": _valid_time(payload.get("time")),
+        "w": (str(payload.get("week_mode") or "everyday").lower()
+              if str(payload.get("week_mode") or "everyday").lower() in HABIT_MODES else "everyday"),
+        "r": _clean_remind(payload.get("remind") or "60,30,15,5"),
+        "note": (str(payload.get("note") or "").strip() or None),
+        "a": 1 if str(payload.get("is_active", "1")) not in ("0", "", "false") else 0,
+    }
+    hid = int(payload.get("id") or 0)
+    if hid > 0:
+        data["id"] = hid
+        db.run(
+            "UPDATE habits SET name=:n, at_time=:t, week_mode=:w, remind=:r, note=:note, "
+            "is_active=:a, updated_at=CURRENT_TIMESTAMP WHERE id=:id AND owner_id=:u", data,
+        )
+        return hid
+    return db.run_returning_id(
+        "INSERT INTO habits (owner_id, name, at_time, week_mode, remind, note, is_active) "
+        "VALUES (:u,:n,:t,:w,:r,:note,:a)", data,
+    )
+
+
+def delete_habit(owner_id: int, habit_id: int) -> None:
+    db.run("UPDATE habits SET is_deleted=1, updated_at=CURRENT_TIMESTAMP "
+           "WHERE id=:id AND owner_id=:u", {"id": habit_id, "u": owner_id})
+
+
+def toggle_habit_done(owner_id: int, habit_id: int, date_str: str) -> bool:
+    """Bugungi belgini qo'yadi yoki oladi. Qaytaradi: yangi holat (bajarildimi)."""
+    own = db.one("SELECT id, name FROM habits WHERE id=:id AND owner_id=:u AND is_deleted=0",
+                 {"id": habit_id, "u": owner_id})
+    if not own:
+        raise JsonResult(False, "Odat topilmadi")
+    have = db.one("SELECT id FROM habit_log WHERE habit_id=:h AND done_date=:d",
+                  {"h": habit_id, "d": date_str})
+    if have:
+        db.run("DELETE FROM habit_log WHERE habit_id=:h AND done_date=:d",
+               {"h": habit_id, "d": date_str})
+        return False
+    db.run("INSERT INTO habit_log (habit_id, done_date) VALUES (:h,:d) ON CONFLICT DO NOTHING",
+           {"h": habit_id, "d": date_str})
+    # Sayt statistikasida ham ko'rinsin
+    try:
+        db.log_activity("habit", own["name"], 1, "odat")
+    except Exception:  # noqa: BLE001
+        logger.exception("habit activity_log yozilmadi")
+    return True
+
+
+def habits_text_block(owner_id: int, for_date) -> str:
+    """Kunlik xabarga qo'shiladigan "Kunlik odatlar" bo'limi (bo'sh bo'lsa '')."""
+    items = [h for h in list_habits(owner_id, for_date) if h.get("today")]
+    if not items:
+        return ""
+    lines = ["", "🔁 <b>Kunlik odatlar</b>"]
+    for h in items:
+        mark = "✅" if h.get("done") else "▫️"
+        lines.append(f"{mark} {h['time']} — {h['name']}")
+    return "\n".join(lines)
 
 
 def handle_action(action: str, params: dict) -> dict:
@@ -433,14 +681,47 @@ def handle_action(action: str, params: dict) -> dict:
 
     owner_id = i("owner_id")
 
+    # --- Kunlik odatlar ---
+    if action == "habits_list":
+        return {"ok": True, "message": "OK",
+                "habits": list_habits(owner_id, now()),
+                "modes": [{"k": k, "n": HABIT_MODE_LABEL[k]} for k in
+                          ("everyday", "odd", "even", "weekday", "weekend")]}
+
+    if action == "habits_save":
+        if owner_id <= 0:
+            raise JsonResult(False, "Avtorizatsiya kerak")
+        save_habit(owner_id, params)
+        return {"ok": True, "message": "Saqlandi", "habits": list_habits(owner_id, now())}
+
+    if action == "habits_delete":
+        if owner_id <= 0:
+            raise JsonResult(False, "Avtorizatsiya kerak")
+        delete_habit(owner_id, i("id"))
+        return {"ok": True, "message": "O'chirildi", "habits": list_habits(owner_id, now())}
+
+    if action == "habits_toggle":
+        if owner_id <= 0:
+            raise JsonResult(False, "Avtorizatsiya kerak")
+        d = s("date") or now().strftime("%Y-%m-%d")
+        state = toggle_habit_done(owner_id, i("id"), d)
+        return {"ok": True, "message": "Belgilandi" if state else "Bekor qilindi",
+                "done": state, "habits": list_habits(owner_id, now())}
+
     if action == "channels":
         return {"ok": True, "message": "OK", "channels": list_channels(owner_id)}
 
     if action == "add_channel":
         if owner_id <= 0:
             raise JsonResult(False, "Avtorizatsiya kerak")
-        result = add_channel_for_owner(owner_id, s("channel"))
+        result = add_channel_for_owner(owner_id, s("channel"), s("topics"))
         return {"ok": True, "message": "Kanal ulandi", **result, "channels": list_channels(owner_id)}
+
+    if action == "set_channel_topics":
+        if owner_id <= 0:
+            raise JsonResult(False, "Avtorizatsiya kerak")
+        set_channel_topics(owner_id, i("id"), s("topics"))
+        return {"ok": True, "message": "Mavzular belgilandi", "channels": list_channels(owner_id)}
 
     if action == "delete_channel":
         if owner_id <= 0:
@@ -491,7 +772,63 @@ def handle_action(action: str, params: dict) -> dict:
         if owner_id > 0 and not channel_belongs_to(payload["channel_id"], owner_id):
             raise JsonResult(False, "Bu kanal sizga tegishli emas")
         saved_id = save_plan(payload)
+        # Saytdan belgilangan vazifa Telegramdagi xabarda ham belgilanib qolsin.
+        refresh_telegram_message(saved_id)
         return {"ok": True, "message": "Saqlandi", "id": saved_id}
+
+    if action == "toggle_task":
+        # Boostday "Bugungi ishlar" birlashtirilgan ro'yxatidan bitta vazifani
+        # darhol belgilaydi (butun rejani tahrirlash oynasini ochmasdan).
+        pid, index = i("id"), i("index")
+        if pid <= 0 or index < 0:
+            raise JsonResult(False, "Vazifa topilmadi")
+        plan = db.one("SELECT * FROM plans WHERE id = :id AND status = 'active'", {"id": pid})
+        if not plan:
+            raise JsonResult(False, "Reja topilmadi")
+        if owner_id > 0 and int(plan.get("owner_id") or 0) != owner_id:
+            raise JsonResult(False, "Bu reja sizga tegishli emas")
+
+        groups = decode_task_groups(plan["tasks"])
+        tasks = flatten_task_groups(groups)
+        if index >= len(tasks):
+            raise JsonResult(False, "Vazifa topilmadi")
+
+        current = int(tasks[index].get("status", 0) or 0)
+        ts = now().strftime(DT_FMT)
+        # super_todo — 3 holat (Telegram callback bilan bir xil mantiq: 0 kutmoqda ->
+        # 2 boshlandi -> 1 tugadi); qolganlari — oddiy belgilash/bekor qilish.
+        if plan["plan_type"] == "super_todo":
+            if current == 0:
+                tasks[index].update({"status": 2, "started_at": ts, "finished_at": None, "alerts": []})
+                just_finished = False
+            elif current == 2:
+                tasks[index]["status"] = 1
+                if not tasks[index].get("started_at"):
+                    tasks[index]["started_at"] = ts
+                tasks[index]["finished_at"] = ts
+                just_finished = True
+            else:
+                tasks[index].update({"status": 0, "started_at": None, "finished_at": None, "alerts": []})
+                just_finished = False
+        else:
+            new = 0 if current == 1 else 1
+            tasks[index]["status"] = new
+            just_finished = new == 1
+
+        db.run("UPDATE plans SET tasks = :t, updated_at = :n WHERE id = :id",
+               {"t": encode_task_groups(groups), "n": ts, "id": pid})
+
+        if just_finished:
+            from .helpers import log_task_finished, group_name_for_index
+            log_task_finished(plan, str(tasks[index].get("text", "")), group_name_for_index(groups, index))
+        elif int(tasks[index].get("status", 0)) == 0:
+            # Qayta ochildi — bugungi jurnal yozuvi ham olib tashlanadi, aks
+            # holda Sport bo'limi mashqni "bajarilgan" deb ko'rsataverardi.
+            from .helpers import unlog_task_finished
+            unlog_task_finished(str(tasks[index].get("text", "")))
+
+        refresh_telegram_message(pid)
+        return {"ok": True, "message": "Yangilandi", "status": int(tasks[index].get("status", 0))}
 
     if action == "delete":
         pid = i("id")

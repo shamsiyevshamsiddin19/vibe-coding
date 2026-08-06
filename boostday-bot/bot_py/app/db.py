@@ -111,6 +111,11 @@ _SCHEMA = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_boostday_user_channels_user ON user_channels (user_id)",
+    # ESKI ustun (bitta kanal = bitta mavzu) — endi `topics`ga almashtirildi.
+    "ALTER TABLE user_channels ADD COLUMN IF NOT EXISTS topic VARCHAR(32) NOT NULL DEFAULT ''",
+    # Vergul bilan ajratilgan mavzular ro'yxati — bitta kanal bir nechta mavzuga
+    # tayinlanishi mumkin (masalan "sport,russian").
+    "ALTER TABLE user_channels ADD COLUMN IF NOT EXISTS topics VARCHAR(191) NOT NULL DEFAULT ''",
     """
     CREATE TABLE IF NOT EXISTS plans (
         id BIGSERIAL PRIMARY KEY,
@@ -173,7 +178,81 @@ _SCHEMA = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_boostday_sent_logs_plan_note ON sent_logs (plan_id, note)",
+    # Sayt (Yordamchisayt) bilan ulashiladigan faoliyat jurnali — shu yerda ham
+    # yaratiladi, chunki bot sayt oldin ishga tushishi mumkin (bir xil jadval shakli).
+    """
+    CREATE TABLE IF NOT EXISTS activity_log (
+        id BIGSERIAL PRIMARY KEY,
+        owner_type VARCHAR(32) NOT NULL,
+        owner_key VARCHAR(191) NOT NULL,
+        section VARCHAR(32) NOT NULL,
+        object_name VARCHAR(255) NOT NULL DEFAULT '',
+        amount DECIMAL(10,2) DEFAULT NULL,
+        unit VARCHAR(32) NOT NULL DEFAULT '',
+        duration_seconds INT DEFAULT NULL,
+        meta TEXT DEFAULT NULL,
+        occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_activity_log_owner_date ON activity_log (owner_type, owner_key, occurred_at DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_activity_log_owner_section ON activity_log (owner_type, owner_key, section, occurred_at DESC)",
+
+    # --- KUNLIK ODATLAR (habits) ---------------------------------------
+    # Har kuni belgilangan VAQTDA takrorlanadigan shaxsiy ishlar
+    # (masalan 22:00 yuz yuvish, 23:00 tish yuvish, juft kunlari cho'milish).
+    # Bot bazasida turadi, chunki eslatmalarni ham, kunlik xabarni ham BOT
+    # yuboradi; sayt ularni `/boost/api` proxysi orqali boshqaradi.
+    """
+    CREATE TABLE IF NOT EXISTS habits (
+        id BIGSERIAL PRIMARY KEY,
+        owner_id BIGINT NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        at_time VARCHAR(5) NOT NULL DEFAULT '22:00',
+        week_mode VARCHAR(16) NOT NULL DEFAULT 'everyday',
+        remind VARCHAR(64) NOT NULL DEFAULT '60,30,15,5',
+        note TEXT DEFAULT NULL,
+        sort_order INT NOT NULL DEFAULT 0,
+        is_active SMALLINT NOT NULL DEFAULT 1,
+        is_deleted SMALLINT NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_habits_owner ON habits (owner_id, is_deleted, is_active)",
+
+    # Bajarilgan belgisi. UNIQUE — bir kunda bir marta, qayta bosilsa o'chadi.
+    """
+    CREATE TABLE IF NOT EXISTS habit_log (
+        id BIGSERIAL PRIMARY KEY,
+        habit_id BIGINT NOT NULL,
+        done_date DATE NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT uq_habit_log UNIQUE (habit_id, done_date)
+    )
+    """,
+
+    # Yuborilgan eslatmalar — bir xil eslatma ikki marta ketmasligi uchun.
+    # `offset_min` = 0 bo'lsa "vaqti bo'ldi" xabari.
+    """
+    CREATE TABLE IF NOT EXISTS habit_sent (
+        id BIGSERIAL PRIMARY KEY,
+        habit_id BIGINT NOT NULL,
+        sent_date DATE NOT NULL,
+        offset_min INT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT uq_habit_sent UNIQUE (habit_id, sent_date, offset_min)
+    )
+    """,
 ]
+
+
+def log_activity(section: str, object_name: str = "", amount=None, unit: str = "", meta: str | None = None) -> None:
+    """Sayt bilan bir xil jurnalga yozadi (owner_type/owner_key sayt bilan mos: 'global'/'shared')."""
+    run(
+        "INSERT INTO activity_log (owner_type, owner_key, section, object_name, amount, unit, meta) "
+        "VALUES ('global', 'shared', :sec, :obj, :amt, :unit, :meta)",
+        {"sec": section, "obj": (object_name or "")[:255], "amt": amount, "unit": (unit or "")[:32], "meta": meta},
+    )
 
 
 def migrate() -> None:

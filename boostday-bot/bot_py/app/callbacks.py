@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from . import db
 from .helpers import (
     build_todo_text,
@@ -9,6 +11,9 @@ from .helpers import (
     encode_task_groups,
     escape_html,
     flatten_task_groups,
+    group_name_for_index,
+    log_task_finished,
+    unlog_task_finished,
     month_name_uz,
     now_str,
     reset_user_flow,
@@ -358,6 +363,7 @@ def _handle_todo_toggle(cb, chat_id, message_id, data) -> None:
 
     current = int(tasks[index].get("status", 0) or 0)
     ts = now_str()
+    just_finished = False
 
     if plan["plan_type"] == "super_todo":
         if current == 0:
@@ -369,6 +375,7 @@ def _handle_todo_toggle(cb, chat_id, message_id, data) -> None:
                 tasks[index]["started_at"] = ts
             tasks[index]["finished_at"] = ts
             answer_text = "Bajarildi"
+            just_finished = True
         else:
             tasks[index].update({"status": 0, "started_at": None, "finished_at": None, "alerts": []})
             answer_text = "Qayta ochildi"
@@ -376,9 +383,16 @@ def _handle_todo_toggle(cb, chat_id, message_id, data) -> None:
         new = 0 if current == 1 else 1
         tasks[index]["status"] = new
         answer_text = "Bajarildi" if new == 1 else "Qayta ochildi"
+        just_finished = new == 1
 
     db.run("UPDATE plans SET tasks = :t, updated_at = :n WHERE id = :id",
            {"t": encode_task_groups(groups), "n": ts, "id": plan_id})
+
+    if just_finished:
+        log_task_finished(plan, str(tasks[index].get("text", "")), group_name_for_index(groups, index))
+    elif tasks[index].get("status") == 0:
+        # Qayta ochildi — bugungi jurnal yozuvi ham olib tashlanadi
+        unlog_task_finished(str(tasks[index].get("text", "")))
 
     if plan["plan_type"] == "super_todo":
         title = "⏱ Super TO-DO"

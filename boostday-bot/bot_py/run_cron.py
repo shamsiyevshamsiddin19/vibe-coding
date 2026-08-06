@@ -2,7 +2,7 @@
 """Rejalashtirilgan vazifalarni bajaradi (cron.php o'rniga). Har daqiqada ishga tushiring.
 
 Crontab:
-  * * * * * /opt/boostday-bot/bot_py/.venv/bin/python /opt/boostday-bot/bot_py/run_cron.py
+  * * * * * /opt/yordamchi/Boostdaybot/bot_py/.venv/bin/python /opt/yordamchi/Boostdaybot/bot_py/run_cron.py
 """
 
 import sys
