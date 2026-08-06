@@ -104,7 +104,17 @@
 
         var box = App.el('sport-cats'); if (!box) return;
         box.className = 'sp-grid';
-        box.innerHTML = CATS.map(function (c) {
+        /* FAOL kategoriyalar tepada, to'xtatilganlari eng pastda.
+           O'zaro tartib o'zgarmaydi (barqaror saralash) — ya'ni faollar
+           ham, to'xtatilganlar ham `CATS` dagi asl ketma-ketligini
+           saqlaydi, faqat ikki guruhga ajraladi. */
+        var ordered = CATS.map(function (c, i) { return { c: c, i: i }; })
+          .sort(function (a, b) {
+            var da = isCatDisabled(a.c.id) ? 1 : 0, db = isCatDisabled(b.c.id) ? 1 : 0;
+            return da !== db ? da - db : a.i - b.i;
+          })
+          .map(function (x) { return x.c; });
+        box.innerHTML = ordered.map(function (c) {
           var n = (data[c.id] || []).length;
           var img = catImg(c.id);
           var disabled = isCatDisabled(c.id);

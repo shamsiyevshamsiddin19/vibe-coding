@@ -11,6 +11,7 @@
     { v: 'languages', n: 'Learn', ic: 'globe' },
     { v: 'coding', n: 'Coding', ic: 'code' },
     { v: 'sport', n: 'Sport', ic: 'trophy' },
+    { v: 'workout', n: 'Workout', ic: 'spTurnik' },
     { v: 'boost', n: 'Boostday', ic: 'message' },
     { v: 'kun', n: 'Kun hisobi', ic: 'calendar' },
     { v: 'arxiv', n: 'Arxiv', ic: 'archive' },
