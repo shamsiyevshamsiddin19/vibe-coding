@@ -13,3 +13,6 @@ httpx>=0.27
 
 # LMS (lms.tuit.uz) parolini shifrlab saqlash uchun — handlers/lms.py
 cryptography>=42
+
+# Web Push — telefon bildirishnomasi (VAPID bilan imzolangan xabar)
+pywebpush>=2.1,<3.0
