@@ -1675,3 +1675,52 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
   .wk-video{ max-width:640px; }
   .wk-th{ width:104px; height:66px; }
 }
+
+/* ============================================================
+   Kunlik odatlar (habits.js)
+   ============================================================ */
+/* Bosh sahifadagi panelning CHAP YUQORI burchagidagi kichik halqa */
+.hb-slot{ position:absolute; top:12px; left:12px; z-index:2; }
+.wd-card{ position:relative; }
+.hb-ring{
+  display:flex; flex-direction:column; align-items:center; gap:2px;
+  background:none; border:0; padding:2px; cursor:pointer; color:inherit;
+}
+.hb-ring-svg{ position:relative; display:block; width:44px; height:44px; }
+.hb-ring-svg svg{ width:100%; height:100%; transform:rotate(-90deg); }
+.hb-ring-mid{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-family:var(--mono); font-weight:800; font-size:10.5px; color:var(--text);
+}
+.hb-ring-lbl{ font-size:10.5px; font-weight:650; color:var(--text-2); }
+.hb-ring-val{ font-size:10px; font-family:var(--mono); color:var(--hint); }
+
+/* Ro'yxat sahifasi */
+.hb-top{ margin:0 1px 18px; }
+.hb-top-n{ display:flex; align-items:baseline; gap:8px; margin-bottom:8px; }
+.hb-top-n b{ font-size:20px; font-family:var(--mono); color:var(--text); }
+.hb-top-n span{ font-size:12.5px; color:var(--hint); }
+.hb-bar{ height:6px; border-radius:99px; background:var(--border-soft); overflow:hidden; }
+.hb-bar i{ display:block; height:100%; border-radius:99px; background:var(--teal);
+           transition:width .45s cubic-bezier(.25,.9,.3,1); }
+
+.hb-row{ display:flex; align-items:flex-start; gap:12px; padding:11px 2px;
+         border-top:1px solid var(--border-soft); }
+.hb-check{
+  width:26px; height:26px; flex-shrink:0; margin-top:2px; border-radius:8px;
+  border:1.8px solid var(--border); background:none; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; color:#fff;
+  transition:background .14s ease, border-color .14s ease;
+}
+.hb-check:disabled{ opacity:.35; cursor:default; }
+.hb-row.done .hb-check{ background:var(--teal); border-color:var(--teal); }
+.hb-main{ flex:1; min-width:0; background:none; border:0; padding:0; text-align:left;
+          cursor:pointer; color:inherit; }
+.hb-t{ display:inline-block; font-family:var(--mono); font-size:12px; font-weight:800;
+       color:var(--teal); margin-right:8px; }
+.hb-n{ font-size:14px; font-weight:600; color:var(--text); }
+.hb-note{ display:block; font-size:12px; color:var(--text-2); margin-top:2px; }
+.hb-sub{ display:block; font-size:11px; color:var(--hint); margin-top:3px; }
+.hb-row.done .hb-n{ color:var(--hint); text-decoration:line-through;
+                    text-decoration-color:var(--border); }
+.hb-row.off{ opacity:.5; }

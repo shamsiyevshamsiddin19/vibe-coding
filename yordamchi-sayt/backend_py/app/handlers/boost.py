@@ -20,9 +20,13 @@ from ..errors import ApiError, success
 ALLOWED_ACTIONS = {
     "list", "get", "save", "delete", "stats",
     "channels", "add_channel", "delete_channel", "toggle_task", "set_channel_topics",
+    # Kunlik odatlar (habits) — bot bazasida turadi, chunki eslatmalarni
+    # va kunlik xabarni ham bot yuboradi.
+    "habits_list", "habits_save", "habits_delete", "habits_toggle",
 }
 # Yozuv amallari — saytda tizimga kirgan bo'lish shart (main.py tekshiradi)
-WRITE_ACTIONS = {"save", "delete", "add_channel", "delete_channel", "toggle_task", "set_channel_topics"}
+WRITE_ACTIONS = {"save", "delete", "add_channel", "delete_channel", "toggle_task", "set_channel_topics",
+                 "habits_save", "habits_delete", "habits_toggle"}
 
 
 async def proxy(request: Request, body: dict, action: str):

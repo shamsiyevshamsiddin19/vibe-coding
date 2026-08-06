@@ -267,13 +267,16 @@
      VIEW: workout — yo'l xaritasi
      ========================================================= */
   App.view('workout', {
-    nav: 'workout',
+    nav: 'sport',                     // Sport bo'limining ichki sahifasi
     render: function (page) {
       var done = doneList().filter(function (id) { return !!skill(id); });
       var pct = Math.round((done.length / SKILLS.length) * 100);
 
       var html =
-        '<div class="topbar" style="margin:-16px -15px 12px"><h1>Workout</h1>' +
+        '<div class="topbar" style="margin:-16px -15px 12px">' +
+        '<button class="icon-btn ghost" data-act="go" data-arg=\'{"v":"sport"}\'>' +
+        '<span data-icon="arrowLeft" data-icon-size="20"></span></button>' +
+        '<h1>Workout</h1>' +
         '<div style="flex:1"></div>' +
         '<span class="muted" style="font-size:12px;font-weight:700;font-family:var(--mono)">' +
         done.length + ' / ' + SKILLS.length + '</span></div>' +
@@ -323,7 +326,7 @@
      VIEW: workout_skill — bitta ko'nikma
      ========================================================= */
   App.view('workout_skill', {
-    nav: 'workout',
+    nav: 'sport',
     render: function (page, params) {
       var s = skill(params.id);
       if (!s) { App.go('workout'); return; }
@@ -390,6 +393,15 @@
       'title="Video" frameborder="0" allow="accelerometer; autoplay; clipboard-write; ' +
       'encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
     box.classList.add('playing');
+  };
+
+  /* Sport bo'limidagi "Workout" plitkasi shu yerdan o'z holatini oladi
+     (sport.js chizadi — Workout alohida bo'lim emas, Sport ichida). */
+  window.Workout = {
+    progress: function () {
+      var d = doneList().filter(function (id) { return !!skill(id); });
+      return { done: d.length, total: SKILLS.length };
+    }
   };
 
   App.actions.wkToggle = function (a) {

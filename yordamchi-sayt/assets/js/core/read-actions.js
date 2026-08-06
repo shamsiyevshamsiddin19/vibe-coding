@@ -40,13 +40,15 @@
     'boost_list',
     'boost_get',
     'boost_stats',
-    'boost_channels'
+    'boost_channels',
+    'boost_habits_list'
   ];
 
   var CACHEABLE_POST = [
     'boost_list',
     'boost_stats',
-    'boost_channels'
+    'boost_channels',
+    'boost_habits_list'
     /* `boost_get` ATAYLAB yo'q: uning `id` si tanada keladi, URL esa
        hammasi uchun bir xil — keshlansa boshqa rejaning ma'lumoti
        qaytib qolardi. */

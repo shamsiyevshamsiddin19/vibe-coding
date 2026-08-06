@@ -114,7 +114,20 @@
             return da !== db ? da - db : a.i - b.i;
           })
           .map(function (x) { return x.c; });
-        box.innerHTML = ordered.map(function (c) {
+
+        /* WORKOUT — turnik mahorati yo'l xaritasi (workout.js). Bu oddiy
+           kategoriya emas (bazada mashqlari yo'q), shuning uchun ro'yxatga
+           qo'lda, eng birinchi plitka sifatida qo'shiladi. */
+        var wp = (window.Workout && Workout.progress) ? Workout.progress() : null;
+        var wkTile = '<button class="sp-tile" data-act="go" data-arg=\'' +
+          App.arg({ v: 'workout' }) + '\'>' +
+          '<img src="assets/img/sport/workout.webp?v=' + IMG_V + '" alt="" loading="lazy">' +
+          '<span class="sp-bar" style="background:var(--accent)"></span>' +
+          '<span class="sp-ov"><span class="sp-n">Workout</span>' +
+          '<span class="sp-c">' + (wp ? wp.done + ' / ' + wp.total + ' ko\'nikma' : 'Bosqichma-bosqich') +
+          '</span></span></button>';
+
+        box.innerHTML = wkTile + ordered.map(function (c) {
           var n = (data[c.id] || []).length;
           var img = catImg(c.id);
           var disabled = isCatDisabled(c.id);

@@ -371,6 +371,9 @@
       box.innerHTML =
         '<div class="hsec" style="margin-top:24px"><h2>Kunlik statistika</h2></div>' +
         '<div class="wd-card">' +
+          /* Chap yuqori burchakdagi kichik halqa — KUNLIK ODATLAR
+             (habits.js). Bosilsa o'sha bo'lim ochiladi. */
+          '<div id="hb-slot" class="hb-slot"></div>' +
           '<div class="wd-main">' +
             mkRing(allPct, 'var(--accent)', 'Umumiy kun', doneTasks + ' / ' + totalTasks + ' vazifa') +
             '<div class="wd-line">' +
@@ -385,7 +388,24 @@
           '<div class="wd-sub">' + subs + '</div>' +
         '</div>';
       App.icons(box);
+      paintHabitRing();
     }
+
+    /* Odatlar halqasi MUSTAQIL yuklanadi — bot javobi kechiksa ham
+       kunlik statistika kutib turmaydi. Yuklanmasa halqa umuman
+       ko'rinmaydi (bo'sh joy qolmaydi). */
+    function paintHabitRing() {
+      var slot = App.el('hb-slot');
+      if (!slot || !window.Habits) return;
+      Habits.ensureLoaded().then(function (list) {
+        var s = App.el('hb-slot'); if (!s) return;
+        var st = Habits.stat(list);
+        s.innerHTML = st.total ? Habits.ringHtml(st) : '';
+        App.icons(s);
+      }).catch(function () {});
+    }
+    window.Home = window.Home || {};
+    window.Home.refreshHabits = paintHabitRing;
 
     Promise.all(boot).then(function () {
       var parts = [];
