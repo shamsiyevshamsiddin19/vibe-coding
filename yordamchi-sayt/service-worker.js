@@ -10,7 +10,7 @@
  *     (POST va reset_history kabi) HECH QACHON keshlanmaydi — offline'da ular
  *     xato beradi va ilova o'z navbatiga (remote-storage pending ops) qo'yadi.
  */
-const VERSION = '20260806new16';
+const VERSION = '20260806new17';
 const SHELL_CACHE = 'yordamchi-shell-' + VERSION;
 const DATA_CACHE = 'yordamchi-data-' + VERSION;
 

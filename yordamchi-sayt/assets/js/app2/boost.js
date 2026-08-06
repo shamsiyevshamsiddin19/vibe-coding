@@ -1098,7 +1098,7 @@
         '<button type="button" id="bn-pick" style="background:none;border:none;color:var(--accent);font-size:12px;font-weight:700;text-transform:none;letter-spacing:0">Bo\'limdan</button>' +
         '<button type="button" id="bn-addgroup" style="background:none;border:none;color:var(--accent);font-size:12px;font-weight:700;text-transform:none;letter-spacing:0">+ Bo\'lim</button></span></div>' +
         '<div id="bn-groups-box"></div>' +
-        '<p class="muted" style="font-size:11.5px;margin:6px 1px 0">Kanalga mavzu (Sport/Ingliz/Rus tili) tayinlangan bo\'lsa — tegishli bo\'lim va standart vazifalar avtomatik to\'ldiriladi, xohlasangiz o\'zgartiring yoki o\'chiring.</p>' +
+        '<p class="muted" style="font-size:11.5px;margin:6px 1px 0">Kanalga mavzu (Sport/Ingliz/Rus tili/Dasturlash) tayinlangan bo\'lsa — tegishli bo\'lim avtomatik qo\'shiladi, xohlasangiz o\'zgartiring yoki o\'chiring.</p>' +
         '</div></div>' +
 
         '<button class="btn" id="bn-save">Yaratish</button>';
