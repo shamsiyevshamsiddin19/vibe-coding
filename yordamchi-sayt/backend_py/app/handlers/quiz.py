@@ -407,7 +407,16 @@ def save_quiz_result(request: Request, body: dict):
 
 
 def get_quiz_results(request: Request, body: dict, db_name: str):
-    """Tarix: agar db berilsa shu baza bo'yicha, aks holda hammasi."""
+    """Tarix: agar db berilsa shu baza bo'yicha, aks holda hammasi.
+
+    IKKI XIL cheklov ATAYLAB:
+      * `db` berilgan  — bu bitta baza uchun "oxirgi sessiyalar" paneli
+        (quiz.js::renderQuizHistory), 50 ta yetarli.
+      * `db` berilmagan — bu Statistika DINAMIKA grafigi (stats.js) va
+        Sozlamalardagi ma'lumot eksporti. Grafik endi ~400 kunlik tarixni
+        ko'rsatadi, shuning uchun 50 ta cheklov eski kunlarni JIMGINA
+        yo'qotib, grafikda soxta 0 chizardi.
+    """
     ctx = owner_context(request)
     name = db_name.strip()
     if name:
@@ -420,7 +429,7 @@ def get_quiz_results(request: Request, body: dict, db_name: str):
     else:
         rows = db.fetch_all(
             "SELECT base_full, mode, total, correct, wrong, percent, created_at FROM quiz_results "
-            "WHERE owner_type = :ot AND owner_key = :ok ORDER BY created_at DESC LIMIT 50",
+            "WHERE owner_type = :ot AND owner_key = :ok ORDER BY created_at DESC LIMIT 3000",
             {"ot": ctx["owner_type"], "ok": ctx["owner_key"]},
         )
     results = [

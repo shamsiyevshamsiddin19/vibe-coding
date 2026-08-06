@@ -98,7 +98,17 @@
           return j;
         });
       }).catch(function(e) {
-        if (init.method === 'POST' && (e.message === 'OFFLINE_503' || e.message.indexOf('Failed to fetch') >= 0 || !navigator.onLine)) {
+        var offline = e.message === 'OFFLINE_503' ||
+                      e.message.indexOf('Failed to fetch') >= 0 || !navigator.onLine;
+        /* O'QISH amallari navbatga QO'YILMAYDI. Ilgari shart faqat
+           `method === 'POST'` edi; Boostday o'qishlari esa doim POST
+           bilan ketardi (boost.js har safar `{}` payload yuboradi), shu
+           sabab offline'da ular "keyin yuboriladi" navbatiga tushib,
+           chaqiruvchiga ma'lumot o'rniga soxta `{success:true}` qaytardi —
+           natijada bosh sahifadagi kunlik statistika jimgina bo'sh
+           ko'rinardi. Endi o'qish xatosi chaqiruvchiga yetib boradi. */
+        var isRead = (window.READ_ACTIONS || []).indexOf(action) >= 0;
+        if (init.method === 'POST' && offline && !isRead) {
           App._enqueueOffline(action, payload, opts);
           App.toast('Oflayn: ma\'lumot saqlandi, keyin yuboriladi');
           return { success: true, offlineSaved: true };

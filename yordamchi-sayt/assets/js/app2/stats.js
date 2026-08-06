@@ -145,6 +145,12 @@
      ========================================================= */
   var UZ_MON = ['yan','fev','mar','apr','may','iyn','iyl','avg','sen','okt','noy','dek'];
 
+  /* Grafik chapga tortilganda ORQAGA qancha kun ko'rish mumkin.
+     MA'LUMOT so'rovlari ham AYNI shu oynani so'rashi shart — aks holda
+     chetdan tashqarisi ma'lumotsiz qolib, grafikda soxta 0 chiziladi
+     (`activityLog()` ga qarang). */
+  var CHART_HISTORY_DAYS = 400;
+
   function dayKey(d) {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
            String(d.getDate()).padStart(2, '0');
@@ -165,7 +171,7 @@
     var H = 250, L = 8, R = 46, T = 14, B = 26;   // chekka bo'shliqlar
     var today = new Date(); today.setHours(0, 0, 0, 0);
 
-    var HIST_DAYS = Math.max(days, 400);
+    var HIST_DAYS = Math.max(days, CHART_HISTORY_DAYS);
     var perDay = (700 - L - R) / Math.max(1, days - 1);   // avvalgi zichlik saqlanadi
     var innerW = perDay * (HIST_DAYS - 1);
     var W = L + R + innerW;
@@ -493,7 +499,12 @@
   /* Jurnal keshi — barcha bo'lim bloklari BITTA so'rovdan foydalanadi */
   var LOG_CACHE = { key: null, items: null };
   function activityLog() {
-    var from = new Date(); from.setDate(from.getDate() - (RANGE - 1));
+    /* RANGE (14/30/90) EMAS — bo'lim grafiklari ham chapga tortilib
+       orqaga suriladi, shuning uchun jurnal ham shuncha kunni qamrashi
+       kerak. Ilgari faqat RANGE so'ralardi va tortib orqaga o'tilganda
+       Mavzular/Lug'at/Sport chiziqlari soxta 0 ko'rsatardi. */
+    var from = new Date();
+    from.setDate(from.getDate() - (Math.max(RANGE, CHART_HISTORY_DAYS) - 1));
     var key = dayKey(from);
     if (LOG_CACHE.key === key && LOG_CACHE.items) return Promise.resolve(LOG_CACHE.items);
     return App.call('get_activity_log', null, { query: 'from=' + key }).then(function (j) {

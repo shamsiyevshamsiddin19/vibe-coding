@@ -5,12 +5,14 @@
  *     ilova internetsiz ham ochiladi (avval hech bo'lmasa bir marta kirilgan bo'lsa).
  *  2) Statik fayllar — stale-while-revalidate: darhol keshdan beriladi, orqa
  *     fonda yangilanadi.
- *  3) API O'QISH so'rovlari (GET) — network-first: internet bo'lsa yangisi,
- *     bo'lmasa oxirgi muvaffaqiyatli javob keshdan beriladi. YOZISH so'rovlari
- *     (POST va reset_history kabi) HECH QACHON keshlanmaydi — offline'da ular
- *     xato beradi va ilova o'z navbatiga (remote-storage pending ops) qo'yadi.
+ *  3) API O'QISH so'rovlari — network-first: internet bo'lsa yangisi, bo'lmasa
+ *     oxirgi muvaffaqiyatli javob keshdan beriladi. Odatda faqat GET, ammo
+ *     Boostday o'qishlari POST bilan ketadi, shuning uchun tanasi natijaga
+ *     ta'sir qilmaydigan bir nechta POST o'qishga ham ruxsat berilgan
+ *     (`CACHEABLE_POST`). YOZISH so'rovlari HECH QACHON keshlanmaydi —
+ *     offline'da ular xato beradi va ilova o'z navbatiga qo'yadi.
  */
-const VERSION = '20260806new21';
+const VERSION = '20260806new22';
 const SHELL_CACHE = 'yordamchi-shell-' + VERSION;
 const DATA_CACHE = 'yordamchi-data-' + VERSION;
 
@@ -35,23 +37,12 @@ async function shellUrls() {
   return [...urls];
 }
 
-/* Offline'da ham ko'rsatish mumkin bo'lgan O'QISH amallari. Ro'yxat qat'iy:
-   yangi action qo'shilsa shu yerga ham yozish kerak, aks holda u keshlanmaydi
-   (xavfsiz standart — noma'lum amal yozuv bo'lishi mumkin). */
-const READ_ACTIONS = new Set([
-  'storage_bootstrap',
-  'get_activity_log',
-  'get_data',
-  'get_dict_data',
-  'get_mistakes',
-  'get_quiz_results',
-  'get_structure',
-  'get_topic',
-  'get_topics',
-  'sport_get_all',
-  'lms_schedule',
-  'lms_status',
-]);
+/* Offline'da ham ko'rsatish mumkin bo'lgan O'QISH amallari.
+   Ro'yxat QO'LDA yozilmaydi — sayt bilan BITTA fayldan o'qiladi, aks holda
+   ikki nusxa uzilib qolardi (App shell ro'yxatida ham shu yondashuv). */
+importScripts('./assets/js/core/read-actions.js?v=' + VERSION);
+const READ_ACTIONS = new Set(self.READ_ACTIONS || []);
+const CACHEABLE_POST = new Set(self.CACHEABLE_POST_ACTIONS || []);
 
 /* Bitta fayl yiqilsa butun jarayon to'xtamasin — har birini alohida qo'shamiz.
    Hammasini bir vaqtda so'rash ba'zan tasodifiy yiqilishga olib keladi
@@ -121,16 +112,25 @@ function isApi(url) {
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET') return;              // yozuvlarga umuman tegmaymiz
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // Boostday bot (dinamik, shaxsiy) — keshlanmaydi
+  // Boostday bot'ning TO'G'RIDAN-TO'G'RI yo'li (dinamik) — keshlanmaydi.
+  // (`/api?action=boost_*` bu emas — u quyida, o'qish bo'lsa keshlanadi.)
   if (url.pathname.startsWith('/boost')) return;
+
+  const action = isApi(url) ? (url.searchParams.get('action') || '') : '';
+
+  /* Odatda faqat GET keshlanadi. Ammo Boostday o'qishlari POST bilan
+     yuboriladi (boost.js har safar `{}` payload beradi), shuning uchun
+     tanasi natijaga ta'sir qilmaydigan o'qishlarga ruxsat beramiz —
+     ular bo'lmasa bosh sahifadagi kunlik statistika offline'da bo'sh
+     qolardi. Kesh kaliti URL, shuning uchun ro'yxat qat'iy cheklangan
+     (`CACHEABLE_POST`, read-actions.js ga qarang). */
+  if (req.method !== 'GET' && !(req.method === 'POST' && CACHEABLE_POST.has(action))) return;
 
   // --- API ---
   if (isApi(url)) {
-    const action = url.searchParams.get('action') || '';
     if (!READ_ACTIONS.has(action)) return;       // yozuv yoki noma'lum — tegmaymiz
     const key = dataCacheKey(req.url);
     e.respondWith(
