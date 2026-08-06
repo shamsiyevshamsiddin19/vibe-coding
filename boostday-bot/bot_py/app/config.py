@@ -56,6 +56,13 @@ class Settings:
     # Per-user Telegram Mini App manzili (bot tugmasi va menu shu yerni ochadi).
     MINIAPP_URL: str = os.getenv("MINIAPP_URL", "https://y.wstore.uz/boost/app")
 
+    # --- Web Push (VAPID) ---
+    # Telefondagi haqiqiy bildirishnoma uchun. OCHIQ kalit brauzerga
+    # beriladi, MAXFIY kalit faqat serverda qoladi.
+    VAPID_PUBLIC_KEY: str = os.getenv("VAPID_PUBLIC_KEY", "")
+    VAPID_PRIVATE_KEY: str = os.getenv("VAPID_PRIVATE_KEY", "")
+    VAPID_SUBJECT: str = os.getenv("VAPID_SUBJECT", "")
+
     TIMEZONE: str = os.getenv("TIMEZONE", "Asia/Tashkent")
 
     DB_HOST: str = os.getenv("DB_HOST", "127.0.0.1")

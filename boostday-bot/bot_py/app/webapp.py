@@ -9,6 +9,7 @@ import re
 from datetime import datetime, timedelta
 
 from . import db
+from . import push as push_mod
 from .config import settings
 from .helpers import decode_task_groups, encode_task_groups, flatten_task_groups, now
 
@@ -680,6 +681,43 @@ def handle_action(action: str, params: dict) -> dict:
             return 0
 
     owner_id = i("owner_id")
+
+    # --- Telefon bildirishnomasi (Web Push) ---
+    if action == "push_key":
+        # Ochiq kalit — brauzer obuna bo'lish uchun ishlatadi (sir emas)
+        return {"ok": True, "message": "OK",
+                "key": settings.VAPID_PUBLIC_KEY,
+                "enabled": bool(settings.VAPID_PUBLIC_KEY),
+                "count": len(push_mod.subscriptions(owner_id))}
+
+    if action == "push_subscribe":
+        if owner_id <= 0:
+            raise JsonResult(False, "Avtorizatsiya kerak")
+        ep, p256, au = s("endpoint"), s("p256dh"), s("auth")
+        if not ep or not p256 or not au:
+            raise JsonResult(False, "Obuna ma'lumoti to'liq emas")
+        db.run(
+            "INSERT INTO push_subs (owner_id, endpoint, p256dh, auth, ua, is_active) "
+            "VALUES (:u,:e,:p,:a,:ua,1) "
+            "ON CONFLICT (endpoint) DO UPDATE SET owner_id=:u, p256dh=:p, auth=:a, "
+            "ua=:ua, is_active=1",
+            {"u": owner_id, "e": ep, "p": p256, "a": au, "ua": s("ua")[:255] or None})
+        return {"ok": True, "message": "Bildirishnoma yoqildi",
+                "count": len(push_mod.subscriptions(owner_id))}
+
+    if action == "push_unsubscribe":
+        db.run("UPDATE push_subs SET is_active = 0 WHERE endpoint = :e", {"e": s("endpoint")})
+        return {"ok": True, "message": "O'chirildi",
+                "count": len(push_mod.subscriptions(owner_id))}
+
+    if action == "push_test":
+        if owner_id <= 0:
+            raise JsonResult(False, "Avtorizatsiya kerak")
+        n = push_mod.send(owner_id, "✅ Bildirishnoma ishlayapti",
+                          "Eslatmalar shu ko'rinishda keladi.", url="/#habits", tag="test")
+        if not n:
+            raise JsonResult(False, "Hech qanday qurilma ulanmagan — avval yoqing")
+        return {"ok": True, "message": f"{n} ta qurilmaga yuborildi", "sent": n}
 
     # --- Kunlik odatlar ---
     if action == "habits_list":

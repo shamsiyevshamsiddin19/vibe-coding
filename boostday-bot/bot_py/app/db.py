@@ -231,6 +231,26 @@ _SCHEMA = [
     )
     """,
 
+    # --- WEB PUSH obunalari ------------------------------------------------
+    # Telefondagi HAQIQIY bildirishnoma (Instagram/YouTube kabi) uchun.
+    # Brauzer bergan `endpoint` + shifrlash kalitlari saqlanadi. Sayt ham,
+    # bot ham shu jadvalga tayanadi (bitta PostgreSQL).
+    """
+    CREATE TABLE IF NOT EXISTS push_subs (
+        id BIGSERIAL PRIMARY KEY,
+        owner_id BIGINT NOT NULL DEFAULT 0,
+        endpoint TEXT NOT NULL,
+        p256dh VARCHAR(255) NOT NULL,
+        auth VARCHAR(255) NOT NULL,
+        ua VARCHAR(255) DEFAULT NULL,
+        is_active SMALLINT NOT NULL DEFAULT 1,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        last_ok_at TIMESTAMP DEFAULT NULL,
+        CONSTRAINT uq_push_endpoint UNIQUE (endpoint)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_push_subs_owner ON push_subs (owner_id, is_active)",
+
     # Yuborilgan eslatmalar — bir xil eslatma ikki marta ketmasligi uchun.
     # `offset_min` = 0 bo'lsa "vaqti bo'ldi" xabari.
     """

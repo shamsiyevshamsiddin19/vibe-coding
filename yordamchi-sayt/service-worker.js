@@ -12,7 +12,7 @@
  *     (`CACHEABLE_POST`). YOZISH so'rovlari HECH QACHON keshlanmaydi —
  *     offline'da ular xato beradi va ilova o'z navbatiga qo'yadi.
  */
-const VERSION = '20260806new27';
+const VERSION = '20260806new28';
 const SHELL_CACHE = 'yordamchi-shell-' + VERSION;
 const DATA_CACHE = 'yordamchi-data-' + VERSION;
 
@@ -93,6 +93,47 @@ self.addEventListener('activate', (e) => {
 /* Sahifa "keshni tekshir" desa ham tiklaymiz (qo'shimcha himoya). */
 self.addEventListener('message', (e) => {
   if (e.data === 'precache') e.waitUntil(precache());
+});
+
+/* ============================================================
+   TELEFON BILDIRISHNOMASI (Web Push)
+   Server VAPID kaliti bilan imzolangan xabar yuboradi; ilova YOPIQ
+   bo'lsa ham brauzer service worker'ni uyg'otadi va bildirishnoma
+   qulflangan ekranda chiqadi (Instagram/YouTube kabi).
+   ============================================================ */
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = { title: (e.data && e.data.text()) || '' }; }
+  const title = d.title || 'Yordamchi';
+  e.waitUntil(self.registration.showNotification(title, {
+    body: d.body || '',
+    icon: './assets/icons/custom-app-icon-192.png',
+    badge: './assets/icons/custom-app-icon-192.png',
+    /* `tag` — bir xil eslatma ustma-ust to'planib ketmasin: yangisi
+       eskisining o'rnini oladi. */
+    tag: d.tag || 'yordamchi',
+    renotify: true,
+    vibrate: [140, 70, 140],
+    data: { url: d.url || '/' }
+  }));
+});
+
+/* Bildirishnoma bosilganda: ilova allaqachon ochiq bo'lsa o'sha oynani
+   oldinga chiqaramiz (yangi oyna ochmaymiz), aks holda ochamiz. */
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const target = (e.notification.data && e.notification.data.url) || '/';
+  e.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of all) {
+      if (c.url.indexOf(self.location.origin) === 0) {
+        await c.focus();
+        if ('navigate' in c && target !== '/') { try { await c.navigate(target); } catch (err) {} }
+        return;
+      }
+    }
+    await self.clients.openWindow(target);
+  })());
 });
 
 /* API kesh kaliti: `t=` (cache-buster) va boshqa tasodifiy parametrlarni

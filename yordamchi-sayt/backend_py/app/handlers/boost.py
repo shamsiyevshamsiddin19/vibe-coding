@@ -23,10 +23,13 @@ ALLOWED_ACTIONS = {
     # Kunlik odatlar (habits) — bot bazasida turadi, chunki eslatmalarni
     # va kunlik xabarni ham bot yuboradi.
     "habits_list", "habits_save", "habits_delete", "habits_toggle",
+    # Telefon bildirishnomasi (Web Push) obunasi
+    "push_key", "push_subscribe", "push_unsubscribe", "push_test",
 }
 # Yozuv amallari — saytda tizimga kirgan bo'lish shart (main.py tekshiradi)
 WRITE_ACTIONS = {"save", "delete", "add_channel", "delete_channel", "toggle_task", "set_channel_topics",
-                 "habits_save", "habits_delete", "habits_toggle"}
+                 "habits_save", "habits_delete", "habits_toggle",
+                 "push_subscribe", "push_unsubscribe", "push_test"}
 
 
 async def proxy(request: Request, body: dict, action: str):

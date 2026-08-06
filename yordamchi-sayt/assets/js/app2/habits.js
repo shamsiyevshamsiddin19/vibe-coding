@@ -105,7 +105,8 @@
         '<div class="hb-top">' +
         '<div class="hb-top-n"><b>' + st.done + ' / ' + st.total + '</b><span>bugun bajarildi</span></div>' +
         '<div class="hb-bar"><i style="width:' + st.pct + '%"></i></div>' +
-        '</div>';
+        '</div>' +
+        '<div id="hb-push"></div>';
 
       MODE_ORDER.forEach(function (m) {
         var group = list.filter(function (x) { return x.week_mode === m; });
@@ -129,12 +130,47 @@
 
       box.innerHTML = html;
       App.icons(box);
+      paintPush();
     }).catch(function (e) {
       var box = App.el('hb-body'); if (!box) return;
       box.innerHTML = App.empty({ icon: 'alert', title: 'Yuklanmadi', text: e.message });
       App.icons(box);
     });
   }
+
+  /* Telefon bildirishnomasi holati — Kunlik odatlar sahifasining tepasida.
+     Yoqilmagan bo'lsa eslatmalar Telegram orqali keladi (zaxira yo'l),
+     shuning uchun holatni ochiq ko'rsatib turamiz. */
+  function paintPush() {
+    var box = App.el('hb-push'); if (!box || !window.Push) return;
+    if (!Push.supported()) {
+      box.innerHTML = '<div class="hb-push warn">Bu brauzer telefon bildirishnomasini qo\'llamaydi. ' +
+        'Eslatmalar Telegram orqali keladi.</div>';
+      return;
+    }
+    if (Push.state() === 'denied') {
+      box.innerHTML = '<div class="hb-push warn">Bildirishnoma <b>bloklangan</b>. ' +
+        'Brauzer sozlamalaridan shu sayt uchun ruxsat bering, keyin qayta yoqing.</div>';
+      return;
+    }
+    Push.currentSub().then(function (sub) {
+      var b = App.el('hb-push'); if (!b) return;
+      if (sub && Push.state() === 'granted') {
+        b.innerHTML = '<div class="hb-push on">' +
+          '<span data-icon="bell" data-icon-size="15"></span>' +
+          '<div>Telefon bildirishnomasi <b>yoqilgan</b></div>' +
+          '<button class="chip-btn" data-act="pushTest">Sinash</button>' +
+          '<button class="chip-btn" data-act="pushDisable">O\'chirish</button></div>';
+      } else {
+        b.innerHTML = '<div class="hb-push">' +
+          '<span data-icon="bell" data-icon-size="15"></span>' +
+          '<div>Eslatmalar telefonga bildirishnoma bo\'lib kelsin</div>' +
+          '<button class="chip-btn active" data-act="pushEnable">Yoqish</button></div>';
+      }
+      App.icons(b);
+    }).catch(function () {});
+  }
+  window.PushUI = { repaint: paintPush };
 
   function remindText(remind) {
     var parts = String(remind || '').split(',').filter(Boolean);

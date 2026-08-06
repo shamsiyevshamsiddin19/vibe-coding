@@ -8,7 +8,7 @@ import logging
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
-from . import db
+from . import db, push
 from .config import settings
 from .helpers import (
     build_todo_text,
@@ -250,21 +250,34 @@ def run_habit_reminders(n: datetime) -> None:
             continue
 
         if left == 0:
-            head = f"⏰ <b>{h['name']}</b> — vaqti bo'ldi!"
+            title = f"⏰ {h['name']}"
+            when = "Vaqti bo'ldi!"
         elif left >= 60:
             hours = left // 60
             rest = left % 60
             qoldi = f"{hours} soat" + (f" {rest} daqiqa" if rest else "")
-            head = f"🔔 <b>{h['name']}</b> — {qoldi} qoldi ({h['at_time']})"
+            title = f"🔔 {h['name']}"
+            when = f"{qoldi} qoldi · {h['at_time']}"
         else:
-            head = f"🔔 <b>{h['name']}</b> — {left} daqiqa qoldi ({h['at_time']})"
+            title = f"🔔 {h['name']}"
+            when = f"{left} daqiqa qoldi · {h['at_time']}"
 
-        text = head
+        body = when
         if h.get("note"):
-            text += f"\n<i>{h['note']}</i>"
+            body += f"\n{h['note']}"
 
         try:
-            send_user_message_by_id(int(h["owner_id"]), text)
+            # Avval TELEFON BILDIRISHNOMASI (Instagram/YouTube kabi).
+            # Telegram — faqat zaxira: obuna bo'lmasa yoki push yetib
+            # bormasa foydalanuvchi eslatmasiz qolmasin.
+            n = push.send(int(h["owner_id"]), title, body,
+                          url="/#habits", tag=f"habit-{hid}")
+            if n == 0:
+                send_user_message_by_id(
+                    int(h["owner_id"]),
+                    f"<b>{title}</b>\n{body}" + (
+                        "\n\n<i>Bildirishnoma ulanmagan — Sozlamalardan yoqing.</i>"
+                        if left == 0 else ""))
             db.run("INSERT INTO habit_sent (habit_id, sent_date, offset_min) "
                    "VALUES (:h,:d,:o) ON CONFLICT DO NOTHING",
                    {"h": hid, "d": today, "o": left})
