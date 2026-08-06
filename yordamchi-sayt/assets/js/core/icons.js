@@ -27,6 +27,8 @@
         spShoulder: '<circle cx="12" cy="7" r="3"></circle><path d="M6 20c0-4 2.5-7 6-7s6 3 6 7"></path><path d="M4 13l3-2"></path><path d="M20 13l-3-2"></path>',
         // Oyoq: bukilgan oyoq
         spLegs: '<path d="M9 3v7l-3 5 3 6"></path><path d="M15 3v7l3 5-3 6"></path><path d="M9 10h6"></path>',
+        // Press/qorin — "olti bo'lak" tasviri
+        spPress: '<rect x="7" y="3" width="10" height="18" rx="3"></rect><path d="M12 6v13"></path><path d="M7.5 9.5h9"></path><path d="M7.5 13h9"></path><path d="M7.5 16.5h9"></path>',
         // Kardio: yurak urishi
         spCardio: '<path d="M2 12h4l2-5 3 10 3-7 2 2h6"></path>',
         // Armrestling: bir-biriga tirab turgan ikki qo'l

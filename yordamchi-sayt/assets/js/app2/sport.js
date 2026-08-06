@@ -2,6 +2,8 @@
 (function () {
   'use strict';
 
+  /* ⚠️ `backend_py/app/handlers/sport.py::CATEGORIES` bilan BIR XIL bo'lishi
+     shart — u yerda yo'q kategoriyadagi mashqlar saytga yetib kelmaydi. */
   var CATS = [
     { id: 'turnik', n: 'Turnik', c: 'var(--accent)', ic: 'spTurnik' },
     { id: 'brus', n: 'Brus', c: 'var(--purple)', ic: 'spBrus' },
@@ -13,6 +15,7 @@
     { id: 'orqa', n: 'Orqa', c: 'var(--accent)', ic: 'spBack' },
     { id: 'yelka', n: 'Yelka', c: 'var(--purple)', ic: 'spShoulder' },
     { id: 'oyoq', n: 'Oyoq', c: 'var(--teal)', ic: 'spLegs' },
+    { id: 'press', n: 'Press / Qorin', c: 'var(--purple)', ic: 'spPress' },
     { id: 'kardio', n: 'Kardio', c: 'var(--coral)', ic: 'spCardio' },
     { id: 'armwresling', n: 'Armrestling', c: 'var(--warn)', ic: 'spArm' },
     { id: 'futbol', n: 'Futbol', c: 'var(--success)', ic: 'spFutbol' },

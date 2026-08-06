@@ -24,9 +24,12 @@ PROGRESS_TYPES = {"weight", "reps", "time", "min", "dist"}
 # Qachon o'sadi: har kuni / juft kunlari / toq kunlari / kun ora / qo'lda
 PROGRESS_MODES = {"daily", "even", "odd", "alternate", "manual"}
 
+# ⚠️ Bu ro'yxat `assets/js/app2/sport.js` dagi `CATS` bilan BIR XIL bo'lishi
+# shart. Bu yerda yo'q kategoriya `_empty_data()` ga tushmaydi va o'sha
+# kategoriyadagi mashqlar saytga UMUMAN yetib bormaydi (jimgina yo'qoladi).
 CATEGORIES = [
     "turnik", "brus", "ajimaniya", "full", "grud", "bitseps",
-    "triseps", "orqa", "yelka", "oyoq", "kardio", "armwresling",
+    "triseps", "orqa", "yelka", "oyoq", "press", "kardio", "armwresling",
     "futbol", "voleybol", "badminton", "basketbol",
 ]
 
