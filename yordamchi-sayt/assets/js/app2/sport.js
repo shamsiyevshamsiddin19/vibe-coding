@@ -35,10 +35,14 @@
   /* Kategoriya rasmi bor-yo'qligi. Rasm qo'shilgani sari shu ro'yxatga
      id qo'shiladi — bo'lmaganlari eski rangli belgi bilan ko'rinaveradi. */
   var CAT_IMG = ['turnik', 'brus', 'ajimaniya', 'full', 'grud', 'bitseps',
-    'triseps', 'orqa', 'yelka', 'oyoq', 'kardio', 'armwresling', 'futbol', 'voleybol', 'badminton', 'basketbol'];
+    'triseps', 'orqa', 'yelka', 'oyoq', 'press', 'kardio', 'armwresling',
+    'futbol', 'voleybol', 'badminton', 'basketbol'];
   /* Versiya — rasm almashtirilganda brauzer keshi eskisini ushlab qolmasin.
-     Rasmlarni yangilaganda shu qiymatni ham oshirish kerak. */
-  var IMG_V = '20260803e3';
+     Rasmlarni yangilaganda shu qiymatni ham oshirish kerak.
+     20260806: `press` qo'shildi; jamoaviy sport rasmlari (futbol/voleybol/
+     badminton/basketbol) 1024px va 190-423 KB edi — boshqalari kabi 440px
+     ga keltirildi, bo'lim rasmlari jami 1186 KB dan 256 KB ga tushdi. */
+  var IMG_V = '20260806a';
   function catImg(id) {
     return CAT_IMG.indexOf(id) === -1 ? '' : 'assets/img/sport/' + id + '.webp?v=' + IMG_V;
   }
