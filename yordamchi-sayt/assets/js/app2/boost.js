@@ -629,8 +629,9 @@
     }
   });
 
-  /* Kanalga tayinlangan mavzular (Sport/Ingliz/Rus) uchun bo'lim nomi. */
-  var TOPIC_GROUP_NAME = { sport: '🏋 Sport', english: '🇬🇧 Ingliz tili', russian: '🇷🇺 Rus tili' };
+  /* Kanalga tayinlangan mavzular (Sport/Ingliz/Rus/Dasturlash) uchun bo'lim nomi.
+     `TOPICS` (Kanallar oynasidagi chip'lar) bilan bir xil bo'lishi shart. */
+  var TOPIC_GROUP_NAME = { sport: '🏋 Sport', english: '🇬🇧 Ingliz tili', russian: '🇷🇺 Rus tili', dasturlash: '💻 Dasturlash' };
 
   /* Mavzu bo'limi BIRINCHI marta yaratilganda ichiga avtomatik yoziladigan
      standart vazifalar — Sport uchun barcha mashqlar nomi, Ingliz/Rus tili
@@ -848,17 +849,6 @@
     box.querySelectorAll('.bo-tadd').forEach(function (b) {
       b.onclick = function () {
         var gi = +b.getAttribute('data-g');
-        /* Guruh nomi sportga oid bo'lsa — mashqlar ro'yxatidan tanlanadi
-           (nom Sport bo'limidagi bilan aynan mos tushsin). Aks holda
-           avvalgidek bo'sh qator qo'shiladi. */
-        if (isSportGroup(groups[gi].name)) {
-          openSportPicker(function (picked) {
-            if (picked) picked.forEach(function (t) { groups[gi].tasks.push({ text: t, status: 0 }); });
-            else groups[gi].tasks.push({ text: '', status: 0 });
-            drawTasks(page);
-          });
-          return;
-        }
         groups[gi].tasks.push({ text: '', status: 0 });
         drawTasks(page);
       };
@@ -1162,15 +1152,6 @@
         box.querySelectorAll('.bn-tadd').forEach(function (b) {
           b.onclick = function () {
             var gi = +b.getAttribute('data-g');
-            // Sport guruhida — mashqlar ro'yxatidan tanlash (yuqoridagi bilan bir xil)
-            if (isSportGroup(NEW_GROUPS[gi].name)) {
-              openSportPicker(function (picked) {
-                if (picked) picked.forEach(function (t) { NEW_GROUPS[gi].tasks.push({ text: t, status: 0 }); });
-                else NEW_GROUPS[gi].tasks.push({ text: '', status: 0 });
-                drawNewGroups();
-              });
-              return;
-            }
             NEW_GROUPS[gi].tasks.push({ text: '', status: 0 });
             drawNewGroups();
           };
@@ -1353,7 +1334,8 @@
   var TOPICS = [
     ['sport', '🏋 Sport'],
     ['english', '🇬🇧 Ingliz tili'],
-    ['russian', '🇷🇺 Rus tili']
+    ['russian', '🇷🇺 Rus tili'],
+    ['dasturlash', '💻 Dasturlash']
   ];
   function topicLabel(t) {
     var f = TOPICS.find(function (x) { return x[0] === (t || ''); });
@@ -1584,111 +1566,8 @@
     });
   }
 
-  /* Sport: kategoriyalar → mashqlar (nomi Sport bo'limidagidek) */
-  /* =========================================================
-     SPORT GURUHIGA VAZIFA QO'SHISH — mashqlar ro'yxatidan tanlash
-
-     Nega kerak: guruh nomi "Sport" bo'lsa, vazifa matni Sport bo'limidagi
-     mashq nomi bilan AYNAN bir xil bo'lishi kerak — shundagina belgilash
-     ikkala joyda ham ishlaydi. Qo'lda yozilganda bitta harf farq qilsa
-     bog'lanish uzilardi. Endi ro'yxatdan tanlanadi, xato bo'lishi mumkin emas.
-     ========================================================= */
-
-  function isSportGroup(name) {
-    return /sport|mashq|jismoniy|turnik|futbol/i.test(String(name || ''));
-  }
-
-  /* Mashq nomi vazifa matniga qanday yozilishi (vaqt prefiksi bilan) —
-     `pkSportCats` dagi qoida bilan bir xil. */
-  function exerciseTaskText(e) {
-    var pre = '';
-    if (e.start_time && e.end_time) pre = e.start_time + ' - ' + e.end_time + ' | ';
-    else if (e.start_time) pre = e.start_time + ' | ';
-    return pre + e.name;
-  }
-
-  var SP = null;   // { sel:{}, onPick, list }
-
-  function sportPickerHtml() {
-    if (!SP) return '';
-    var byCat = {}, order = [];
-    SP.list.forEach(function (e) {
-      if (!byCat[e.cat]) { byCat[e.cat] = { name: e.catName, items: [] }; order.push(e.cat); }
-      byCat[e.cat].items.push(e);
-    });
-
-    var html = '';
-    if (!SP.list.length) {
-      html += App.empty({ icon: 'activity', title: 'Mashq yo\'q',
-                          text: 'Sport bo\'limida avval mashq qo\'shing.' });
-    } else {
-      html += order.map(function (c) {
-        return '<div class="list-label">' + App.esc(byCat[c].name) + '</div>' +
-          byCat[c].items.map(function (e) {
-            var txt = exerciseTaskText(e);
-            var on = !!SP.sel[txt];
-            // Ostidagi izoh — faqat vaqt oralig'i (ajratuvchi "|" siz)
-            var when = e.start_time ? (e.start_time + (e.end_time ? ' - ' + e.end_time : '')) : '';
-            return '<button class="pk-row' + (on ? ' on' : '') + '" data-act="spPick" data-arg=\'' +
-              App.arg({ t: txt }) + '\'><span class="pk-box">' + (on ? '✓' : '') + '</span>' +
-              '<span class="pk-main"><b>' + App.esc(e.name) + '</b>' +
-              (when ? '<span>' + App.esc(when) + '</span>' : '') +
-              '</span></button>';
-          }).join('');
-      }).join('');
-    }
-
-    var n = Object.keys(SP.sel).length;
-    /* "Boshqa mashq" — ro'yxatda yo'q narsani qo'lda yozish uchun.
-       Ro'yxatning ENG PASTIDA turadi (foydalanuvchi so'rovi). */
-    html += '<button class="list-row" data-act="spOther" style="margin-top:10px">' +
-      '<span class="li-ic" data-icon="edit" data-icon-size="15"></span>' +
-      '<div class="li-main"><div class="li-title">Boshqa mashq</div>' +
-      '<div class="li-sub">Ro\'yxatda yo\'q — nomini o\'zim yozaman</div></div></button>';
-
-    html += '<div class="pk-bar"><button class="btn" data-act="spDone"' + (n ? '' : ' disabled') + '>' +
-      (n ? n + ' ta mashq qo\'shish' : 'Mashq tanlang') + '</button></div>';
-    return html;
-  }
-
-  function spRepaint() {
-    var b = App.el('sp-body');
-    if (b) { b.innerHTML = sportPickerHtml(); App.icons(b); }
-  }
-
-  App.actions.spPick = function (a) {
-    if (!SP) return;
-    if (SP.sel[a.t]) delete SP.sel[a.t]; else SP.sel[a.t] = 1;
-    spRepaint();
-  };
-  App.actions.spOther = function () {
-    var cb = SP && SP.onPick;
-    SP = null;
-    App.closeSheet();
-    if (cb) cb(null);        // null — bo'sh qator qo'shilsin (qo'lda yoziladi)
-  };
-  App.actions.spDone = function () {
-    if (!SP) return;
-    var picked = Object.keys(SP.sel);
-    var cb = SP.onPick;
-    SP = null;
-    App.closeSheet();
-    if (picked.length && cb) cb(picked);
-  };
-
-  /* `onPick(list|null)` — tanlangan matnlar massivi yoki null (qo'lda yozish) */
-  function openSportPicker(onPick) {
-    SP = { sel: {}, onPick: onPick, list: [] };
-    App.sheet('<div id="sp-body"><div class="load-wrap"><div class="spinner"></div></div></div>',
-              { title: 'Mashq tanlash' });
-    if (!window.SportBridge) { spRepaint(); return; }
-    SportBridge.ensureLoaded().then(function () {
-      if (!SP) return;
-      SP.list = SportBridge.allExercises() || [];
-      spRepaint();
-    }).catch(function () { spRepaint(); });
-  }
-
+  /* Sport: kategoriyalar → mashqlar (nomi Sport bo'limidagidek) —
+     "Materiallardan tez qo'shish" daraxtida ishlatiladi (pkRoot → pkSportCats). */
   function pkSportCats() {
     if (!window.SportBridge) return [];
     return SportBridge.ensureLoaded().then(function () {
