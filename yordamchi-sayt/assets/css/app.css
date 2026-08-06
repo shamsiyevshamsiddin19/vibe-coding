@@ -950,13 +950,21 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
 .ch-legend{ display:flex; flex-wrap:wrap; gap:14px; margin:0 2px 8px; }
 .ch-lg{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600; color:var(--text-2); }
 .ch-lg i{ width:9px; height:9px; border-radius:2px; display:block; }
-.ch-svg{ width:100%; height:auto; display:block; overflow:visible; }
+.ch-svg{ height:auto; display:block; overflow:visible; }
 .ch-grid{ stroke:var(--border-soft); stroke-width:1; }
 .ch-ylb{ fill:var(--hint); font-size:10px; font-weight:600; }
 .ch-xlb{ fill:var(--hint); font-size:10px; font-weight:600; text-anchor:middle; }
 /* Bugungi kun ko'rsatkichi — grafikda vertikal punktir chiziq */
 .ch-today{ stroke:var(--accent); stroke-width:1.5; stroke-dasharray:4 4; opacity:.75; }
 .ch-today-lb{ fill:var(--accent); font-size:10px; font-weight:800; letter-spacing:.2px; }
+/* Grafik endi haqiqiy chizilgan kengligida — konteyner gorizontal
+   skrollanadi: chapga tortib eski kunlarni ko'rish mumkin. */
+.ch-scroll{ overflow-x:auto; overflow-y:hidden; cursor:grab; -webkit-overflow-scrolling:touch; scrollbar-width:thin; }
+.ch-scroll.dragging{ cursor:grabbing; }
+.ch-scroll.dragging,.ch-scroll.dragging *{ user-select:none; }
+.ch-scroll::-webkit-scrollbar{ height:5px; }
+.ch-scroll::-webkit-scrollbar-thumb{ background:var(--border-soft); border-radius:3px; }
+.ch-scroll::-webkit-scrollbar-track{ background:transparent; }
 /* Kichik segment tanlagich (14/30/90 kun) */
 .seg.seg-sm{ display:inline-flex; padding:2px; }
 .seg.seg-sm button{ padding:5px 11px; font-size:11.5px; }

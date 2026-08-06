@@ -152,14 +152,27 @@
 
   /* markers: [{ sana, rang, matn }] — chiziqdan mustaqil, X o'qi ustida
      ko'rinadigan nuqtalar (deadline muddati, bajarilgan maqsad va h.k.) */
+  /* Grafik endi CHAPGA TORTIB (sichqoncha yoki barmoq bilan) orqaga —
+     eski kunlarga — surilishi mumkin. Buning uchun `days` (14/30/90
+     tugmasi) bilan bir xil ZICHLIKDA, lekin ANCHA UZUNROQ jadval chiziladi
+     (HIST_DAYS), so'ng u gorizontal skrollanadigan konteynerga joylanadi va
+     boshlang'ich holatda "Bugun" o'ng chetda ko'rinadigan qilib oxiriga
+     suriladi (paintChart funksiyasi). SVG endi butun (100%) emas, ANIQ
+     piksel kengligida chiziladi — aks holda skroll qilishning ma'nosi
+     qolmasdi (butun jadval konteynerga siqib joylashtirilgan bo'lardi). */
   function lineChart(series, days, markers, opts) {
     opts = opts || { type: localStorage.getItem('chart_type') || 'line' };
-    var W = 700, H = 250, L = 8, R = 46, T = 14, B = 26;   // chekka bo'shliqlar
+    var H = 250, L = 8, R = 46, T = 14, B = 26;   // chekka bo'shliqlar
     var today = new Date(); today.setHours(0, 0, 0, 0);
 
-    // Sanalar o'qi
+    var HIST_DAYS = Math.max(days, 400);
+    var perDay = (700 - L - R) / Math.max(1, days - 1);   // avvalgi zichlik saqlanadi
+    var innerW = perDay * (HIST_DAYS - 1);
+    var W = L + R + innerW;
+
+    // Sanalar o'qi — HAR DOIM bugun bilan tugaydi
     var dates = [];
-    for (var i = days - 1; i >= 0; i--) {
+    for (var i = HIST_DAYS - 1; i >= 0; i--) {
       var d = new Date(today); d.setDate(today.getDate() - i);
       dates.push(d);
     }
@@ -177,8 +190,8 @@
     var niceStep = mag * mult;
     var top = niceStep * LINES;
 
-    var innerW = W - L - R, innerH = H - T - B;
-    var x = function (i) { return L + (dates.length < 2 ? innerW / 2 : (i / (dates.length - 1)) * innerW); };
+    var innerH = H - T - B;
+    var x = function (i) { return L + i * perDay; };
     var y = function (v) { return T + innerH - (v / top) * innerH; };
 
     // To'r chiziqlari + Y yozuvlari
@@ -191,9 +204,9 @@
               (val >= 1000 ? (val / 1000) + 'k' : Math.round(val)) + '</text>';
     }
 
-    // X yozuvlari — 4 ta nuqta
+    // X yozuvlari — har ko'rinadigan oyna bo'yicha ~4 ta nuqta, butun tarix bo'ylab takrorlanadi
     var xlb = '';
-    var stepX = Math.max(1, Math.floor((dates.length - 1) / 3));
+    var stepX = Math.max(1, Math.floor((days - 1) / 3) || 1);
     for (var xi = 0; xi < dates.length; xi += stepX) {
       var dd = dates[xi];
       xlb += '<text x="' + x(xi).toFixed(1) + '" y="' + (H - 8) + '" class="ch-xlb">' +
@@ -203,14 +216,14 @@
     // Chiziqlar yoxud ustunlar (Bar)
     var paths = '';
     series.forEach(function (s, si) {
-      var barW = Math.max(2, (innerW / dates.length) * 0.4); 
+      var barW = Math.max(2, perDay * 0.4);
       var pts = [];
       dates.forEach(function (d, i) {
         var v = s.nuqtalar[dayKey(d)] || 0;
         var cx = x(i);
         var cy = y(v);
         pts.push(cx.toFixed(1) + ',' + cy.toFixed(1));
-        
+
         // Agar BAR bo'lsa
         if (opts.type === 'bar') {
           var ox = cx - (series.length * barW) / 2 + (si * barW);
@@ -220,11 +233,11 @@
           }
         }
       });
-      
+
       if (opts.type !== 'bar') {
         var pStr = pts.join(' ');
         var areaPts = L + ',' + y(0).toFixed(1) + ' ' + pStr + ' ' + x(dates.length - 1).toFixed(1) + ',' + y(0).toFixed(1);
-        paths += '<polygon points="' + areaPts + '" fill="' + s.rang + '1a" />' + 
+        paths += '<polygon points="' + areaPts + '" fill="' + s.rang + '1a" />' +
                  '<polyline points="' + pStr + '" fill="none" stroke="' + s.rang +
                  '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
         // Nuqtalar
@@ -261,9 +274,9 @@
       }).join('');
     }
 
-    /* BUGUNGI KUN chizig'i — o'q oxiridagi vertikal punktir + "Bugun" yozuvi.
-       X o'qi doim bugun bilan tugagani uchun chiziq eng o'ngda turadi;
-       yozuv chetdan chiqib ketmasligi uchun oxiriga tekislanadi. */
+    /* BUGUNGI KUN chizig'i — jadval doim bugun bilan tugaydi, shuning
+       uchun eng o'ngda turadi; yozuv chetdan chiqib ketmasligi uchun
+       oxiriga tekislanadi. */
     var tx = x(dates.length - 1);
     var todayLine =
       '<line x1="' + tx.toFixed(1) + '" y1="' + T + '" x2="' + tx.toFixed(1) + '" y2="' + (T + innerH) +
@@ -271,9 +284,48 @@
       '<text x="' + (tx - 4).toFixed(1) + '" y="' + (T + 9) + '" class="ch-today-lb" text-anchor="end">Bugun</text>';
 
     return '<div class="ch-legend">' + legend + mkLegend + '</div>' +
-      '<svg class="ch-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">' +
-      grid + todayLine + paths + mk + xlb + '</svg>';
+      '<div class="ch-scroll">' +
+      '<svg class="ch-svg" width="' + W.toFixed(1) + '" height="' + H + '" viewBox="0 0 ' + W.toFixed(1) + ' ' + H + '">' +
+      grid + todayLine + paths + mk + xlb + '</svg>' +
+      '</div>';
   }
+
+  /* `lineChart()` natijasini joylashtirib, darhol o'ng chetga (bugungi
+     kunga) suradi — aks holda skrollanadigan jadval eng chapdan (eng eski
+     kundan) boshlanib ko'rsatilardi. */
+  function paintChart(box, html) {
+    if (!box) return;
+    box.innerHTML = html;
+    var sc = box.querySelector('.ch-scroll');
+    if (sc) sc.scrollLeft = sc.scrollWidth;
+  }
+
+  /* Grafikni sichqoncha bilan bosib-tortib skroll qilish (desktop uchun —
+     telefonda barmoq bilan tabiiy ishlaydi, `overflow-x:auto` yetarli).
+     Delegatsiya orqali BIR MARTA ulanadi, har safar qayta chizilganda
+     qayta bog'lash shart emas. */
+  var chDrag = null;
+  document.addEventListener('mousedown', function (e) {
+    var el = e.target.closest && e.target.closest('.ch-scroll');
+    if (!el) return;
+    chDrag = { el: el, x: e.clientX, left: el.scrollLeft };
+    el.classList.add('dragging');
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (!chDrag) return;
+    /* "Bugun" chizig'ini tortayotgandek — chapga tortilsa eski kunlar
+       ko'rinadi (scrollbar dastagini chapga surish bilan bir xil mantiq),
+       oddiy "yuzani ushlab tortish" (kontent kursorga ergashadi) EMAS. */
+    chDrag.el.scrollLeft = chDrag.left + (e.clientX - chDrag.x);
+  });
+  function chDragEnd() {
+    if (!chDrag) return;
+    chDrag.el.classList.remove('dragging');
+    chDrag = null;
+  }
+  document.addEventListener('mouseup', chDragEnd);
+  document.addEventListener('mouseleave', chDragEnd);
 
   /* =========================================================
      STATISTIKA — butun ilova bo'yicha
@@ -386,7 +438,7 @@
           'Hali ma\'lumot yo\'q — test yeching yoki mashq belgilang.</p>';
         return;
       }
-      box.innerHTML = lineChart(series, RANGE, markers);
+      paintChart(box, lineChart(series, RANGE, markers));
     }).catch(function (e) { fail('st-chart', e); });
   }
 
@@ -523,7 +575,7 @@
     if (chartBox) {
       var map = {};
       nomlar.slice(0, 8).forEach(function (nom) { map[nom] = groups[nom].kunlar; });
-      chartBox.innerHTML = lineChart(toSeries(map), RANGE);
+      paintChart(chartBox, lineChart(toSeries(map), RANGE));
     }
   }
 
