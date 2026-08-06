@@ -1443,13 +1443,22 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
   /* Kompyuterda vidjet TIK joylashadi: tepada umumiy chiziq, ostida
      bo'limlar. Umumiy halqa chapda turganda ustunlarni siqib qo'yardi. */
   .wd-card{ flex-direction:column; flex-wrap:nowrap; align-items:stretch; gap:0; padding:18px 20px 20px; }
+  /* Odatlar halqasi va "Umumiy kun" chizig'i YONMA-YON turadi.
+     Ilgari halqa `position:absolute` bilan chap yuqorida suzib turardi va
+     kompyuterda sarlavha ustiga tushib qolardi. Endi u oddiy flex a'zosi —
+     o'z joyini egallaydi, odat bo'lmasa esa `:empty` bilan yo'qoladi. */
   .wd-main{
-    display:block; width:100%; padding:0 0 15px; margin:0 0 16px;
+    display:flex; align-items:center; gap:18px;
+    width:100%; padding:0 0 15px; margin:0 0 16px;
     border-right:0; border-bottom:1px solid var(--border-soft);
   }
   .wd-main .wd-ring{ display:none; }        /* halqa faqat telefonda */
+  /* `.hb-slot` uchun desktop qoidasi ATAYLAB shu yerda emas — u faylning
+     oxiridagi "Kunlik odatlar" bo'limida. Sabab: `.hb-slot` asosiy qoidasi
+     shu media-query'DAN KEYIN yozilgan, ya'ni bir xil aniqlikda u g'olib
+     chiqadi va bu yerdagi tuzatuv ishlamaydi (aynan shunday bo'lgan). */
 
-  .wd-line{ display:block; }
+  .wd-line{ display:block; flex:1; min-width:0; }
   .wd-line-top{ display:flex; align-items:baseline; gap:10px; margin-bottom:9px; }
   .wd-line-top b{ font-size:13.5px; font-weight:700; color:var(--text); }
   .wd-line-top span{ font-size:11.5px; color:var(--hint); font-family:var(--mono); }
@@ -1680,8 +1689,18 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
    Kunlik odatlar (habits.js)
    ============================================================ */
 /* Bosh sahifadagi panelning CHAP YUQORI burchagidagi kichik halqa */
+/* Odat yo'q bo'lsa slot butunlay yo'qoladi — bo'sh joy ham qolmaydi */
+.hb-slot:empty{ display:none; }
+/* Telefonda halqa kartaning chap yuqori burchagida "suzib" turadi
+   (u yerda bo'sh joy bor). Kompyuterda esa flex qatoriga aylanadi —
+   pastdagi @media ga qarang. */
 .hb-slot{ position:absolute; top:12px; left:12px; z-index:2; }
 .wd-card{ position:relative; }
+/* Kompyuterda halqa "suzmaydi" — oddiy flex a'zosi bo'lib, "Umumiy kun"
+   chizig'i bilan YONMA-YON turadi (ilgari sarlavha ustiga tushib qolardi). */
+@media (min-width:980px){
+  .hb-slot{ position:static; flex:0 0 auto; }
+}
 .hb-ring{
   display:flex; flex-direction:column; align-items:center; gap:2px;
   background:none; border:0; padding:2px; cursor:pointer; color:inherit;

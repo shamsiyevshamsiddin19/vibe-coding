@@ -371,10 +371,12 @@
       box.innerHTML =
         '<div class="hsec" style="margin-top:24px"><h2>Kunlik statistika</h2></div>' +
         '<div class="wd-card">' +
-          /* Chap yuqori burchakdagi kichik halqa — KUNLIK ODATLAR
-             (habits.js). Bosilsa o'sha bo'lim ochiladi. */
-          '<div id="hb-slot" class="hb-slot"></div>' +
           '<div class="wd-main">' +
+            /* KUNLIK ODATLAR halqasi (habits.js) — `wd-main` NING ICHIDA
+               turadi, shuning uchun kompyuterda "Umumiy kun" qatori bilan
+               yonma-yon joylashadi va ustma-ust tushmaydi. Odat bo'lmasa
+               bo'sh qoladi va CSS uni butunlay yashiradi (`:empty`). */
+            '<div id="hb-slot" class="hb-slot"></div>' +
             mkRing(allPct, 'var(--accent)', 'Umumiy kun', doneTasks + ' / ' + totalTasks + ' vazifa') +
             '<div class="wd-line">' +
               '<div class="wd-line-top">' +
