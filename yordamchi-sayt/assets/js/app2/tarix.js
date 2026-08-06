@@ -10,11 +10,13 @@
     topic:     { n: 'Mavzu',     ic: 'file',       c: 'var(--purple)' },
     material:  { n: 'Materiallar', ic: 'book',     c: 'var(--teal)' },
     listening: { n: 'Listening', ic: 'headphones', c: 'var(--warn)' },
+    reading:   { n: 'O\'qish',    ic: 'book',      c: 'var(--purple)' },
     boostday:  { n: 'Boostday',  ic: 'message',    c: 'var(--success)' }
   };
-  // MUHIM: bu ro'yxat stats.js dagi SEC_BLOCKS bilan bir xil bo'lishi kerak —
-  // ikkalasi ham activity_log dagi `section` qiymatlariga tayanadi.
-  var SEC_ORDER = ['sport', 'vocab', 'quiz', 'topic', 'material', 'listening', 'boostday'];
+  // MUHIM: bu ro'yxat stats.js dagi SEC_BLOCKS va backend'dagi
+  // ALLOWED_SECTIONS bilan bir xil bo'lishi kerak — uchalasi ham
+  // activity_log dagi `section` qiymatlariga tayanadi.
+  var SEC_ORDER = ['sport', 'vocab', 'quiz', 'topic', 'material', 'listening', 'reading', 'boostday'];
   var MON = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
   // "Iyun"/"Iyul" kabi ba'zi oylar 3 harfga qisqartirilsa bir xil chiqib qolardi (Iyu/Iyu) —
   // shuning uchun qisqa nomlar alohida, kesib olinmaydi.
@@ -112,13 +114,19 @@
         var lang = meta.lang || '';
         
         var act = '';
+        /* Bo'lim nomlari RO'YXATDAN O'TGAN view nomlari bo'lishi shart —
+           `App.go` noma'lum nomda jimgina BOSH SAHIFAGA tashlaydi.
+           Ilgari 'boostday' va 'listening' deb yozilgan edi, bunday
+           ko'rinishlar yo'q (to'g'risi 'boost' va 'listening_practice'). */
+        var secLang = lang === 'russian' ? 'russian' : 'english';
         if (it.section === 'sport') act = "App.go('sport')";
-        else if (it.section === 'boostday') act = "App.go('boostday')";
+        else if (it.section === 'boostday') act = "App.go('boost')";
         else if (it.section === 'quiz') act = "App.go('quiz_dashboard')";
-        else if (it.section === 'vocab') act = "App.go('vocab', { lang: '" + lang + "' })";
+        else if (it.section === 'vocab') act = "App.go('vocab', { lang: '" + secLang + "' })";
         else if (it.section === 'topic') act = "window.TarixGoTopic('" + lang + "', '" + (it.object || '').replace(/'/g, "\\'") + "')";
-        else if (it.section === 'material') act = "App.go('library')";
-        else if (it.section === 'listening') act = "App.go('listening')";
+        else if (it.section === 'material') act = "App.go('library', { sec: '" + (meta.sec || 'en_listening') + "' })";
+        else if (it.section === 'listening') act = "App.go('listening_practice', { lang: '" + secLang + "' })";
+        else if (it.section === 'reading') act = "App.go('library', { sec: '" + (meta.sec || 'en_reading') + "' })";
 
         var onclick = act ? ' onclick="' + act + '" style="cursor:pointer"' : ' style="cursor:default"';
 

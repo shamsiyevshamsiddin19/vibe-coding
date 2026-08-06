@@ -180,6 +180,16 @@
       if (!App._sheet) return;
       var s = App._sheet; App._sheet = null;
       s.sh.classList.remove('show'); s.back.classList.remove('show');
+      /* Yopilayotgan oyna DOM'da yana ~280ms turadi (animatsiya uchun).
+         Shu orada YANGI oyna ochilsa, hujjatda bir xil `id` li IKKI element
+         bo'lib qoladi va `App.el(id)` O'LAYOTGANINI qaytaradi — natijada
+         yangi oynaga chizilgan kontent ko'rinmay qolardi (amalda uchradi).
+         Shuning uchun id'lar DARHOL olib tashlanadi: eski oyna endi
+         `App.el` uchun umuman mavjud emas. */
+      try {
+        if (s.sh.id) s.sh.removeAttribute('id');
+        s.sh.querySelectorAll('[id]').forEach(function (el) { el.removeAttribute('id'); });
+      } catch (e) {}
       setTimeout(function () { s.sh.remove(); s.back.remove(); }, 280);
     },
 
@@ -315,6 +325,27 @@
         '<div class="dl-d"><span>Tugaydi</span><b class="end">' + App.esc(App.uzDate(d.end) || '—') + '</b></div>' +
         '</div>';
     },
+    /* Boostday vazifasi bilan Sport mashqini bog'laydigan YAGONA qoida.
+       Boostday matni "21:31 - 21:40 | Klassik otjimaniya" ko'rinishida
+       bo'ladi, Sport'dagi nom esa "Klassik otjimaniya" — taqqoslashdan
+       oldin vaqt prefiksi olib tashlanadi va bo'shliqlar birxillashtiriladi.
+       Ayni shu qoida server tomonida ham bor:
+         bot_py/app/helpers.py::normalize_task_name
+         backend_py/app/handlers/sport.py::_TIME_PREFIX_SQL
+       Uchalasi bir xil bo'lishi SHART — aks holda belgilash bir joyda
+       ko'rinib, boshqasida ko'rinmay qoladi. */
+    normTaskName: function (text) {
+      return String(text == null ? '' : text)
+        .replace(/^\s*\d{1,2}:\d{2}\s*[-–—]\s*\d{1,2}:\d{2}\s*\|\s*/, '')
+        /* O'zbekcha matnda apostrof bir necha xil belgi bilan yoziladi
+           ("To'pni" / "Toʻpni") — birxillashtirilmasa nom mos kelmay qoladi. */
+        .replace(/[ʻʼ‘’`´]/g, "'")
+        .replace(/\s+/g, ' ')
+        .trim();
+    },
+    /* Taqqoslash uchun kalit (registrga befarq) */
+    taskKey: function (text) { return App.normTaskName(text).toLowerCase(); },
+
     md: function (text) { return App._mdToHtml(text); },
 
     /* Matnni fayl qilib yuklab beradi (server so'rovisiz, brauzer ichida).

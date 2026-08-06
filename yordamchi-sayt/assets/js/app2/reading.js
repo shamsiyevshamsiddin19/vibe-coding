@@ -8,7 +8,7 @@
      # Sarlavha                     -> markazda turadigan sarlavha
      Bu {word|tarjima} bo'lgan gap. -> gap; {..|..} — bitta so'z tarjimasi
      :: Butun gapning tarjimasi.    -> oldingi gapga tegishli tarjima
-     (bo'sh qator)                  -> yangi xatboshi
+     (ikki bo'sh qator)             -> yangi xatboshi (bitta bo'sh qator matnni bo'lmaydi)
 
    Ekran tuzilishi (yuqoridan pastga):
      sarlavha (markazda) -> kitobdek toza matn -> pastda tinglash tugmasi.
@@ -29,7 +29,9 @@
     sec: '', id: null, name: '', lang: 'en-US',
     blocks: [], sentences: [],
     playing: false, idx: -1, rate: 1, alive: false,
-    barOpen: false
+    barOpen: false,
+    stepMode: false,      // gap-ma-gap: har gapdan keyin to'xtaydi
+    pendingStop: false
   };
 
   /* ================= Parser ================= */
@@ -65,12 +67,15 @@
   function parse(md) {
     var lines = String(md || '').replace(/\r/g, '').split('\n');
     var blocks = [], sentences = [];
+    var blankRun = 0;
+
     lines.forEach(function (line) {
       var h = line.match(/^(#{1,6})\s+(.*)$/);
-      if (h) { blocks.push({ k: 'h', lvl: h[1].length, text: h[2].trim() }); return; }
+      if (h) { blankRun = 0; blocks.push({ k: 'h', lvl: h[1].length, text: h[2].trim() }); return; }
 
       var tr = line.match(/^\s*::\s?(.*)$/);
       if (tr) {
+        blankRun = 0;
         for (var i = blocks.length - 1; i >= 0; i--) {
           if (blocks[i].k === 's') { blocks[i].tr = tr[1].trim(); break; }
           if (blocks[i].k === 'h') break;
@@ -78,7 +83,19 @@
         return;
       }
 
-      if (/^\s*$/.test(line)) { blocks.push({ k: 'br' }); return; }
+      /* BO'SH QATOR — xatboshi faqat IKKI (yoki undan ko'p) bo'sh qatordan
+         keyin boshlanadi.
+         Sabab: amalda AI har "gap + :: tarjima" juftidan keyin bitta bo'sh
+         qator qoldiradi (o'qishga qulay bo'lsin deb). Bitta bo'sh qator ham
+         xatboshi deb qabul qilinsa, HAR GAP alohida abzats bo'lib, matn
+         kitobdek emas, ro'yxatdek ko'rinardi — haqiqiy faylda 18 gap 18 ta
+         xatboshiga bo'linib ketgan edi. */
+      if (/^\s*$/.test(line)) {
+        blankRun++;
+        if (blankRun === 2) blocks.push({ k: 'br' });
+        return;
+      }
+      blankRun = 0;
 
       var s = { k: 's', raw: line.trim(), tr: '', n: sentences.length };
       s.tokens = tokenize(s.raw);
@@ -122,6 +139,19 @@
 
   function step(n) {
     if (!R.playing || !R.alive) return;
+
+    /* Gap-ma-gap rejim: bitta gap o'qilgach o'zi to'xtaydi va keyingi gapga
+       tayyor turadi. ▶ bosilsa davom etadi. O'rganish uchun qulay —
+       har gapdan keyin o'ylab olish/takrorlash imkoni bo'ladi. */
+    if (R.stepMode && R.pendingStop) {
+      R.pendingStop = false;
+      R.playing = false;
+      R.idx = n;
+      highlight(n);
+      paintPlayer();
+      return;
+    }
+
     if (n >= R.sentences.length) {
       R.playing = false; R.idx = -1;
       highlight(-1); paintPlayer();
@@ -136,7 +166,10 @@
     R.idx = n;
     highlight(n);
     paintPlayer();
-    speak(R.sentences[n].text, function () { step(n + 1); });
+    speak(R.sentences[n].text, function () {
+      if (R.stepMode) R.pendingStop = true;   // keyingi qadamda to'xtaydi
+      step(n + 1);
+    });
   }
 
   /* ================= Pastki pleyer =================
@@ -175,6 +208,9 @@
         '<button class="rd-pl-b" data-act="rdNext" aria-label="Keyingi gap">' +
         '<span data-icon="skipFwd" data-icon-size="20"></span></button>' +
         '<button class="rd-pl-rate" data-act="rdSpeed">' + rateLabel() + '</button>' +
+        '<button class="rd-pl-step' + (R.stepMode ? ' on' : '') + '" data-act="rdStepMode" ' +
+        'aria-label="Gap-ma-gap rejim" title="Har gapdan keyin to\'xtash">' +
+        '<span data-icon="pauseDot" data-icon-size="16"></span></button>' +
       '</div>';
     App.icons(box);
   }
@@ -214,6 +250,14 @@
     else { R.idx = n; highlight(n); paintPlayer(); }
   }
 
+  App.actions.rdStepMode = function () {
+    R.stepMode = !R.stepMode;
+    R.pendingStop = false;
+    try { localStorage.setItem('reading_step_mode', R.stepMode ? '1' : '0'); } catch (e) {}
+    paintPlayer();
+    App.toast(R.stepMode ? 'Gap-ma-gap: har gapdan keyin to\'xtaydi' : 'Uzluksiz o\'qish');
+  };
+
   App.actions.rdSpeed = function () {
     var opts = [0.6, 0.75, 0.9, 1, 1.15, 1.3];
     R.rate = opts[(opts.indexOf(R.rate) + 1) % opts.length];
@@ -245,6 +289,13 @@
         '<div class="rd-pop-src">' + App.esc(opts.src) + '</div>' +
         '<div class="rd-pop-tr">' + (opts.tr ? App.esc(opts.tr) : '<i>tarjima yozilmagan</i>') + '</div>' +
       '</div>' +
+      /* Gap tarjimasi — so'z oynachasida ham bo'lsin (matn zich belgilanganda
+         gapning bo'sh joyiga tegib bo'lmaydi). */
+      (opts.sent >= 0 && R.sentences[opts.sent] && R.sentences[opts.sent].tr
+        ? '<button class="rd-pop-sent" data-act="rdSent" data-arg=\'' +
+          App.arg({ n: opts.sent }) + '\'>' +
+          '<span data-icon="list" data-icon-size="13"></span>Gap tarjimasi</button>'
+        : '') +
       '<div class="rd-pop-acts">' +
         '<button class="rd-pop-b" data-act="rdSay" data-arg=\'' + App.arg({ t: opts.say }) + '\'>' +
         '<span data-icon="volume" data-icon-size="15"></span>Tinglash</button>' +
@@ -291,14 +342,26 @@
 
   App.actions.rdWord = function (a, el) {
     R.alive = true;
-    openPop(el, { src: a.w, tr: a.t, say: a.w, learn: true });
+    /* Gapning tarjimasini ham qo'shib beramiz. Sabab: matn zich
+       belgilanganda (bir gapda 5-6 so'z) gapning "bo'sh" joyiga tegish
+       deyarli imkonsiz — foydalanuvchi gap tarjimasini umuman ko'ra
+       olmasdi. Endi so'z oynachasida "Gap" tugmasi turadi. */
+    var sEl = el && el.closest ? el.closest('.rd-s') : null;
+    var sn = sEl ? +sEl.getAttribute('data-n') : -1;
+    openPop(el, { src: a.w, tr: a.t, say: a.w, learn: true, sent: sn });
     speak(a.w);
   };
 
   App.actions.rdSent = function (a, el) {
     R.alive = true;
     var s = R.sentences[a.n]; if (!s) return;
-    openPop(el, { src: s.text, tr: s.tr, say: s.text, learn: false });
+    /* Chaqiruv oynacha ICHIDAGI "Gap tarjimasi" tugmasidan kelgan bo'lishi
+       mumkin — u zahoti o'chiriladi, shuning uchun tayanch sifatida GAPNING
+       o'zini topamiz (aks holda oynacha noto'g'ri joyda chiqardi). */
+    var page = document.getElementById('page');
+    var anchor = (el && el.closest && el.closest('.rd-s')) ||
+                 (page && page.querySelector('.rd-s[data-n="' + a.n + '"]'));
+    openPop(anchor, { src: s.text, tr: s.tr, say: s.text, learn: false, sent: -1 });
   };
 
   /* Tashqariga bosilsa yopiladi; sahifa siljisa joyi yangilanadi */
@@ -310,9 +373,28 @@
   window.addEventListener('resize', function () { if (POP) closePop(); });
 
   /* ================= "O'rganish" — lug'atga qo'shish =================
-     Kategoriya nomi MATN nomi bilan ataladi. `save_dict_cat` kategoriyani
-     BUTUNLAY almashtiradi, shuning uchun avval mavjud so'zlar o'qib olinadi
-     va yangisi ustiga qo'shiladi (aks holda oldingilari o'chib ketardi). */
+     So'zlar QAYSI lug'atga tushishini foydalanuvchi o'zi tanlaydi (qalam
+     menyusidagi "O'rganish lug'ati"). Tanlov har matn uchun alohida eslab
+     qolinadi; tanlanmagan bo'lsa matnning nomi ishlatiladi.
+
+     `save_dict_cat` kategoriyani BUTUNLAY almashtiradi, shuning uchun avval
+     mavjud so'zlar o'qib olinadi va yangisi ustiga qo'shiladi (aks holda
+     oldingilari o'chib ketardi). */
+  function targetKey() { return 'reading_dict_' + R.sec + '_' + R.id; }
+  function targetCat() {
+    try {
+      var v = (localStorage.getItem(targetKey()) || '').trim();
+      if (v) return v;
+    } catch (e) {}
+    return R.name || 'Reading';
+  }
+  function setTargetCat(name) {
+    try {
+      if (name) localStorage.setItem(targetKey(), name);
+      else localStorage.removeItem(targetKey());
+    } catch (e) {}
+  }
+
   App.actions.rdLearn = function (a, el) {
     var word = String(a.w || '').trim();
     var tr = String(a.t || '').trim();
@@ -320,7 +402,7 @@
     if (!tr) { App.toast('Bu so\'zning tarjimasi yozilmagan'); return; }
 
     var lang = dictLang(R.sec);
-    var cat = R.name || 'Reading';
+    var cat = targetCat();
     if (el) { el.disabled = true; el.textContent = '...'; }
 
     App.call('get_dict_data', null, { query: 'lang=' + encodeURIComponent(lang) })
@@ -347,6 +429,61 @@
         if (el) { el.disabled = false; }
         App.toast('⚠️ ' + e.message);
       });
+  };
+
+  /* ---------- "O'rganish lug'ati" tanlash ----------
+     Mavjud lug'atlardan birini tanlash yoki yangi nom yozish. Tanlangan
+     lug'atga shu matndan bosilgan so'zlar tushadi va uni Lug'at bo'limida
+     odatdagidek yodlash mumkin. */
+  App.actions.rdPickDict = function () {
+    App.closeSheet();
+    var lang = dictLang(R.sec);
+    var cur = targetCat();
+
+    App.call('get_dict_data', null, { query: 'lang=' + encodeURIComponent(lang) })
+      .then(function (j) {
+        var counts = {};
+        (j.items || []).forEach(function (it) { counts[it.category] = (counts[it.category] || 0) + 1; });
+        var cats = (j.order || []).slice();
+        Object.keys(counts).forEach(function (c) { if (cats.indexOf(c) < 0) cats.push(c); });
+
+        var html =
+          '<p class="muted" style="font-size:12px;margin:0 0 12px">' +
+          'Shu matndan "O\'rganish" bilan qo\'shilgan so\'zlar tanlangan lug\'atga tushadi. ' +
+          'Uni Lug\'at bo\'limida yodlaysiz.</p>' +
+          '<label class="field"><span>Lug\'at nomi</span>' +
+          '<input class="input" id="rd-dict-name" value="' + App.esc(cur) + '" placeholder="Masalan: The Old Lighthouse"></label>' +
+          (cats.length
+            ? '<div class="list-label">Mavjud lug\'atlar</div>' +
+              cats.map(function (c) {
+                return '<button class="list-row rd-dict-pick" data-name="' + App.esc(c) + '">' +
+                  '<span class="li-ic"' + (c === cur ? ' style="background:var(--accent-soft);color:var(--accent)"' : '') +
+                  ' data-icon="' + (c === cur ? 'check' : 'list') + '" data-icon-size="15"></span>' +
+                  '<div class="li-main"><div class="li-title">' + App.esc(c) + '</div>' +
+                  '<div class="li-sub">' + (counts[c] || 0) + ' ta so\'z</div></div></button>';
+              }).join('')
+            : '<p class="muted" style="font-size:12px">Bu tilda hali lug\'at yo\'q — yuqorida nom yozsangiz yangisi ochiladi.</p>') +
+          '<div class="btn-row" style="margin-top:14px">' +
+          '<button class="btn sec" data-act="closeSheet">Bekor</button>' +
+          '<button class="btn" id="rd-dict-save">Saqlash</button></div>';
+
+        var sh = App.sheet(html, { title: 'O\'rganish lug\'ati' });
+        App.icons(sh);
+        var inp = sh.querySelector('#rd-dict-name');
+        // Ro'yxatdan tanlash — nomni maydonga qo'yadi (darhol saqlamaydi,
+        // foydalanuvchi tahrirlashi ham mumkin)
+        sh.querySelectorAll('.rd-dict-pick').forEach(function (b) {
+          b.onclick = function () { inp.value = b.getAttribute('data-name'); inp.focus(); };
+        });
+        sh.querySelector('#rd-dict-save').onclick = function () {
+          var name = (inp.value || '').trim();
+          if (!name) { App.toast('Lug\'at nomini kiriting'); return; }
+          setTargetCat(name);
+          App.closeSheet();
+          App.toast('✅ So\'zlar "' + name + '" lug\'atiga qo\'shiladi');
+        };
+      })
+      .catch(function (e) { App.toast('⚠️ ' + e.message); });
   };
 
   /* ================= Chizish ================= */
@@ -419,6 +556,135 @@
     ':: So\'z tarjimasi shunday yoziladi.'
   ].join('\n');
 
+  /* AI ga beriladigan TO'LIQ qo'llanma. Foydalanuvchi bu faylni istalgan
+     sun'iy intellektga beradi, u esa shu qoidalar bo'yicha matn tayyorlaydi.
+     Shuning uchun qo'llanma ilova matnni QANDAY o'qishini ham tushuntiradi —
+     AI nima uchun shunday yozish kerakligini bilsa, xato kamayadi. */
+  var GUIDE = [
+    '# Yordamchi — "O\'qish" (Reading) uchun matn tayyorlash qo\'llanmasi',
+    '',
+    'Bu faylni sun\'iy intellektga (ChatGPT, Claude va h.k.) bering va',
+    '"shu qoidalar bo\'yicha menga matn tayyorla" deng. Quyida formatning',
+    'to\'liq tavsifi va tayyor so\'rov (prompt) bor.',
+    '',
+    '---',
+    '',
+    '## 1. Bu fayl nimaga xizmat qiladi',
+    '',
+    'Yordamchi ilovasining "O\'qish" bo\'limi chet tilidagi matnni o\'qish uchun.',
+    'Ilova matnni kitobdek chiroyli ko\'rsatadi va uni **interaktiv** qiladi:',
+    '',
+    '- **so\'zga bosilsa** — o\'sha so\'zning tarjimasi yonida kichik oynachada chiqadi;',
+    '- **gapga bosilsa** — butun gapning tarjimasi chiqadi;',
+    '- **"Matnni tinglash"** — matn ovoz bilan gap-ma-gap o\'qib beriladi,',
+    '  o\'qilayotgan gap belgilanib turadi;',
+    '- oynachadagi **"O\'rganish"** tugmasi so\'zni lug\'atga qo\'shadi va uni',
+    '  keyin flashcard/test bilan yodlash mumkin.',
+    '',
+    '**Muhim:** ilova internetdagi tarjimondan FOYDALANMAYDI. Barcha tarjimalar',
+    'shu faylning ICHIDA oldindan yozilgan bo\'lishi kerak. Shuning uchun fayl',
+    'qanchalik to\'g\'ri yozilsa, bo\'lim shunchalik yaxshi ishlaydi.',
+    '',
+    '## 2. Format — atigi uchta qoida',
+    '',
+    '### Qoida 1. Har gap ALOHIDA QATORDA',
+    '',
+    'Bitta gap — bitta qator. Gapni ikkiga bo\'lib tashlamang.',
+    '',
+    '### Qoida 2. Gap tarjimasi — keyingi qatorda, `::` bilan',
+    '',
+    '```',
+    'The old lighthouse stood on the cliff.',
+    ':: Eski mayoq qoya ustida turardi.',
+    '```',
+    '',
+    '### Qoida 3. So\'z tarjimasi — gap ichida `{so\'z|tarjima}`',
+    '',
+    '```',
+    'The {old|eski} {lighthouse|mayoq} stood on the {cliff|qoya}.',
+    ':: Eski mayoq qoya ustida turardi.',
+    '```',
+    '',
+    'Ilova `{...}` ni o\'qiganda ekranda faqat **so\'zning o\'zi** ko\'rinadi',
+    '(`old`), tarjimasi esa bosilganda chiqadi.',
+    '',
+    'Qo\'shimcha: `# Sarlavha` — sarlavha (markazda chiqadi).',
+    '',
+    '**Bo\'sh qator haqida.** Gap va tarjima juftlari orasida bitta bo\'sh',
+    'qator qoldirsangiz ham bo\'ladi — matn baribir kitobdek uzluksiz oqadi.',
+    'Yangi XATBOSHI boshlash uchun IKKI bo\'sh qator qoldiring.',
+    '',
+    '## 3. Nimalarga E\'TIBOR berish kerak',
+    '',
+    '1. **Hamma so\'zni belgilamang.** Faqat foydalanuvchi bilmasligi mumkin',
+    '   bo\'lgan so\'zlarni. `the`, `is`, `and` kabilarni belgilash shart emas —',
+    '   aks holda matn nuqtali chiziqlarga to\'lib ketadi va o\'qib bo\'lmaydi.',
+    '   Bir gapda odatda 2-5 ta so\'z yetarli.',
+    '2. **Har gapga tarjima yozing.** Tarjimasi yo\'q gap bosilganda',
+    '   "tarjima yozilmagan" deb chiqadi.',
+    '3. **`{}` ichida qator ko\'chirmang** va ichiga yana `{` `}` qo\'ymang.',
+    '4. **`|` belgisi** faqat so\'z bilan tarjimani ajratadi. So\'zning o\'zida',
+    '   `|` bo\'lmasin.',
+    '5. **Tarjima qisqa bo\'lsin** — bir-ikki so\'z. Uzun izoh oynachaga sig\'maydi.',
+    '6. **So\'zni matndagi shaklida qoldiring** (`stood`, `climbed`), lekin',
+    '   tarjimani o\'sha shaklga mos bering.',
+    '7. **Tinish belgisi `{}` dan tashqarida qolsin:** `{cliff|qoya}.` — to\'g\'ri,',
+    '   `{cliff.|qoya}` — noto\'g\'ri.',
+    '',
+    '## 4. To\'liq namuna',
+    '',
+    '```markdown',
+    '# The Old Lighthouse',
+    '',
+    'The {old|eski} {lighthouse|mayoq} stood on the {cliff|qoya} above the sea.',
+    ':: Eski mayoq dengiz ustidagi qoyada turardi.',
+    'Every night its light {guided|yo\'l ko\'rsatardi} the {ships|kemalar} home.',
+    ':: Har kecha uning nuri kemalarga uyga yo\'l ko\'rsatardi.',
+    '',
+    'One {winter|qish} the keeper {fell ill|kasal bo\'lib qoldi}.',
+    ':: Bir qishda qorovul kasal bo\'lib qoldi.',
+    '```',
+    '',
+    '## 5. AI ga beriladigan tayyor so\'rov',
+    '',
+    'Quyidagini nusxalab, oxiriga o\'z matningizni qo\'shing:',
+    '',
+    '```',
+    'Menga quyidagi qoidalar bo\'yicha .md fayl tayyorla.',
+    '',
+    'FORMAT:',
+    '- Har gap alohida qatorda.',
+    '- Har gapdan keyingi qatorda ":: " bilan o\'sha gapning O\'ZBEKCHA tarjimasi.',
+    '- Gap ichida qiyin so\'zlarni {so\'z|o\'zbekcha tarjima} ko\'rinishida belgila.',
+    '- Bir gapda 2-5 tadan ortiq so\'z belgilama; the/is/and kabi oddiy',
+    '  so\'zlarni belgilama.',
+    '- Tarjima qisqa (1-2 so\'z) bo\'lsin.',
+    '- Tinish belgilari {} dan tashqarida qolsin.',
+    '- Boshida "# Sarlavha" bo\'lsin. Yangi xatboshi kerak bo\'lsa IKKI bo\'sh',
+    '  qator qoldir (bitta bo\'sh qator matnni bo\'lmaydi).',
+    '- Bir gapda 5 tadan ortiq so\'z belgilama — matn nuqtali chiziqqa to\'lib',
+    '  ketsa o\'qib bo\'lmaydi.',
+    '- Boshqa hech qanday markdown belgisi ishlatma (jadval, ro\'yxat, ** yo\'q).',
+    '- Javobni faqat .md matn sifatida ber, izohsiz.',
+    '',
+    'MATN:',
+    '<shu yerga matnni qo\'ying yoki "B1 darajada 200 so\'zlik hikoya yoz" deng>',
+    '```',
+    '',
+    '## 6. Tayyor bo\'lgach',
+    '',
+    'Faylni "O\'qish" bo\'limida qalam tugmasi -> ".md fayl yuklash" orqali',
+    'yuklang. Shu yerdagi **"O\'rganish lug\'ati"** dan so\'zlar qaysi lug\'atga',
+    'tushishini tanlab qo\'ying — keyin ularni Lug\'at bo\'limida yodlaysiz.',
+    ''
+  ].join('\n');
+
+  App.actions.rdGuide = function () {
+    App.closeSheet();
+    App.download('yordamchi-oqish-qollanma.md', GUIDE);
+    App.toast('Qo\'llanma yuklandi — uni AI ga bering');
+  };
+
   App.actions.rdSample = function (a) {
     App.closeSheet();
     var ru = String((a && a.sec) || R.sec).indexOf('ru_') === 0;
@@ -438,6 +704,8 @@
       R.blocks = []; R.sentences = []; R.idx = -1;
       R.playing = false; R.alive = true; R.barOpen = false;
       try { R.rate = parseFloat(localStorage.getItem('reading_rate')) || 1; } catch (e) { R.rate = 1; }
+      try { R.stepMode = localStorage.getItem('reading_step_mode') === '1'; } catch (e) { R.stepMode = false; }
+      R.pendingStop = false;
 
       page.innerHTML =
         '<div class="topbar" style="margin:-16px -15px 12px">' +
@@ -491,7 +759,6 @@
 
       box.innerHTML =
         '<h1 class="rd-title">' + App.esc(title) + '</h1>' +
-        '<p class="rd-hint">So\'z yoki gapga bosing — tarjimasi shu yerda chiqadi.</p>' +
         '<div class="rd-text">' + bodyHtml(parsed) + '</div>';
       App.icons(box);
 
@@ -511,6 +778,11 @@
     var btn = page.querySelector('#rd-menu'); if (!btn) return;
     btn.onclick = function () {
       var html =
+        '<button class="list-row" data-act="rdPickDict">' +
+        '<span class="li-ic" style="background:var(--accent-soft);color:var(--accent)" data-icon="list" data-icon-size="15"></span>' +
+        '<div class="li-main"><div class="li-title">O\'rganish lug\'ati</div>' +
+        '<div class="li-sub">' + App.esc(targetCat()) + '</div></div>' +
+        '<span class="li-chev" data-icon="arrowLeft" data-icon-size="15" style="transform:rotate(180deg)"></span></button>' +
         '<button class="list-row" id="rd-m-ed"><span class="li-ic" data-icon="edit" data-icon-size="15"></span>' +
         '<div class="li-main"><div class="li-title">' + (t.content ? 'Tahrirlash' : 'Yozish') + '</div>' +
         '<div class="li-sub">Tarjimalarni shu yerda qo\'shasiz</div></div></button>' +
@@ -520,10 +792,14 @@
           ? '<button class="list-row" id="rd-m-dl"><span class="li-ic" data-icon="download" data-icon-size="15"></span>' +
             '<div class="li-main"><div class="li-title">.md faylni yuklab olish</div></div></button>'
           : '') +
+        '<button class="list-row" data-act="rdGuide">' +
+        '<span class="li-ic" style="background:var(--purple-soft,var(--card-2))" data-icon="file" data-icon-size="15"></span>' +
+        '<div class="li-main"><div class="li-title">AI uchun qo\'llanma</div>' +
+        '<div class="li-sub">Shu faylni AI ga bering — to\'g\'ri matn tayyorlab beradi</div></div></button>' +
         '<button class="list-row" data-act="rdSample" data-arg=\'' + App.arg({ sec: R.sec }) + '\'>' +
         '<span class="li-ic" data-icon="book" data-icon-size="15"></span>' +
         '<div class="li-main"><div class="li-title">Namuna fayl</div>' +
-        '<div class="li-sub">Format qanday yozilishini ko\'rsatadi</div></div></button>';
+        '<div class="li-sub">Qisqa misol — format qanday ko\'rinishini ko\'rsatadi</div></div></button>';
       var sh = App.sheet(html, { title: R.name });
       App.icons(sh);
       sh.querySelector('#rd-m-up').onclick = function () { App.closeSheet(); App.el('rd-file').click(); };

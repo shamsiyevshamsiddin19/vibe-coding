@@ -261,9 +261,18 @@
       }).join('');
     }
 
+    /* BUGUNGI KUN chizig'i — o'q oxiridagi vertikal punktir + "Bugun" yozuvi.
+       X o'qi doim bugun bilan tugagani uchun chiziq eng o'ngda turadi;
+       yozuv chetdan chiqib ketmasligi uchun oxiriga tekislanadi. */
+    var tx = x(dates.length - 1);
+    var todayLine =
+      '<line x1="' + tx.toFixed(1) + '" y1="' + T + '" x2="' + tx.toFixed(1) + '" y2="' + (T + innerH) +
+      '" class="ch-today"/>' +
+      '<text x="' + (tx - 4).toFixed(1) + '" y="' + (T + 9) + '" class="ch-today-lb" text-anchor="end">Bugun</text>';
+
     return '<div class="ch-legend">' + legend + mkLegend + '</div>' +
       '<svg class="ch-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">' +
-      grid + paths + mk + xlb + '</svg>';
+      grid + todayLine + paths + mk + xlb + '</svg>';
   }
 
   /* =========================================================
@@ -403,13 +412,21 @@
      grafigi va h.k.). Manba: activity_log (barcha bo'limlar uchun yagona
      jurnal). Bo'lim ichida "obyekt" (fan bazasi, mashq, kategoriya) bo'yicha
      alohida chiziq/ustun chiziladi. */
+  /* Bo'lim kalitlari activity_log dagi `section` qiymatlari bilan AYNAN
+     mos bo'lishi shart. Ilgari bu yerda `lang_ru`/`lang_en` turardi —
+     bunday `section` hech qachon yozilmaydi, ya'ni ikkala blok DOIM bo'sh
+     edi. Ayni paytda eng ko'p yoziladigan `topic` (mavzular) va `vocab`
+     (lug'at) bo'limlari statistikada umuman ko'rinmasdi.
+     Ro'yxat: backend ALLOWED_SECTIONS va tarix.js SEC bilan bir xil. */
   var SEC_BLOCKS = [
-    { k: 'quiz',      n: 'Testlar',    empty: 'Hali test yechilmagan',          summaryId: 'st-quiz' },
+    { k: 'quiz',      n: 'Testlar',     empty: 'Hali test yechilmagan',    summaryId: 'st-quiz' },
+    { k: 'topic',     n: 'Mavzular',    empty: 'Hali mavzu o\'rganilmagan' },
+    { k: 'vocab',     n: 'Lug\'at',     empty: 'Hali so\'z yodlanmagan' },
+    { k: 'reading',   n: 'O\'qish',     empty: 'Hali matn o\'qilmagan' },
+    { k: 'listening', n: 'Listening',   empty: 'Hali mashq bajarilmagan' },
     { k: 'material',  n: 'Materiallar', empty: 'Hali material o\'qilmagan' },
-    { k: 'sport',     n: 'Sport',      empty: 'Hali mashq belgilanmagan',       summaryId: 'st-sport' },
-    { k: 'boostday',  n: 'Boostday',   empty: 'Hali vazifa bajarilmagan' },
-    { k: 'lang_ru',   n: 'Rus tili',   empty: 'Hali rus tili bo\'yicha mashq yo\'q' },
-    { k: 'lang_en',   n: 'Ingliz tili', empty: 'Hali ingliz tili bo\'yicha mashq yo\'q' }
+    { k: 'sport',     n: 'Sport',       empty: 'Hali mashq belgilanmagan',  summaryId: 'st-sport' },
+    { k: 'boostday',  n: 'Boostday',    empty: 'Hali vazifa bajarilmagan' }
   ];
 
   function sectionBlockHtml(s) {

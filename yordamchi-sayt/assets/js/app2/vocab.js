@@ -31,6 +31,149 @@
     });
   }
 
+  /* ---------- Kategoriyalarni yashirish ----------
+     Yuzlab kategoriya to'planganda kerak bo'lmaganlarini ro'yxatdan olib
+     qo'yish. O'CHIRISH EMAS — so'zlar joyida qoladi, faqat ko'rinmaydi
+     va istalgan payt qaytariladi. localStorage (remote-storage sinxronlaydi). */
+  function hiddenKey(lang) { return 'vocab_hidden_v1_' + lang; }
+  function hiddenCats(lang) {
+    try {
+      var v = JSON.parse(localStorage.getItem(hiddenKey(lang)) || '[]');
+      return Array.isArray(v) ? v : [];
+    } catch (e) { return []; }
+  }
+  function setHidden(lang, list) {
+    try { localStorage.setItem(hiddenKey(lang), JSON.stringify(list)); } catch (e) {}
+  }
+
+  /* Butun PAPKA ni yashirish — ichidagi hamma lug'at bilan birga.
+     Alohida ro'yxat: papkaga keyin yangi lug'at qo'shilsa ham u avtomatik
+     yashirin bo'ladi (har birini qo'lda belgilash shart emas). */
+  function hiddenFoldersKey(lang) { return 'vocab_hidden_folders_v1_' + lang; }
+  function hiddenFolders(lang) {
+    try {
+      var v = JSON.parse(localStorage.getItem(hiddenFoldersKey(lang)) || '[]');
+      return Array.isArray(v) ? v : [];
+    } catch (e) { return []; }
+  }
+  function setHiddenFolders(lang, list) {
+    try { localStorage.setItem(hiddenFoldersKey(lang), JSON.stringify(list)); } catch (e) {}
+  }
+  /* ---------- Ichma-ich papka yo'llari ----------
+     Kategoriya to'liq nomi yo'l bo'lib ishlaydi: "курс/чтение/05.08.2026".
+     Oxirgi bo'lak — lug'atning O'Z nomi, oldingilari — papkalar zanjiri. */
+
+  /* "курс/чтение/05.08.2026" -> "курс/чтение" (papkasiz bo'lsa '') */
+  function catParent(cat) {
+    var s = String(cat);
+    var i = s.lastIndexOf('/');
+    return i < 0 ? '' : s.slice(0, i).trim();
+  }
+  /* Yo'lning oxirgi bo'lagi: "курс/чтение" -> "чтение" */
+  function lastSeg(p) {
+    var s = String(p || '');
+    var i = s.lastIndexOf('/');
+    return (i < 0 ? s : s.slice(i + 1)).trim();
+  }
+  /* `base` ichidagi BEVOSITA keyingi bo'lak. base='курс', path='курс/чтение/x'
+     -> 'чтение'. Ichida bo'lmasa null. */
+  function childSeg(base, path) {
+    var p = String(path || '');
+    if (base) {
+      if (p !== base && p.indexOf(base + '/') !== 0) return null;
+      p = p.slice(base.length + 1);
+    }
+    if (!p) return null;
+    var i = p.indexOf('/');
+    return (i < 0 ? p : p.slice(0, i)).trim() || null;
+  }
+  /* Kategoriya yashiringan papkalardan birining ICHIDAMI (istalgan chuqurlikda) */
+  function underHiddenFolder(cat, hidF) {
+    if (!hidF || !hidF.length) return false;
+    var p = catParent(cat);
+    if (!p) return false;
+    return hidF.some(function (f) { return p === f || p.indexOf(f + '/') === 0; });
+  }
+
+  App.actions.vocabFolderHide = function (a) {
+    var list = hiddenFolders(a.lang);
+    if (list.indexOf(a.folder) < 0) list.push(a.folder);
+    setHiddenFolders(a.lang, list);
+    App.closeSheet();
+    App.toast('"' + a.folder + '" papkasi yashirildi');
+    App.reload();
+  };
+  App.actions.vocabFolderUnhide = function (a) {
+    setHiddenFolders(a.lang, hiddenFolders(a.lang).filter(function (f) { return f !== a.folder; }));
+    App.closeSheet();
+    App.toast('Qaytarildi');
+    App.reload();
+  };
+  /* Papka ustidagi menyu (uzun bosish emas — yonidagi tugma) */
+  App.actions.vocabFolderMenu = function (a) {
+    var html =
+      '<button class="list-row" data-act="vocabFolderHide" data-arg=\'' + App.arg(a) + '\'>' +
+      '<span class="li-ic" data-icon="close" data-icon-size="15"></span>' +
+      '<div class="li-main"><div class="li-title">Papkani yashirish</div>' +
+      '<div class="li-sub">Ichidagi barcha lug\'atlar bilan birga</div></div></button>';
+    App.sheet(html, { title: a.folder });
+  };
+
+  App.actions.vocabCatHide = function (a) {
+    var list = hiddenCats(a.lang);
+    if (list.indexOf(a.cat) < 0) list.push(a.cat);
+    setHidden(a.lang, list);
+    App.closeSheet();
+    App.toast('Yashirildi');
+    App.reload();
+  };
+  App.actions.vocabCatUnhide = function (a) {
+    setHidden(a.lang, hiddenCats(a.lang).filter(function (c) { return c !== a.cat; }));
+    App.closeSheet();
+    App.toast('Qaytarildi');
+    App.reload();
+  };
+  App.actions.vocabHiddenSheet = function (a) {
+    var cats = hiddenCats(a.lang);
+    var folders = hiddenFolders(a.lang);
+    var html = '';
+
+    if (folders.length) {
+      html += '<div class="list-label">Papkalar</div>' + folders.map(function (f) {
+        // Papkadagi lug'atlar soni (yashiringan bo'lsa ham bazada turadi)
+        // Papka ICHIDAGI hamma lug'at (ichma-ich papkalar bilan birga)
+        var inside = V.order.filter(function (c) {
+          var p = catParent(c);
+          return p === f || p.indexOf(f + '/') === 0;
+        });
+        var words = inside.reduce(function (s, c) { return s + (V.data[c] || []).length; }, 0);
+        return '<div class="list-row">' +
+          '<span class="li-ic" style="background:var(--accent-soft);color:var(--accent)" data-icon="archive" data-icon-size="15"></span>' +
+          '<div class="li-main"><div class="li-title">' + App.esc(f) + '</div>' +
+          '<div class="li-sub">' + inside.length + ' bo\'lim · ' + words + ' so\'z</div></div>' +
+          '<button class="icon-btn ghost" style="width:30px;height:30px" aria-label="Qaytarish" ' +
+          'data-act="vocabFolderUnhide" data-arg=\'' + App.arg({ lang: a.lang, folder: f }) + '\'>' +
+          '<span data-icon="refresh" data-icon-size="14"></span></button></div>';
+      }).join('');
+    }
+
+    if (cats.length) {
+      if (folders.length) html += '<div class="list-label">Alohida lug\'atlar</div>';
+      html += cats.map(function (c) {
+        return '<div class="list-row"><span class="li-ic" data-icon="list" data-icon-size="15"></span>' +
+          '<div class="li-main"><div class="li-title">' + App.esc(c) + '</div>' +
+          '<div class="li-sub">' + (V.data[c] || []).length + ' so\'z</div></div>' +
+          '<button class="icon-btn ghost" style="width:30px;height:30px" aria-label="Qaytarish" ' +
+          'data-act="vocabCatUnhide" data-arg=\'' + App.arg({ lang: a.lang, cat: c }) + '\'>' +
+          '<span data-icon="refresh" data-icon-size="14"></span></button></div>';
+      }).join('');
+    }
+
+    if (!html) html = App.empty({ icon: 'list', title: 'Yashiringan narsa yo\'q', text: '' });
+    var sh = App.sheet(html, { title: 'Yashiringanlar' });
+    App.icons(sh);
+  };
+
   function topbar(title, back, backParams, rightHtml) {
     return '<div class="topbar" style="margin:-16px -15px 12px">' +
       '<button class="icon-btn ghost" data-act="go" data-arg=\'' + App.arg({ v: back, p: backParams || {} }) + '\'><span data-icon="arrowLeft" data-icon-size="20"></span></button>' +
@@ -62,21 +205,43 @@
     nav: 'languages',
     render: function (page, params) {
       var lang = params.lang === 'russian' ? 'russian' : 'english';
-      // Papka ichida bo'lsak — "ortga" papkalar ro'yxatiga qaytaradi
+      /* Papka yo'li ("курс/чтение" kabi ichma-ich bo'lishi mumkin).
+         Ortga — bir daraja YUQORIGA (ildizda bo'lsa til bo'limiga). */
       var inFolder = params.folder || '';
+      var up = inFolder.indexOf('/') < 0 ? '' : inFolder.slice(0, inFolder.lastIndexOf('/'));
       var backView = inFolder ? 'vocab' : (lang === 'russian' ? 'russian' : 'english');
-      var backParams = inFolder ? { lang: lang } : null;
-      page.innerHTML = topbar(inFolder || LABEL[lang].hub, backView, backParams) +
+      var backParams = inFolder ? { lang: lang, folder: up } : null;
+
+      /* Tugmalar BITTA ixcham qatorda — yozuvsiz, faqat belgi.
+         Foydalanuvchi qaysi tugma nima qilishini biladi, ekran joyi esa
+         ro'yxatga kerak. */
+      page.innerHTML = topbar(inFolder ? lastSeg(inFolder) : LABEL[lang].hub, backView, backParams,
+        '<div class="voc-acts">' +
+        '<button class="icon-btn ghost" data-act="vocabAddCat" data-arg=\'' + App.arg({ lang: lang, folder: inFolder }) + '\' aria-label="Yangi kategoriya" title="Yangi kategoriya"><span data-icon="plus" data-icon-size="19"></span></button>' +
+        '<button class="icon-btn ghost" data-act="vocabDbOptions" data-arg=\'' + App.arg({ lang: lang }) + '\' aria-label="Baza qo\'shish" title="Baza qo\'shish"><span data-icon="upload" data-icon-size="18"></span></button>' +
+        '<button class="icon-btn ghost" data-act="vocabSendSheet" data-arg=\'' + App.arg({ lang: lang }) + '\' aria-label="Boostdayga yuborish" title="Boostdayga yuborish"><span data-icon="message" data-icon-size="18"></span></button>' +
+        '</div>') +
+        (inFolder ? '<div class="lib-crumb" id="voc-crumb"></div>' : '') +
         '<div id="vocab-mis-entry"></div>' +
-        '<div style="display:flex;gap:10px;margin-bottom:10px">' +
-        '<button class="btn sec" data-act="vocabAddCat" data-arg=\'' + App.arg({ lang: lang }) + '\' style="flex:1"><span data-icon="plus" data-icon-size="16"></span>Yangi kategoriya</button>' +
-        '<button class="btn sec" data-act="vocabDbOptions" data-arg=\'' + App.arg({ lang: lang }) + '\' style="flex:1"><span data-icon="upload" data-icon-size="16"></span>Baza qo\'shish</button>' +
-        '</div>' +
-        (inFolder ? '' :
-          '<button class="btn sec" data-act="vocabSendSheet" data-arg=\'' + App.arg({ lang: lang }) + '\' style="width:100%;margin-bottom:14px">' +
-          '<span data-icon="message" data-icon-size="16"></span>Boostdayga yuborish</button>') +
         '<div id="vocab-list"><div class="load-wrap"><div class="spinner"></div></div></div>';
       App.icons(page);
+
+      // Yo'l ko'rsatkichi (breadcrumb) — chuqur papkada qayerdaligi bilinsin
+      if (inFolder) {
+        var cb = App.el('voc-crumb');
+        if (cb) {
+          var acc = '', parts = inFolder.split('/');
+          cb.innerHTML = '<button class="lib-cr" data-act="go" data-arg=\'' +
+            App.arg({ v: 'vocab', p: { lang: lang } }) + '\'>' + App.esc(LABEL[lang].hub) + '</button>' +
+            parts.map(function (p, i) {
+              acc = acc ? acc + '/' + p : p;
+              if (i === parts.length - 1) return '<span>/</span><b>' + App.esc(p) + '</b>';
+              return '<span>/</span><button class="lib-cr" data-act="go" data-arg=\'' +
+                App.arg({ v: 'vocab', p: { lang: lang, folder: acc } }) + '\'>' + App.esc(p) + '</button>';
+            }).join('');
+          App.icons(cb);
+        }
+      }
 
       // Xatolar bo'limi — faqat xato so'zlar bo'lsa ko'rinadi
       loadMistakes(lang).then(function (list) {
@@ -92,19 +257,32 @@
       loadDict(lang).then(function () {
         var box = App.el('vocab-list'); if (!box) return;
 
-        // Kategoriya nomida "/" bo'lsa — papka ("Chastota/1-100" -> "Chastota"
-        // papkasi ichida "1-100"). Yuzlab kategoriya bitta ro'yxatda oqib
-        // ketmasligi uchun. "/" siz nomlar avvalgidek ildizda qoladi.
+        /* ICHMA-ICH PAPKALAR. Kategoriya nomidagi har "/" bitta daraja:
+           "курс/чтение/05.08.2026" -> курс > чтение papkalari ichida
+           "05.08.2026" lug'ati. Chuqurlik cheklanmagan.
+           Ilgari faqat BIRINCHI "/" hisobga olinardi, shuning uchun ichma-ich
+           papka yasab bo'lmasdi — qolgan qismi uzun nom bo'lib ko'rinardi. */
         var folder = params.folder || '';
         var order = [], map = {}, root = [];
+        var hid = hiddenCats(lang);
+        var hidF = hiddenFolders(lang);
+
         V.order.forEach(function (cat) {
-          var i = cat.indexOf('/');
-          var f = i < 0 ? '' : cat.slice(0, i).trim();
-          var n = i < 0 ? cat : cat.slice(i + 1).trim();
-          var item = { full: cat, name: n || cat, count: (V.data[cat] || []).length };
-          if (!f) { root.push(item); return; }
-          if (!map[f]) { map[f] = []; order.push(f); }
-          map[f].push(item);
+          if (hid.indexOf(cat) >= 0) return;              // lug'at yashiringan
+          if (underHiddenFolder(cat, hidF)) return;        // papkasi (yoki yuqorigi) yashiringan
+
+          var parent = catParent(cat);                     // to'liq papka yo'li
+          if (parent === folder) {                         // shu darajadagi lug'at
+            root.push({ full: cat, name: lastSeg(cat), count: (V.data[cat] || []).length });
+            return;
+          }
+          // Ichkaridami? Bevosita KEYINGI bo'lakni papka sifatida olamiz
+          var sub = childSeg(folder, parent);
+          if (!sub) return;
+          var path = folder ? folder + '/' + sub : sub;
+          if (!map[path]) { map[path] = { name: sub, items: 0, words: 0 }; order.push(path); }
+          map[path].items++;
+          map[path].words += (V.data[cat] || []).length;
         });
 
         function catRow(it) {
@@ -115,25 +293,26 @@
             '<button class="icon-btn ghost" style="width:30px;height:30px" data-act="vocabCatManage" data-arg=\'' + App.arg({ lang: lang, cat: it.full }) + '\'><span data-icon="edit" data-icon-size="14"></span></button></div>';
         }
 
-        if (folder) {
-          var items = map[folder] || [];
-          box.innerHTML = items.length ? items.map(catRow).join('')
-            : App.empty({ icon: 'list', title: 'Bo\'sh papka', text: '' });
-          App.icons(box); return;
-        }
-
-        var html = order.map(function (f) {
-          var n = map[f].reduce(function (s, x) { return s + x.count; }, 0);
-          return '<button class="list-row" data-act="go" data-arg=\'' +
-            App.arg({ v: 'vocab', p: { lang: lang, folder: f } }) + '\'>' +
+        /* Papka qatori: asosiy qismi ichkariga kiradi, yonidagi tugma menyu
+           (button ichida button bo'lmaydi — shuning uchun o'ram div). */
+        var html = order.map(function (path) {
+          var f = map[path];
+          return '<div class="list-row">' +
             '<span class="li-ic" style="background:var(--accent-soft);color:var(--accent)" data-icon="archive" data-icon-size="15"></span>' +
-            '<div class="li-main"><div class="li-title">' + App.esc(f) + '</div>' +
-            '<div class="li-sub">' + map[f].length + ' bo\'lim · ' + n + ' so\'z</div></div>' +
-            '<span class="li-chev" data-icon="arrowLeft" data-icon-size="16" style="transform:rotate(180deg)"></span></button>';
+            '<button class="li-main li-btn" data-act="go" data-arg=\'' +
+            App.arg({ v: 'vocab', p: { lang: lang, folder: path } }) + '\'>' +
+            '<div class="li-title">' + App.esc(f.name) + '</div>' +
+            '<div class="li-sub">' + f.items + ' bo\'lim · ' + f.words + ' so\'z</div></button>' +
+            '<button class="icon-btn ghost" style="width:30px;height:30px" aria-label="Papka menyusi" ' +
+            'data-act="vocabFolderMenu" data-arg=\'' + App.arg({ lang: lang, folder: path }) + '\'>' +
+            '<span data-icon="edit" data-icon-size="14"></span></button></div>';
         }).join('');
         if (root.length) {
-          if (order.length) html += '<div class="list-label">Papkasiz</div>';
+          if (order.length) html += '<div class="list-label">Lug\'atlar</div>';
           html += root.map(catRow).join('');
+        }
+        if (!order.length && !root.length && folder) {
+          html = App.empty({ icon: 'list', title: 'Bo\'sh papka', text: '' });
         }
         
         var mdFiles = {};
@@ -150,6 +329,19 @@
           }).join('');
         }
         
+        // Yashiringanlar — ro'yxat oxirida (papkalar ham, alohida lug'atlar ham)
+        if (hid.length || hidF.length) {
+          var parts = [];
+          if (hidF.length) parts.push(hidF.length + ' papka');
+          if (hid.length) parts.push(hid.length + ' lug\'at');
+          html += '<button class="list-row" data-act="vocabHiddenSheet" data-arg=\'' +
+            App.arg({ lang: lang }) + '\' style="margin-top:14px">' +
+            '<span class="li-ic" data-icon="close" data-icon-size="15"></span>' +
+            '<div class="li-main"><div class="li-title">Yashiringanlar</div>' +
+            '<div class="li-sub">' + parts.join(' · ') + ' · qaytarish mumkin</div></div>' +
+            '<span class="li-chev" data-icon="arrowLeft" data-icon-size="16" style="transform:rotate(180deg)"></span></button>';
+        }
+
         box.innerHTML = html || App.empty({ icon: 'list', title: 'Kategoriya yo\'q', text: 'Yuqoridagi tugma bilan birinchi kategoriyani qo\'shing.' });
         App.icons(box);
       }).catch(function (e) {
@@ -291,9 +483,19 @@
   };
 
   App.actions.vocabAddCat = function (a) {
-    var sh = App.sheet(bulkSheetHtml('', ''), { title: 'Yangi kategoriya' });
+    /* Papka ichida turgan bo'lsak nom maydoni "курс/чтение/" bilan
+       to'ldiriladi — foydalanuvchi faqat oxirini yozadi va lug'at
+       o'sha papkada paydo bo'ladi. Yangi ichma-ich papka ochish uchun
+       yana "/" qo'shsa bo'ladi. */
+    var pre = a.folder ? a.folder + '/' : '';
+    var sh = App.sheet(bulkSheetHtml(pre, ''), { title: 'Yangi kategoriya' });
+    var nameEl = sh.querySelector('#vc-name');
+    if (pre) setTimeout(function () {
+      nameEl.focus();
+      try { nameEl.setSelectionRange(pre.length, pre.length); } catch (e) {}
+    }, 350);
     sh.querySelector('#vc-save').onclick = function () {
-      var name = sh.querySelector('#vc-name').value.trim();
+      var name = nameEl.value.trim().replace(/\/+$/, '');
       var words = parseWords(sh.querySelector('#vc-text').value);
       if (!name) return App.toast('Kategoriya nomini kiriting');
       if (!words.length) return App.toast('Kamida bitta so\'z kerak — formatni tekshiring');
@@ -307,6 +509,10 @@
     var html =
       '<button class="list-row" data-act="vocabCatReplace" data-arg=\'' + App.arg(a) + '\'><span class="li-ic" data-icon="upload" data-icon-size="15"></span><div class="li-main"><div class="li-title">So\'zlarni yangilash</div></div></button>' +
       '<button class="list-row" data-act="vocabCatRename" data-arg=\'' + App.arg(a) + '\'><span class="li-ic" data-icon="edit" data-icon-size="15"></span><div class="li-main"><div class="li-title">Nomini o\'zgartirish</div></div></button>' +
+      '<button class="list-row" data-act="vocabCatHide" data-arg=\'' + App.arg(a) + '\'>' +
+      '<span class="li-ic" data-icon="close" data-icon-size="15"></span>' +
+      '<div class="li-main"><div class="li-title">Yashirish</div>' +
+      '<div class="li-sub">Ro\'yxatdan olinadi, so\'zlar saqlanadi</div></div></button>' +
       '<button class="list-row" data-act="vocabCatDelete" data-arg=\'' + App.arg(a) + '\' style="color:var(--danger)"><span class="li-ic" style="background:var(--danger-soft);color:var(--danger)" data-icon="trash" data-icon-size="15"></span><div class="li-main"><div class="li-title" style="color:var(--danger)">O\'chirish</div></div></button>';
     App.sheet(html, { title: a.cat });
   };
@@ -631,6 +837,14 @@
   var SR = { list: [], idx: 0, good: 0, bad: 0, rec: null, lang: 'russian', cat: '', busy: false, startedAt: 0, logged: false };
   App.view('vocab_speech', {
     nav: 'languages',
+    /* `App._stopSpeech()` faqat OVOZ CHIQARISHNI (speechSynthesis) to'xtatadi —
+       mikrofonli TANISH (SpeechRecognition) undan mustaqil ishlaydi. Ilgak
+       bo'lmagani uchun mashqni tark etganda mikrofon ochiq qolib ketardi va
+       keyingi bo'limlarda ham eshitib turardi. Endi aniq to'xtatiladi. */
+    leave: function () {
+      try { if (SR.rec) SR.rec.abort ? SR.rec.abort() : SR.rec.stop(); } catch (e) {}
+      SR.busy = false;
+    },
     render: function (page, params) {
       var lang = params.lang === 'russian' ? 'russian' : 'english', cat = params.cat;
       var start = function () {

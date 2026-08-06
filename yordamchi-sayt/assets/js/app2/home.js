@@ -11,11 +11,16 @@
     nav: 'home',
     render: function (page) {
       page.innerHTML =
+        /* Yuqori qator: salomlashuv + o'ng burchakda bildirishnoma qo'ng'irog'i */
+        '<div class="h-top">' +
+          '<div class="h-hello" id="h-hello"></div>' +
+          '<div id="nt-bell-host">' + (window.Notify ? Notify.bellHtml() : '') + '</div>' +
+        '</div>' +
         '<div class="rings" id="h-rings"></div>' +
         '<div id="h-lessons"></div>' +
         '<div class="hm-card">' +
           '<div class="hm-head">' +
-            '<div class="hm-title"><b id="hm-total">0</b> <span>faollik — oxirgi bir yilda</span></div>' +
+            '<div class="hm-title"><b id="hm-total">0</b> <span id="hm-period">faollik</span></div>' +
             '<div class="hm-stats"><span>Faol kunlar: <b id="hm-days">0</b></span>' +
             '<span>Eng uzun seriya: <b id="hm-streak">0</b></span></div>' +
           '</div>' +
@@ -31,6 +36,7 @@
         '<div id="h-widget"></div>';
 
       App.icons(page);
+      renderHello();
       renderLessons();
       if (window.LmsDay) LmsDay.ensureLoaded().then(renderLessons).catch(function () {});
       renderHeatmap();
@@ -45,6 +51,15 @@
     },
     leave: function () { unbindResize(); }
   });
+
+  /* Kun vaqtiga qarab salomlashuv — qo'ng'iroq yolg'iz turmasin */
+  function renderHello() {
+    var box = App.el('h-hello'); if (!box) return;
+    var h = new Date().getHours();
+    var greet = h < 5 ? 'Xayrli tun' : h < 12 ? 'Xayrli tong' : h < 18 ? 'Xayrli kun' : 'Xayrli kech';
+    var name = (ls('user_name', '') || '').trim();
+    box.innerHTML = '<b>' + App.esc(greet) + (name ? ', ' + App.esc(name) : '') + '</b>';
+  }
 
   /* ---------- Halqali ko'rsatkichlar ---------- */
   function ringSvg(pct, color) {
@@ -103,9 +118,10 @@
 
   /* Nechta oy ORQAGA surilgan (0 = joriy oygacha) — eski tarixni ko'rish uchun. */
   var HM_OFFSET = 0;
-  App.actions.hmBack = function () { HM_OFFSET += 6; renderHeatmap(); };
+  // Qadam — ko'rinayotgan oyna kengligiga teng (telefonda 6, desktopda 12)
+  App.actions.hmBack = function () { HM_OFFSET += monthsToShow(); renderHeatmap(); };
   App.actions.hmFwd = function () {
-    HM_OFFSET = Math.max(0, HM_OFFSET - 6);
+    HM_OFFSET = Math.max(0, HM_OFFSET - monthsToShow());
     renderHeatmap();
   };
 
@@ -118,20 +134,27 @@
   function bindResize() { window.addEventListener('resize', onResize); }
   function unbindResize() { window.removeEventListener('resize', onResize); clearTimeout(RESIZE_T); }
 
-  /* Katakning eng kichik ruxsat etilgan o'lchami (px).
-     12 oy HAR DOIM bitta qatorda turadi (foydalanuvchi so'rovi). Ekranga
-     sig'sa — kataklar kengayib butun enni egallaydi; sig'masa (telefon)
-     katak shu eng kichik o'lchamda qoladi va qator GORIZONTAL SILJIYDI
-     (GitHub/LeetCode telefonda aynan shunday). Kataklarni ekranga
-     tiqishtirib maydalashtirish YO'Q — aynan shu shikoyat bo'lgan. */
-  var MIN_CELL = 12;
-  var CELL_GAP = 3;    // kataklar orasi
-  var MONTH_GAP = 6;   // oy bloklari orasi (app.css `.hm-row` gap bilan bir xil)
+  /* Bo'shliqlar tor ekranda kichikroq — shu hisobga kataklar kattaroq chiqadi.
+     (`.hm-row` gap'i CSS'da ham shu qiymatlarga mos bo'lishi kerak.) */
+  function gaps() {
+    var narrow = (window.innerWidth || 1024) < 700;
+    return { cell: narrow ? 2 : 3, month: narrow ? 4 : 6 };
+  }
 
-  /* ---------- Faollik heatmap: 12 oy, bitta qator (LeetCode uslubi) ----------
+  /* Nechta oy ko'rsatiladi.
+     Telefonda 6 oy — bu ekranga TO'LIQ sig'adi, ya'ni na siljitish, na
+     karusel kerak (foydalanuvchi so'rovi). Kengroq ekranda 12 oy.
+     Eski oylarni ko'rish uchun tepadagi ← → strelkalari bor — ular
+     ko'rinayotgan oyna qadamiga teng suradi. */
+  function monthsToShow() {
+    var w = window.innerWidth || 1024;
+    return w < 700 ? 6 : 12;
+  }
+
+  /* ---------- Faollik heatmap: bitta qator (LeetCode uslubi) ----------
      Oylar ALOHIDA bloklar — oralarida bo'shliq, oy nomi blok ostida.
-     Katak o'lchami JS'da hisoblanadi (CSS `1fr` emas), chunki siljish
-     kerakmi-yo'qmi shunga qarab hal bo'ladi. */
+     Katak o'lchami JS'da hisoblanadi (CSS `1fr` emas): ko'rsatilayotgan
+     oylar soni mavjud enga qarab tanlangani uchun hammasi doim sig'adi. */
   function renderHeatmap() {
     var wrap = App.el('hm-wrap'); if (!wrap) return;
     var set = {};
@@ -148,9 +171,10 @@
     var today = new Date(); today.setHours(0, 0, 0, 0);
     var todayKey = key(today);
 
-    // Oxirgi 12 oy: joriy oy oxirgi bo'ladi
+    // Ko'rsatiladigan oylar: joriy oy oxirgi bo'ladi
+    var SHOW = monthsToShow();
     var months = [];
-    for (var m = 11; m >= 0; m--) {
+    for (var m = SHOW - 1; m >= 0; m--) {
       var d = new Date(today.getFullYear(), today.getMonth() - m - HM_OFFSET, 1);
       months.push({ y: d.getFullYear(), m: d.getMonth() });
     }
@@ -162,13 +186,25 @@
       return Math.ceil((first.getDay() + last.getDate()) / 7);
     }
 
-    /* Katak o'lchamini mavjud enga qarab hisoblaymiz.
-       Sig'sa — kengaytiramiz; sig'masa MIN_CELL'da qoldiramiz (qator siljiydi). */
+    /* Katak o'lchami — mavjud enni ANIQ formula bilan bo'lamiz. Umumiy en:
+         cell*totalCols + cellGap*(totalCols - oylarSoni) + monthGap*(oylar-1)
+       (har oy ichida `cols-1` ta katak oralig'i bor). Taxminiy bo'lish
+       o'nlab piksel behuda ketkazardi — katak allaqachon kichkina bo'lgani
+       uchun har piksel muhim. Oylar soni ekranga qarab tanlangani uchun
+       natija DOIM sig'adi: siljitish/karusel yo'q. */
+    var G = gaps();
+    var CELL_GAP = G.cell, MONTH_GAP = G.month;
+    var n = months.length;
     var totalCols = months.reduce(function (a, mo) { return a + colsOf(mo); }, 0);
-    var avail = Math.max(0, wrap.clientWidth - MONTH_GAP * (months.length - 1));
-    var cell = Math.floor(avail / totalCols) - CELL_GAP;
-    if (!isFinite(cell) || cell < MIN_CELL) cell = MIN_CELL;
-    if (cell > 26) cell = 26;   // juda keng ekranda cho'zilib ketmasin
+    var w = wrap.clientWidth;
+    var cell = Math.floor((w - CELL_GAP * (totalCols - n) - MONTH_GAP * (n - 1)) / totalCols);
+    if (!isFinite(cell) || cell < 6) cell = 6;   // o'qib bo'ladigan eng kichik
+    if (cell > 26) cell = 26;                    // keng ekranda cho'zilmasin
+
+    /* Birinchi chizishda sahifa hali joylashmagan bo'lishi mumkin — o'shanda
+       `clientWidth` haqiqiy kenglikni bermaydi va katak keraksiz kichik
+       chiqadi. Shubhali bo'lsa keyingi kadrda qayta chizamiz. */
+    if (w < 80) { setTimeout(renderHeatmap, 60); }
 
     function monthHtml(mo) {
       var first = new Date(mo.y, mo.m, 1);
@@ -202,15 +238,11 @@
              '<div class="hm-mo-lb">' + MON[mo.m] + '</div></div>';
     }
 
-    // 12 oy — BITTA qator (sig'masa gorizontal siljiydi)
-    wrap.innerHTML = '<div class="hm-row" id="hm-row">' + months.map(monthHtml).join('') + '</div>';
+    // Bitta qator, to'liq sig'adi — siljitish yo'q
+    wrap.innerHTML = '<div class="hm-row" id="hm-row" style="gap:' + MONTH_GAP + 'px">' +
+                     months.map(monthHtml).join('') + '</div>';
 
-    /* Sig'magan holatda joriy oy ko'rinib tursin — qator OXIRIGA suriladi.
-       Aks holda telefonda bir yil oldingi oy ochilib turardi. */
-    var row = App.el('hm-row');
-    if (row && row.scrollWidth > row.clientWidth) row.scrollLeft = row.scrollWidth;
-
-    // Statistika — oxirgi 12 oy oralig'idagi kunlar bo'yicha
+    // Statistika — KO'RSATILAYOTGAN oylar oralig'i bo'yicha
     var active = 0, streak = 0, best = 0;
     var from = new Date(months[0].y, months[0].m, 1);
     for (var d2 = new Date(from); d2 <= today; d2.setDate(d2.getDate() + 1)) {
@@ -221,6 +253,9 @@
     App.el('hm-total').textContent = active;
     App.el('hm-days').textContent = active;
     App.el('hm-streak').textContent = best;
+    // Sarlavha ko'rsatilayotgan davrga mos bo'lsin ("oxirgi bir yilda" emas)
+    var lbl = App.el('hm-period');
+    if (lbl) lbl.textContent = 'faollik — oxirgi ' + SHOW + ' oyda';
     App.el('hm-range').textContent = MON[months[0].m] + ' ' + months[0].y + ' — ' +
       MON[months[months.length - 1].m] + ' ' + months[months.length - 1].y;
     var fw = App.el('hm-fwd');
@@ -232,7 +267,7 @@
 
   /* ---------- Kunlik statistika ----------
      MUHIM: raqamlar boshqa modullarning OMMAVIY API'sidan olinadi
-     (BoostDay/Kun/SportBridge) — localStorage'ni to'g'ridan-to'g'ri o'qish
+     (BoostDay.dayGroups) — localStorage'ni to'g'ridan-to'g'ri o'qish
      EMAS. Ilgari shu yerda `boost_tasks_v1`/`kun_log_v1`/`sport_data_v1`
      kabi MAVJUD BO'LMAGAN kalitlar o'qilgani uchun hamma ko'rsatkich doim
      0 bo'lib turardi. */
@@ -247,8 +282,8 @@
     var dayOfWeek = d.getDay();
 
     var boot = [];
+    // Faqat Boostday kerak — vidjet endi sport ma'lumotini ishlatmaydi
     if (window.BoostDay) boot.push(window.BoostDay.ensureLoaded());
-    if (window.SportBridge) boot.push(window.SportBridge.ensureLoaded());
 
     function mkRing(pct, color, size, stroke, label, valLabel, arg) {
       var r = (size - stroke) / 2;
@@ -269,10 +304,23 @@
         '</div>';
     }
 
-    function paint(bTot, bDone, kTot, kDone, sTot, sDone) {
-      var totalTasks = bTot + kTot + sTot;
-      var doneTasks = bDone + kDone + sDone;
+    /* Halqalar: chapda bitta katta UMUMIY, o'ngda har bir bo'lim uchun
+       kichkinasi. Bo'limlar — botda kiritilgan GURUHLAR + Sport.
+       ("Jadval" va yagona "Boostday" halqalari olib tashlandi: ular bir
+       xil ishni ikki marta ko'rsatardi.) */
+    var RING_COLORS = ['var(--purple)', 'var(--success)', 'var(--coral)', 'var(--warn)', 'var(--accent)'];
+
+    function paint(parts) {
+      var totalTasks = 0, doneTasks = 0;
+      parts.forEach(function (p) { totalTasks += p.total; doneTasks += p.done; });
       var pct = function (a, b) { return b ? Math.round((a / b) * 100) : 0; };
+
+      var subs = parts.length
+        ? parts.map(function (p, i) {
+            return mkRing(pct(p.done, p.total), p.color || RING_COLORS[i % RING_COLORS.length],
+                          54, 5, p.name, p.done + '/' + p.total, p.go);
+          }).join('')
+        : '<p class="wd-empty">Botda reja kiritilmagan</p>';
 
       box.innerHTML =
         '<div class="hsec" style="margin-top:24px"><h2>Kunlik statistika</h2></div>' +
@@ -280,44 +328,28 @@
           '<div class="wd-main">' +
             mkRing(pct(doneTasks, totalTasks), 'var(--accent)', 92, 8, 'Umumiy kun', doneTasks + ' / ' + totalTasks + ' vazifa') +
           '</div>' +
-          '<div class="wd-sub">' +
-            mkRing(pct(bDone, bTot), 'var(--purple)', 54, 5, 'Boostday', bDone + '/' + bTot, { v: 'boost' }) +
-            mkRing(pct(kDone, kTot), 'var(--success)', 54, 5, 'Jadval', kDone + '/' + kTot, { v: 'kun' }) +
-            mkRing(pct(sDone, sTot), 'var(--teal)', 54, 5, 'Sport', sDone + '/' + sTot, { v: 'sport' }) +
-          '</div>' +
+          '<div class="wd-sub">' + subs + '</div>' +
         '</div>';
       App.icons(box);
     }
 
     Promise.all(boot).then(function () {
-      var bTot = 0, bDone = 0;
-      if (window.BoostDay) {
+      var parts = [];
+
+      /* FAQAT botda kiritilgan guruhlar. Alohida "Sport" halqasi ATAYLAB
+         yo'q: foydalanuvchi mashqlarni doim bot orqali qo'shadi, shuning
+         uchun ular allaqachon o'z guruhida sanaladi — ikkinchi halqa
+         qo'shilsa bitta ish ikki joyda ko'rinardi. */
+      if (window.BoostDay && BoostDay.dayGroups) {
         try {
-          window.BoostDay.dayItems(ymd, dayOfWeek).forEach(function (b) {
-            bTot += b.total; bDone += b.done;
+          BoostDay.dayGroups(ymd, dayOfWeek).forEach(function (g) {
+            if (g.total) parts.push({ name: g.name, total: g.total, done: g.done, color: g.color, go: { v: 'boost' } });
           });
         } catch (e) {}
       }
 
-      var kTot = 0, kDone = 0;
-      if (window.Kun) {
-        try {
-          window.Kun.dayLessons().forEach(function (k) { kTot++; if (k.done) kDone++; });
-        } catch (e) {}
-      }
-
-      var sTot = 0, sDone = 0;
-      if (window.SportBridge) {
-        try {
-          var pend = window.SportBridge.todayPending() || [];
-          var done = window.SportBridge.doneToday() || [];
-          sDone = done.length;
-          sTot = pend.length + done.length;
-        } catch (e) {}
-      }
-
-      paint(bTot, bDone, kTot, kDone, sTot, sDone);
-    }).catch(function () { paint(0, 0, 0, 0, 0, 0); });
+      paint(parts);
+    }).catch(function () { paint([]); });
   }
 
 })();

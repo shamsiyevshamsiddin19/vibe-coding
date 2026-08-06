@@ -252,7 +252,8 @@
   function renderTodayButton(page) {
     var sub = App.el('bo-today-sub'); if (!sub || !window.SportBridge) return;
     SportBridge.ensureLoaded().then(function () {
-      var total = boostTodayItems().length + SportBridge.todayPending().length;
+      var bIt = boostTodayItems();
+      var total = bIt.length + dropSportDuplicates(SportBridge.todayPending()).length;
       sub = App.el('bo-today-sub'); if (!sub) return;
       sub.textContent = total ? total + ' ta ish qoldi' : 'Bugun hech narsa qolmadi 🎉';
     });
@@ -298,6 +299,40 @@
       'data-act="todayUnhideSport" data-arg=\'' + App.arg({ cat: it.cat, id: it.id }) + '\'><span data-icon="refresh" data-icon-size="14"></span></button>';
   }
 
+  /* Bitta ish IKKI marta ko'rinmasligi uchun: Boostday vazifasi bilan bir xil
+     nomdagi sport mashqi ro'yxatdan olib tashlanadi. Boostday qatori qoldiriladi
+     — chunki uni belgilash Telegramdagi xabarni ham yangilaydi (sport qatori
+     esa faqat mahalliy). Ikkalasi baribir bir-biriga sinxronlanadi. */
+  /* Bitta ish IKKI marta ko'rinmasligi uchun: Boostday vazifasi bilan bir xil
+     nomdagi sport mashqi ro'yxatdan olib tashlanadi. Boostday qatori qoldiriladi
+     — uni belgilash Telegramdagi xabarni ham yangilaydi.
+     MUHIM: solishtirish BUGUNGI BARCHA Boostday vazifalari bilan qilinadi,
+     ko'rsatilayotgan ro'yxat bilan emas. Aks holda bajarilgan vazifaning
+     sport nusxasi "bajarilmagan" ro'yxatida qayta chiqib ketardi. */
+  function boostTodayKeys() {
+    var keys = {}, d = B.data || {}, today = todayKeyStr();
+    function scan(list) {
+      (list || []).forEach(function (p) {
+        var groups = p.task_groups && p.task_groups.length
+          ? p.task_groups : (Array.isArray(p.tasks) ? [{ tasks: p.tasks }] : []);
+        groups.forEach(function (g) {
+          (g.tasks || []).forEach(function (t) {
+            if ((t.text || '').trim()) keys[App.taskKey(t.text)] = true;
+          });
+        });
+      });
+    }
+    scan(d.daily_routines);
+    scan((d.todos || []).filter(function (p) { return p.date === today; }));
+    return keys;
+  }
+
+  function dropSportDuplicates(sportItems) {
+    if (!sportItems || !sportItems.length) return sportItems || [];
+    var keys = boostTodayKeys();
+    return sportItems.filter(function (s) { return !keys[App.taskKey(s.name)]; });
+  }
+
   function todaySheetHtml() {
     var modes = [['pending', 'Bajarilmagan'], ['done', 'Bajarilganlar'], ['hidden', 'Yashiringan']];
     var chips = '<div class="bo-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px">' +
@@ -309,7 +344,7 @@
     var boostItems, sportItems, html;
     if (TODAY_MODE === 'done') {
       boostItems = boostItemsByStatus(true);
-      sportItems = SportBridge.doneToday();
+      sportItems = dropSportDuplicates(SportBridge.doneToday());
       html = boostItems.map(function (it) { return boostRowHtml(it, true); }).join('') +
         sportItems.map(function (it) { return sportRowHtml(it, true); }).join('');
       if (!boostItems.length && !sportItems.length) html = App.empty({ icon: 'check', title: 'Hali hech narsa bajarilmagan', text: '' });
@@ -319,7 +354,7 @@
       if (!sportItems.length) html = App.empty({ icon: 'x', title: 'Yashiringan mashq yo\'q', text: '' });
     } else {
       boostItems = boostItemsByStatus(false);
-      sportItems = SportBridge.todayPending();
+      sportItems = dropSportDuplicates(SportBridge.todayPending());
       html = boostItems.map(function (it) { return boostRowHtml(it, false); }).join('') +
         sportItems.map(function (it) { return sportRowHtml(it, false, hideBtnHtml(it)); }).join('');
       if (!boostItems.length && !sportItems.length) html = App.empty({ icon: 'check', title: 'Bugun hech narsa yo\'q', text: 'Har kungi rejalar, bugungi TO-DO va sport mashqlari shu yerda chiqadi.' });
@@ -329,7 +364,7 @@
 
   function allSheetHtml() {
     var boostItems = boostAllItems();
-    var sportItems = SportBridge.allExercises();
+    var sportItems = dropSportDuplicates(SportBridge.allExercises());
     if (!boostItems.length && !sportItems.length) {
       return App.empty({ icon: 'list', title: 'Hali hech narsa yo\'q', text: 'Reja yoki sport mashqi qo\'shing.' });
     }
@@ -388,11 +423,42 @@
       return call('list');
     }).then(function (j) {
       B.data = j;
+      /* Bu vazifa sport mashqi bo'lsa, Sport bo'limi ham darhol bir xil
+         holatga keltiriladi. Server tomoni (bot) allaqachon jurnalga yozdi,
+         shuning uchun `setDone` qayta yozmaydi (noBoostSync=true). */
+      var task = window.BoostDay && BoostDay.findTaskByName
+        ? findTaskTextById(a.id, a.index) : '';
+      if (task && window.SportBridge && SportBridge.findByName) {
+        var ex = SportBridge.findByName(task);
+        if (ex) SportBridge.setDone(ex.cat, ex.id, isTaskDone(a.id, a.index));
+      }
       renderActiveSheet();
       renderTodayButton(App.el('page'));
       renderList(App.el('page'));
     }).catch(function (e) { App.toast('⚠️ ' + e.message); });
   };
+
+  /* Rejadagi vazifaning matnini/holatini indeks bo'yicha topadi */
+  function taskAt(planId, index) {
+    var d = B.data || {}, res = null;
+    ['daily_routines', 'todos', 'plans', 'reminders'].forEach(function (k) {
+      (d[k] || []).forEach(function (p) {
+        if (res || String(p.id) !== String(planId)) return;
+        var groups = p.task_groups && p.task_groups.length
+          ? p.task_groups : (Array.isArray(p.tasks) ? [{ tasks: p.tasks }] : []);
+        var i = 0;
+        groups.forEach(function (g) {
+          (g.tasks || []).forEach(function (t) {
+            if (i === index) res = t;
+            i++;
+          });
+        });
+      });
+    });
+    return res;
+  }
+  function findTaskTextById(planId, index) { var t = taskAt(planId, index); return t ? t.text : ''; }
+  function isTaskDone(planId, index) { var t = taskAt(planId, index); return !!t && +t.status === 1; }
   App.actions.todayToggleSport = function (a) {
     SportBridge.toggle(a.cat, a.id);
     renderActiveSheet();
@@ -781,7 +847,19 @@
     });
     box.querySelectorAll('.bo-tadd').forEach(function (b) {
       b.onclick = function () {
-        groups[+b.getAttribute('data-g')].tasks.push({ text: '', status: 0 });
+        var gi = +b.getAttribute('data-g');
+        /* Guruh nomi sportga oid bo'lsa — mashqlar ro'yxatidan tanlanadi
+           (nom Sport bo'limidagi bilan aynan mos tushsin). Aks holda
+           avvalgidek bo'sh qator qo'shiladi. */
+        if (isSportGroup(groups[gi].name)) {
+          openSportPicker(function (picked) {
+            if (picked) picked.forEach(function (t) { groups[gi].tasks.push({ text: t, status: 0 }); });
+            else groups[gi].tasks.push({ text: '', status: 0 });
+            drawTasks(page);
+          });
+          return;
+        }
+        groups[gi].tasks.push({ text: '', status: 0 });
         drawTasks(page);
       };
     });
@@ -1083,7 +1161,17 @@
         });
         box.querySelectorAll('.bn-tadd').forEach(function (b) {
           b.onclick = function () {
-            NEW_GROUPS[+b.getAttribute('data-g')].tasks.push({ text: '', status: 0 });
+            var gi = +b.getAttribute('data-g');
+            // Sport guruhida — mashqlar ro'yxatidan tanlash (yuqoridagi bilan bir xil)
+            if (isSportGroup(NEW_GROUPS[gi].name)) {
+              openSportPicker(function (picked) {
+                if (picked) picked.forEach(function (t) { NEW_GROUPS[gi].tasks.push({ text: t, status: 0 }); });
+                else NEW_GROUPS[gi].tasks.push({ text: '', status: 0 });
+                drawNewGroups();
+              });
+              return;
+            }
+            NEW_GROUPS[gi].tasks.push({ text: '', status: 0 });
             drawNewGroups();
           };
         });
@@ -1497,6 +1585,110 @@
   }
 
   /* Sport: kategoriyalar → mashqlar (nomi Sport bo'limidagidek) */
+  /* =========================================================
+     SPORT GURUHIGA VAZIFA QO'SHISH — mashqlar ro'yxatidan tanlash
+
+     Nega kerak: guruh nomi "Sport" bo'lsa, vazifa matni Sport bo'limidagi
+     mashq nomi bilan AYNAN bir xil bo'lishi kerak — shundagina belgilash
+     ikkala joyda ham ishlaydi. Qo'lda yozilganda bitta harf farq qilsa
+     bog'lanish uzilardi. Endi ro'yxatdan tanlanadi, xato bo'lishi mumkin emas.
+     ========================================================= */
+
+  function isSportGroup(name) {
+    return /sport|mashq|jismoniy|turnik|futbol/i.test(String(name || ''));
+  }
+
+  /* Mashq nomi vazifa matniga qanday yozilishi (vaqt prefiksi bilan) —
+     `pkSportCats` dagi qoida bilan bir xil. */
+  function exerciseTaskText(e) {
+    var pre = '';
+    if (e.start_time && e.end_time) pre = e.start_time + ' - ' + e.end_time + ' | ';
+    else if (e.start_time) pre = e.start_time + ' | ';
+    return pre + e.name;
+  }
+
+  var SP = null;   // { sel:{}, onPick, list }
+
+  function sportPickerHtml() {
+    if (!SP) return '';
+    var byCat = {}, order = [];
+    SP.list.forEach(function (e) {
+      if (!byCat[e.cat]) { byCat[e.cat] = { name: e.catName, items: [] }; order.push(e.cat); }
+      byCat[e.cat].items.push(e);
+    });
+
+    var html = '';
+    if (!SP.list.length) {
+      html += App.empty({ icon: 'activity', title: 'Mashq yo\'q',
+                          text: 'Sport bo\'limida avval mashq qo\'shing.' });
+    } else {
+      html += order.map(function (c) {
+        return '<div class="list-label">' + App.esc(byCat[c].name) + '</div>' +
+          byCat[c].items.map(function (e) {
+            var txt = exerciseTaskText(e);
+            var on = !!SP.sel[txt];
+            // Ostidagi izoh — faqat vaqt oralig'i (ajratuvchi "|" siz)
+            var when = e.start_time ? (e.start_time + (e.end_time ? ' - ' + e.end_time : '')) : '';
+            return '<button class="pk-row' + (on ? ' on' : '') + '" data-act="spPick" data-arg=\'' +
+              App.arg({ t: txt }) + '\'><span class="pk-box">' + (on ? '✓' : '') + '</span>' +
+              '<span class="pk-main"><b>' + App.esc(e.name) + '</b>' +
+              (when ? '<span>' + App.esc(when) + '</span>' : '') +
+              '</span></button>';
+          }).join('');
+      }).join('');
+    }
+
+    var n = Object.keys(SP.sel).length;
+    /* "Boshqa mashq" — ro'yxatda yo'q narsani qo'lda yozish uchun.
+       Ro'yxatning ENG PASTIDA turadi (foydalanuvchi so'rovi). */
+    html += '<button class="list-row" data-act="spOther" style="margin-top:10px">' +
+      '<span class="li-ic" data-icon="edit" data-icon-size="15"></span>' +
+      '<div class="li-main"><div class="li-title">Boshqa mashq</div>' +
+      '<div class="li-sub">Ro\'yxatda yo\'q — nomini o\'zim yozaman</div></div></button>';
+
+    html += '<div class="pk-bar"><button class="btn" data-act="spDone"' + (n ? '' : ' disabled') + '>' +
+      (n ? n + ' ta mashq qo\'shish' : 'Mashq tanlang') + '</button></div>';
+    return html;
+  }
+
+  function spRepaint() {
+    var b = App.el('sp-body');
+    if (b) { b.innerHTML = sportPickerHtml(); App.icons(b); }
+  }
+
+  App.actions.spPick = function (a) {
+    if (!SP) return;
+    if (SP.sel[a.t]) delete SP.sel[a.t]; else SP.sel[a.t] = 1;
+    spRepaint();
+  };
+  App.actions.spOther = function () {
+    var cb = SP && SP.onPick;
+    SP = null;
+    App.closeSheet();
+    if (cb) cb(null);        // null — bo'sh qator qo'shilsin (qo'lda yoziladi)
+  };
+  App.actions.spDone = function () {
+    if (!SP) return;
+    var picked = Object.keys(SP.sel);
+    var cb = SP.onPick;
+    SP = null;
+    App.closeSheet();
+    if (picked.length && cb) cb(picked);
+  };
+
+  /* `onPick(list|null)` — tanlangan matnlar massivi yoki null (qo'lda yozish) */
+  function openSportPicker(onPick) {
+    SP = { sel: {}, onPick: onPick, list: [] };
+    App.sheet('<div id="sp-body"><div class="load-wrap"><div class="spinner"></div></div></div>',
+              { title: 'Mashq tanlash' });
+    if (!window.SportBridge) { spRepaint(); return; }
+    SportBridge.ensureLoaded().then(function () {
+      if (!SP) return;
+      SP.list = SportBridge.allExercises() || [];
+      spRepaint();
+    }).catch(function () { spRepaint(); });
+  }
+
   function pkSportCats() {
     if (!window.SportBridge) return [];
     return SportBridge.ensureLoaded().then(function () {
@@ -1593,6 +1785,77 @@
       return call('toggle_task', { id: planId, index: index }).then(function () {
         return call('list').then(function (j) { B.data = j; return j; });
       });
+    },
+
+    /* Nomi bo'yicha BUGUNGI vazifani topadi (Sport bilan bog'lash uchun).
+       Taqqoslash `App.taskKey` orqali — Boostday matnidagi vaqt prefiksi
+       hisobga olinmaydi. */
+    findTaskByName: function (text) {
+      var key = App.taskKey(text);
+      if (!key) return null;
+      var d = B.data || {}, today = todayKeyStr(), found = null;
+      function scan(list) {
+        (list || []).forEach(function (p) {
+          if (found) return;
+          var groups = p.task_groups && p.task_groups.length
+            ? p.task_groups : (Array.isArray(p.tasks) ? [{ tasks: p.tasks }] : []);
+          var idx = 0;
+          groups.forEach(function (g) {
+            (g.tasks || []).forEach(function (t) {
+              if (!found && App.taskKey(t.text) === key) {
+                found = { planId: p.id, index: idx, status: +t.status || 0 };
+              }
+              idx++;
+            });
+          });
+        });
+      }
+      scan(d.daily_routines);
+      scan((d.todos || []).filter(function (p) { return p.date === today; }));
+      return found;
+    },
+
+    /* Bugungi ishlarni GURUHLAR bo'yicha yig'adi (bosh sahifadagi vidjet uchun).
+       Guruh — botda kiritilgan bo'lim nomi (`task_groups[].name`). Rejada
+       bo'lim ochilmagan bo'lsa, rejaning o'zi bitta guruh sifatida olinadi
+       (nomi: preview yoki kanal nomi yoki reja turi).
+       Qaytaradi: [{ name, total, done, color }]. */
+    dayGroups: function (dateStr, dow) {
+      var d = B.data || {}, map = {}, order = [];
+      function add(gname, color, done) {
+        if (!map[gname]) { map[gname] = { name: gname, total: 0, done: 0, color: color }; order.push(gname); }
+        map[gname].total++;
+        if (done) map[gname].done++;
+      }
+      function scan(p) {
+        var info = tinfo(p.plan_type);
+        var fallback = (p.preview || p.channel_name || info.n || 'Reja').trim();
+        var groups = (p.task_groups && p.task_groups.length)
+          ? p.task_groups
+          : (Array.isArray(p.tasks) ? [{ name: '', tasks: p.tasks }] : []);
+        groups.forEach(function (g) {
+          var gname = (g.name || '').trim() || fallback;
+          (g.tasks || []).forEach(function (t) {
+            if (!(t.text || '').trim()) return;
+            add(gname, info.c, +t.status === 1);
+          });
+        });
+      }
+      (d.daily_routines || []).forEach(function (p) { if (weekModeMatches(p.week_mode, dow)) scan(p); });
+      (d.todos || []).forEach(function (p) { if (p.date === dateStr) scan(p); });
+      return order.map(function (k) { return map[k]; });
+    },
+
+    /* Vazifani MA'LUM holatga keltiradi (Sport tomonidan chaqiriladi).
+       Allaqachon shu holatda bo'lsa hech narsa qilmaydi — `toggle_task`
+       almashtiruvchi bo'lgani uchun ikki tomon toggle qilsa holat buzilardi. */
+    setTaskDone: function (text, want) {
+      var t = window.BoostDay.findTaskByName(text);
+      if (!t) return Promise.resolve(false);
+      if ((t.status === 1) === !!want) return Promise.resolve(false);
+      return window.BoostDay.toggle(t.planId, t.index)
+        .then(function () { return true; })
+        .catch(function () { return false; });
     }
   };
 

@@ -734,8 +734,24 @@
     App.go('quiz_play', { db: Q.db });
   };
 
+  /* `Q.quiz`/`Q.list` — faqat XOTIRADAGI sessiya, sahifa yangilanganda yo'qoladi.
+     Router esa oxirgi hashni tiklaydi (`#quiz_play?db=...`), shuning uchun
+     sahifa yangilangach yoki telefon ilovani fondan o'chirib qaytganda
+     bu view'lar bo'sh holatga urilib QIZIL XATO kartasini chiqarardi.
+     Endi jimgina panelga qaytariladi. */
+  function sessionGate(state, page) {
+    if (state && state.active && state.active.length) return true;
+    App.toast('Sessiya tugagan — qaytadan boshlang');
+    setTimeout(function () { App.go('quiz_dashboard', Q.db ? { db: Q.db } : {}); }, 0);
+    if (page) page.innerHTML = '';
+    return false;
+  }
+
   App.view('quiz_play', {
-    render: function (page) { renderQuestion(page); }
+    render: function (page) {
+      if (!sessionGate(Q.quiz, page)) return;
+      renderQuestion(page);
+    }
   });
 
   function renderQuestion(page) {
@@ -858,7 +874,13 @@
 
   App.view('quiz_result', {
     render: function (page) {
-      var r = App.state._result || { pct: 0, correct: 0, wrong: 0, total: 0 };
+      /* Natija ham xotirada — yangilangandan keyin "0%" degan yolg'on
+         natija ko'rsatgandan ko'ra panelga qaytgan ma'qul. */
+      var r = App.state._result;
+      if (!r || !r.total) {
+        setTimeout(function () { App.go('quiz_dashboard', Q.db ? { db: Q.db } : {}); }, 0);
+        page.innerHTML = ''; return;
+      }
       var msg = r.pct >= 90 ? 'Ajoyib natija!' : r.pct >= 70 ? 'Yaxshi!' : r.pct >= 50 ? 'Yomon emas' : 'Ko\'proq mashq qiling';
       page.innerHTML =
         '<div style="text-align:center;padding-top:8px">' +
@@ -894,6 +916,7 @@
 
   App.view('quiz_list', {
     render: function (page) {
+      if (!sessionGate(Q.list, page)) return;
       page.innerHTML =
         '<div class="topbar" style="margin:-16px -15px 12px">' +
         '<button class="icon-btn ghost" data-act="go" data-arg=\'' + App.arg({ v: 'quiz_dashboard', p: { db: Q.db } }) + '\'><span data-icon="arrowLeft" data-icon-size="20"></span></button>' +

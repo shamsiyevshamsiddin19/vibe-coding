@@ -126,22 +126,46 @@ def _build_data(ctx: dict) -> dict[str, list]:
     return data
 
 
-def _today_boost_done(ctx: dict) -> list[str]:
-    """Bugun Boostday (Telegram/sayt) orqali bajarilgan mashq NOMLARI.
+# Boostday vazifa matni "21:31 - 21:40 | Klassik otjimaniya" ko'rinishida
+# bo'ladi. Mashq nomi bilan taqqoslashdan oldin vaqt prefiksi olib tashlanadi.
+# (Bot tomonida ayni shu qoida: bot_py/app/helpers.py::normalize_task_name)
+_TIME_PREFIX_SQL = r"^\s*[0-9]{1,2}:[0-9]{2}\s*[-–—]\s*[0-9]{1,2}:[0-9]{2}\s*\|\s*"
 
-    Sport mashqi Boostdayga yuborilganda vazifa matni mashq nomi bilan AYNAN
-    bir xil bo'ladi (band 25) — shuning uchun ID-bog'lash jadvali shart emas:
-    bugungi `section='sport'` activity_log yozuvlaridagi nomlar ro'yxati
-    to'g'ridan-to'g'ri "bajarilgan" deb tan olinadi. Frontend buni localStorage
-    (`sport_log_v1`) bilan birlashtiradi.
+# O'zbekcha matnda apostrof bir necha xil belgi bilan yoziladi ("To'pni" /
+# "Toʻpni") — taqqoslashdan oldin hammasi oddiy ' ga keltiriladi.
+# (Ayni qoida: bot_py/app/helpers.py::_APOS, core.js::normTaskName)
+_APOS_FROM = "ʻʼ‘’`´"
+_APOS_TO = "''''''"
+
+
+def _today_boost_done(ctx: dict) -> list[str]:
+    """Bugun bajarilgan mashqlarning KANONIK nomlari (Telegram yoki saytdan).
+
+    Ikki manba birlashtiriladi:
+      1) `section='sport'` yozuvlari — bot endi sport vazifasini shu bo'limga
+         yozadi (kanonik nom bilan);
+      2) `section='boostday'` yozuvlari, agar nomi (vaqt prefiksi olib
+         tashlangach) mashq nomiga mos kelsa — ESKI yozuvlar shu ko'rinishda
+         qolgan va bot yangilanmagan holatda ham to'g'ri ishlashi uchun.
+
+    Qaytariladigan nom DOIM `sport_exercises.name` dagi kanonik shakl —
+    frontend uni to'g'ridan-to'g'ri mashq nomi bilan solishtiradi.
     """
     rows = db.fetch_all(
-        "SELECT DISTINCT object_name FROM activity_log "
-        "WHERE owner_type = :ot AND owner_key = :ok AND section = 'sport' "
-        "AND occurred_at >= CURRENT_DATE",
-        {"ot": ctx["owner_type"], "ok": ctx["owner_key"]},
+        """
+        SELECT DISTINCT e.name AS name
+          FROM activity_log a
+          JOIN sport_exercises e
+            ON lower(translate(trim(e.name), :af, :at))
+             = lower(translate(trim(regexp_replace(a.object_name, :pfx, '')), :af, :at))
+         WHERE a.owner_type = :ot AND a.owner_key = :ok
+           AND a.section IN ('sport', 'boostday')
+           AND a.occurred_at >= CURRENT_DATE
+        """,
+        {"ot": ctx["owner_type"], "ok": ctx["owner_key"], "pfx": _TIME_PREFIX_SQL,
+         "af": _APOS_FROM, "at": _APOS_TO},
     )
-    return [str(r["object_name"]) for r in rows if r["object_name"]]
+    return [str(r["name"]) for r in rows if r["name"]]
 
 
 def get_all(request: Request, body: dict):

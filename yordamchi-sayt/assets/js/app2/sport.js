@@ -75,9 +75,26 @@
       // Mashg'ulot tarixi endi umumiy "Tarix" bo'limida (activity_log) va
       // Statistikada ko'rinadi — bu yerda alohida havola shart emas.
       page.innerHTML = '<div class="topbar" style="margin:-16px -15px 12px"><h1>Sport</h1></div>' +
+        '<div id="sport-mine-entry"></div>' +
         '<div id="sport-cats"><div class="load-wrap"><div class="spinner"></div></div></div>';
       App.icons(page);
       loadAll().then(function (data) {
+        /* "Mening mashqlarim" — eng tepada, kundalik ishlatiladigan qisqa ro'yxat */
+        var me = App.el('sport-mine-entry');
+        if (me) {
+          var mine = mineList();
+          var doneN = mine.filter(function (x) { return loggedToday(x.id); }).length;
+          me.innerHTML = '<button class="list-row" data-act="go" data-arg=\'' +
+            App.arg({ v: 'sport_mine' }) + '\' style="margin-bottom:14px">' +
+            '<span class="li-ic" style="background:var(--accent-soft);color:var(--accent)" data-icon="check" data-icon-size="15"></span>' +
+            '<div class="li-main"><div class="li-title">Mening mashqlarim</div>' +
+            '<div class="li-sub">' + (mine.length
+              ? doneN + ' / ' + mine.length + ' bugun bajarildi'
+              : 'O\'zingiz bajaradigan mashqlarni tanlang') + '</div></div>' +
+            '<span class="li-chev" data-icon="arrowLeft" data-icon-size="16" style="transform:rotate(180deg)"></span></button>';
+          App.icons(me);
+        }
+
         var box = App.el('sport-cats'); if (!box) return;
         box.className = 'sp-grid';
         box.innerHTML = CATS.map(function (c) {
@@ -236,12 +253,12 @@
       loadAll().then(function (data) {
         var e = (data[cat] || []).find(function (x) { return String(x.id) === String(id); });
         if (!e) { App.toast('Mashq topilmadi'); App.go('sport_cat', { cat: cat }); return; }
-        renderExerciseView(page, cat, e);
+        renderExerciseView(page, cat, e, params.from || '');
       });
     }
   });
 
-  function renderExerciseView(page, cat, e) {
+  function renderExerciseView(page, cat, e, from) {
     var t = PTYPE[effType(e)] || PTYPE.weight;
     var tgt = todayTarget(e);
     var steps = progressSteps(e);
@@ -265,7 +282,11 @@
 
     page.innerHTML =
       '<div class="topbar" style="margin:-16px -15px 12px">' +
-      '<button class="icon-btn ghost" data-act="go" data-arg=\'' + App.arg({ v: 'sport_cat', p: { cat: cat } }) + '\'><span data-icon="arrowLeft" data-icon-size="20"></span></button>' +
+      /* "Mening mashqlarim" dan kelingan bo'lsa o'sha ro'yxatga qaytadi,
+         aks holda kategoriya sahifasiga. */
+      '<button class="icon-btn ghost" data-act="go" data-arg=\'' +
+      App.arg(from === 'mine' ? { v: 'sport_mine' } : { v: 'sport_cat', p: { cat: cat } }) +
+      '\'><span data-icon="arrowLeft" data-icon-size="20"></span></button>' +
       '<h1>' + App.esc(e.name) + '</h1>' +
       '<button class="icon-btn ghost" id="exv-edit" aria-label="Tahrirlash"><span data-icon="edit" data-icon-size="18"></span></button></div>' +
 
@@ -590,14 +611,32 @@
      App.reload() chaqirmaydi (masalan Boostday "Bugungi ishlar" ro'yxatidan
      turib belgilanganda — o'sha ro'yxat o'zi qayta chiziladi, butun Sport
      sahifasi emas). Qaytaradi: endi bajarilganmi (true/false) yoki topilmasa null. */
-  function toggleExercise(cat, id, silent) {
+  /* `noBoostSync` — Boostday tomonidan chaqirilganda true bo'ladi, shunda
+     ortga qarab yana Boostday belgilanmaydi (cheksiz aylanishning oldi olinadi). */
+  function toggleExercise(cat, id, silent, noBoostSync) {
     var e = ((S.data && S.data[cat]) || []).find(function (x) { return String(x.id) === String(id); });
     if (!e) return null;
     var list = sportLog(), t = today();
     var idx = list.findIndex(function (x) { return x.d === t && String(x.id) === String(id); });
+
+    /* Yo'nalish `loggedToday` bo'yicha aniqlanadi, mahalliy ro'yxat bo'yicha
+       EMAS. Sabab: mashq Telegramdan (yoki boshqa qurilmadan) belgilangan
+       bo'lsa u faqat SERVERDA turadi — mahalliy ro'yxat bo'sh bo'ladi.
+       Ilgari shu yerda `idx >= 0` tekshirilgani uchun bunday mashqni bosganda
+       u bekor qilinmay, QAYTA belgilanardi — foydalanuvchi uni hech qachon
+       olib tashlay olmasdi. */
     var nowDone;
-    if (idx >= 0) {
-      list.splice(idx, 1); saveLog(list);
+    if (loggedToday(id)) {
+      if (idx >= 0) { list.splice(idx, 1); saveLog(list); }
+      /* MUHIM: mahalliy ro'yxatdan o'chirishning O'ZI yetmaydi.
+         `loggedToday` serverdagi `activity_log` yozuvlarini ham hisobga
+         oladi (Telegramdan belgilangani ko'rinsin deb), shuning uchun
+         server yozuvi qolsa mashq "bajarilgan" bo'lib turaverardi va uni
+         qaytarib olib bo'lmasdi. Endi server yozuvi ham o'chiriladi. */
+      if (S.boostDone) {
+        S.boostDone = S.boostDone.filter(function (n) { return App.taskKey(n) !== App.taskKey(e.name); });
+      }
+      App.call('unlog_activity', { section: 'sport', object: e.name }).catch(function () {});
       if (!silent) App.toast('Bekor qilindi');
       nowDone = false;
     } else {
@@ -605,9 +644,21 @@
       saveLog(list);
       if (!silent) App.toast('✅ Bajarildi: ' + e.name);
       if (window.Activity) Activity.mark();
-      App.call('log_activity', { section: 'sport', object: e.name, amount: 1, unit: 'marta', meta: { cat: cat } }).catch(function () {});
+      /* Jurnalga faqat SHU YERDAN belgilanganda yozamiz. Boostday tomonidan
+         chaqirilgan bo'lsa, bot o'zi allaqachon `section='sport'` yozgan —
+         ikki marta yozilsa statistika ikki barobar ko'rsatardi. */
+      if (!noBoostSync) {
+        App.call('log_activity', { section: 'sport', object: e.name, amount: 1, unit: 'marta', meta: { cat: cat, via: 'sport' } }).catch(function () {});
+      }
       nowDone = true;
     }
+
+    /* Ikki tomonlama sinxron: shu mashqqa mos Boostday vazifasi bo'lsa uni ham
+       belgilaymiz — shunda Telegramdagi xabar ham yangilanadi. */
+    if (!noBoostSync && window.BoostDay && BoostDay.setTaskDone) {
+      BoostDay.setTaskDone(e.name, nowDone);
+    }
+
     if (!silent) App.reload();
     return nowDone;
   }
@@ -634,6 +685,154 @@
      'manual') "Bugungi ishlar"da HECH QACHON ko'rinmay qolgan edi. Endi
      ortiqcha mashqni ko'rsatmaslik foydalanuvchining o'zi ✕ bilan yashirishiga
      qoldirilgan (hideToday/unhideToday). */
+  /* =========================================================
+     MENING MASHQLARIM — shaxsiy ro'yxat
+
+     Barcha kategoriyalarda 90+ mashq bor; kundalik ishlatiladigani esa
+     bir nechtasi. Bu bo'lim foydalanuvchi TANLAGAN mashqlarni bitta qisqa
+     ro'yxatda ko'rsatadi, shu yerdan belgilash qulay bo'ladi.
+     Saqlash: `sport_mine_v1` (id lar massivi) — remote-storage sinxronlaydi.
+     ========================================================= */
+  var MINE_KEY = 'sport_mine_v1';
+
+  function mineIds() {
+    try {
+      var v = JSON.parse(localStorage.getItem(MINE_KEY) || '[]');
+      return Array.isArray(v) ? v.map(String) : [];
+    } catch (e) { return []; }
+  }
+  function setMine(ids) {
+    try { localStorage.setItem(MINE_KEY, JSON.stringify(ids.map(String))); } catch (e) {}
+  }
+
+  /* Tanlangan mashqlar — TO'LIQ mashq obyekti bilan (o'chirilganlari tushadi).
+     `ex` — bazadagi asl yozuv: rasm, og'irlik/set/takror, vaqt va h.k.
+     Shu tufayli bu yerda kategoriya sahifasidagi AYNAN o'sha kartochkani
+     chizish mumkin. */
+  function mineList() {
+    if (!S.data) return [];
+    var ids = mineIds(), out = [];
+    CATS.forEach(function (c) {
+      (S.data[c.id] || []).forEach(function (e) {
+        if (ids.indexOf(String(e.id)) >= 0) {
+          out.push({ cat: c.id, info: c, id: e.id, name: e.name, ex: e });
+        }
+      });
+    });
+    return out;
+  }
+
+  App.view('sport_mine', {
+    nav: 'sport',
+    render: function (page) {
+      page.innerHTML = topbar('Mening mashqlarim', 'sport', {},
+        '<button class="icon-btn ghost" data-act="mineEdit" style="margin-left:auto" aria-label="Tanlash">' +
+        '<span data-icon="edit" data-icon-size="18"></span></button>') +
+        '<div id="mine-body"><div class="load-wrap"><div class="spinner"></div></div></div>';
+      App.icons(page);
+      loadAll().then(function () { paintMine(); });
+    }
+  });
+
+  function paintMine() {
+    var box = App.el('mine-body'); if (!box) return;
+    var list = mineList();
+
+    if (!list.length) {
+      box.innerHTML = App.empty({
+        icon: 'activity', title: 'Hali mashq tanlanmagan',
+        text: 'Barcha bo\'limlardagi mashqlardan o\'zingiz bajaradiganlarini tanlang — shu yerda qisqa ro\'yxat bo\'lib turadi.'
+      }) + '<button class="btn" data-act="mineEdit" style="margin-top:12px">' +
+        '<span data-icon="plus" data-icon-size="16"></span>Mashq tanlash</button>';
+      App.icons(box);
+      return;
+    }
+
+    var done = list.filter(function (x) { return loggedToday(x.id); }).length;
+
+    /* Kartochka kategoriya sahifasidagi bilan AYNAN bir xil: rasm, nom,
+       vaqt, og'irlik/set ma'lumoti, o'ngda "bugun bajardim" tugmasi.
+       Bosilganda mashqning to'liq sahifasi (bajarish tartibi, media)
+       ochiladi — ya'ni hamma narsa shu yerning o'zida. */
+    box.innerHTML =
+      '<div class="mine-head"><b>' + done + ' / ' + list.length + '</b>' +
+      '<span>bugun bajarildi</span></div>' +
+      '<div class="mine-bar"><i style="width:' + Math.round((done / list.length) * 100) + '%"></i></div>' +
+      '<button class="btn sec" data-act="restTimer" style="margin-bottom:14px">' +
+      '<span data-icon="clock" data-icon-size="16"></span>Dam olish taymeri</button>' +
+      list.map(function (x) {
+        var e = x.ex, info = x.info;
+        var sub = exerciseSub(e) + (e.media && e.media.length ? ' · ' + e.media.length + ' media' : '');
+        var on = loggedToday(e.id);
+        return '<div class="list-row">' +
+          exerciseThumb(e, info) +
+          '<button class="li-main" style="background:none;border:none;text-align:left;padding:0" data-act="go" data-arg=\'' +
+          App.arg({ v: 'sport_exercise', p: { cat: x.cat, id: e.id, from: 'mine' } }) + '\'>' +
+          '<div class="li-title">' + App.esc(e.name) + '</div>' +
+          (e.start_time && e.end_time
+            ? '<div class="li-sub" style="color:var(--accent);font-weight:600;margin-bottom:2px">🕒 ' +
+              App.esc(e.start_time) + ' - ' + App.esc(e.end_time) + '</div>' : '') +
+          '<div class="li-sub">' + App.esc(info.n) + (sub.trim() ? ' · ' + App.esc(sub) : '') + '</div></button>' +
+          '<button class="icon-btn ghost sp-log' + (on ? ' done' : '') + '" data-act="sportLog" data-arg=\'' +
+          App.arg({ cat: x.cat, id: e.id }) + '\' title="Bugun bajardim">' +
+          '<span data-icon="check" data-icon-size="17"></span></button>' +
+          '</div>';
+      }).join('') +
+      '<button class="btn sec" data-act="mineEdit" style="margin-top:16px">' +
+      '<span data-icon="edit" data-icon-size="16"></span>Ro\'yxatni o\'zgartirish</button>';
+    App.icons(box);
+  }
+
+  /* Tanlash oynasi — barcha kategoriyalardagi mashqlar, belgilash bilan */
+  App.actions.mineEdit = function () {
+    var sel = {};
+    mineIds().forEach(function (id) { sel[id] = 1; });
+
+    /* MUHIM: element JORIY oyna ichidan izlanadi, `App.el(id)` bilan EMAS.
+       Oyna yopilganda DOM'dan ~280ms keyin o'chadi; shu orada qayta ochilsa
+       hujjatda bir xil id'li IKKI element bo'ladi va `App.el` o'layotganini
+       qaytarib, chizilgan ro'yxat ko'rinmay qolardi. */
+    var SHEET = null;
+    function draw() {
+      var body = SHEET && SHEET.querySelector('#mine-pick'); if (!body) return;
+      var html = '';
+      CATS.forEach(function (c) {
+        var items = (S.data && S.data[c.id]) || [];
+        if (!items.length) return;
+        html += '<div class="list-label">' + App.esc(c.n) + '</div>' +
+          items.map(function (e) {
+            var on = !!sel[String(e.id)];
+            return '<button class="pk-row' + (on ? ' on' : '') + '" data-mine="' + e.id + '">' +
+              '<span class="pk-box">' + (on ? '✓' : '') + '</span>' +
+              '<span class="pk-main"><b>' + App.esc(e.name) + '</b></span></button>';
+          }).join('');
+      });
+      if (!html) html = App.empty({ icon: 'activity', title: 'Mashq yo\'q', text: 'Avval kategoriyalarga mashq qo\'shing.' });
+      var n = Object.keys(sel).length;
+      html += '<div class="pk-bar"><button class="btn" id="mine-save">' +
+        (n ? n + ' ta mashq saqlash' : 'Bo\'sh ro\'yxatni saqlash') + '</button></div>';
+      body.innerHTML = html;
+      App.icons(body);
+      body.querySelectorAll('[data-mine]').forEach(function (b) {
+        b.onclick = function () {
+          var id = b.getAttribute('data-mine');
+          if (sel[id]) delete sel[id]; else sel[id] = 1;
+          draw();
+        };
+      });
+      body.querySelector('#mine-save').onclick = function () {
+        setMine(Object.keys(sel));
+        App.closeSheet();
+        App.toast('✅ Ro\'yxat saqlandi');
+        paintMine();
+      };
+    }
+
+    SHEET = App.sheet('<div id="mine-pick"><div class="load-wrap"><div class="spinner"></div></div></div>',
+                      { title: 'Mashq tanlash' });
+    loadAll().then(draw);
+  };
+
   function scheduledPending(wantHidden, allExercises) {
     if (!S.data) return [];
     var out = [];
@@ -663,12 +862,35 @@
 
   /* Boostday "Bugungi ishlar" ro'yxati uchun ko'prik — sport mashqlari va
      Boostday vazifalari BITTA ro'yxatda ko'rinishi shart (band 5.1). */
+  /* Nom bo'yicha mashqni topadi (Boostday vazifasi bilan bog'lash uchun).
+     Taqqoslash `App.taskKey` orqali — vaqt prefiksi olib tashlanadi. */
+  function findByName(text) {
+    if (!S.data) return null;
+    var key = App.taskKey(text);
+    if (!key) return null;
+    for (var cat in S.data) {
+      var hit = (S.data[cat] || []).find(function (x) { return App.taskKey(x.name) === key; });
+      if (hit) return { cat: cat, id: hit.id, name: hit.name };
+    }
+    return null;
+  }
+
   window.SportBridge = {
     ensureLoaded: function () { return loadAll(); },
     todayPending: function () { return scheduledPending(false); },
     hiddenPending: function () { return scheduledPending(true); },
     doneToday: function () { return doneTodayList(); },
     allExercises: function () { return scheduledPending(false, true); },
+    findByName: findByName,
+    isDone: function (id) { return loggedToday(id); },
+    /* Boostday tomonidan chaqiriladi: mashqni MA'LUM holatga keltiradi.
+       `toggle` emas — chunki chaqiruvchi allaqachon yangi holatni biladi va
+       ikki tomon "toggle" qilsa holat teskari bo'lib ketardi. */
+    setDone: function (cat, id, want) {
+      var isNow = loggedToday(id);
+      if (!!want === !!isNow) return isNow;
+      return toggleExercise(cat, id, true, true);   // silent + boostga qaytarma sinxron yo'q
+    },
     hideToday: function (id) {
       var h = hiddenIds();
       if (h.indexOf(String(id)) < 0) { h.push(String(id)); saveHidden(h); }

@@ -209,6 +209,12 @@
     if (!nav || nav._dialBound) return;
     nav._dialBound = true;
 
+    /* Uzoq bosilganda chiqadigan "nusxa olish / tanlash" menyusi barmoq
+       harakatini o'g'irlab, g'ildirakni aylantirishga xalaqit berardi. */
+    nav.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    nav.addEventListener('selectstart', function (e) { e.preventDefault(); });
+    nav.addEventListener('dragstart', function (e) { e.preventDefault(); });
+
     nav.addEventListener('touchstart', function (e) {
       if (e.touches.length !== 1) return;
       var list = navList();
@@ -218,6 +224,8 @@
         startIdx: currentIndex(list), idx: currentIndex(list),
         el: dialOverlay(), moved: false
       };
+      // Tanlash boshlanib qolgan bo'lsa bekor qilamiz
+      try { var sel = window.getSelection && window.getSelection(); if (sel && sel.removeAllRanges) sel.removeAllRanges(); } catch (x) {}
     }, { passive: true });
 
     nav.addEventListener('touchmove', function (e) {

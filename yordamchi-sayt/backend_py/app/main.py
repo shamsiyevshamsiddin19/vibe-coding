@@ -157,6 +157,7 @@ def _dispatch_query_action(request: Request, action: str, body: dict, q):
         "log_client": lambda: misc.log_client(request, body),
         "health": lambda: misc.health(request, body),
         "log_activity": lambda: activity.log_activity(request, body),
+        "unlog_activity": lambda: activity.unlog_activity(request, body),
         "get_activity_log": lambda: activity.get_activity_log(
             request, body, q.get("from", ""), q.get("to", ""), q.get("section", "")
         ),

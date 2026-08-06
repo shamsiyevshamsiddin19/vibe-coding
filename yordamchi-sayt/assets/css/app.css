@@ -215,11 +215,23 @@ button{ font-family:inherit; cursor:pointer; }
   display:flex; height:calc(var(--nav-h) + var(--safe-b));
   padding-bottom:var(--safe-b);
   background:var(--bg-elev); border-top:1px solid var(--border);
+  /* Bo'lim g'ildiragi (bosib turib surish) ishlashi uchun brauzerning O'Z
+     jestlari o'chiriladi: bosib turilganda matn tanlash / "nusxa olish"
+     menyusi chiqib, barmoq harakati g'ildirakka yetib bormasdi.
+     `touch-action:none` — panelda brauzer scroll/zoom qilmaydi, harakatni
+     to'liq bizning kodimiz oladi. */
+  -webkit-user-select:none; user-select:none;
+  -webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:none;
 }
 .botnav a{
   flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
   color:var(--hint); font-size:10.5px; font-weight:600;
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
 }
+/* G'ildirak ustidagi yozuvlar ham tanlanmasin */
+.nav-dial, .nav-dial *{ -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
 .botnav a .app-icon{ color:var(--hint); }
 .botnav a.active,.botnav a.active .app-icon{ color:var(--text); }
 @media (min-width:920px){ .botnav{ display:none; } }
@@ -825,12 +837,10 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
    sig'sa kengayadi, sig'masa eng kichik o'lchamda qolib qator gorizontal
    SILJIYDI (telefon). Kataklarni ekranga tiqishtirib maydalashtirmaymiz. */
 .hm-wrap{ width:100%; margin-top:10px; }
-.hm-row{
-  display:flex; align-items:flex-start; gap:6px;
-  overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;
-  scrollbar-width:none; padding-bottom:2px;
-}
-.hm-row::-webkit-scrollbar{ display:none; }
+/* Siljitish YO'Q: ko'rsatiladigan oylar soni ekranga qarab tanlanadi
+   (home.js `monthsToShow` — telefonda 6, kengroqda 12), shuning uchun
+   qator doim to'liq sig'adi. */
+.hm-row{ display:flex; align-items:flex-start; gap:6px; }
 .hm-mo{ flex:0 0 auto; }
 .hm-mo-grid{ display:grid; grid-auto-flow:column; }
 .hm-mo-grid i{ width:100%; height:100%; border-radius:2.5px; background:var(--card-2); display:block; }
@@ -944,6 +954,9 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
 .ch-grid{ stroke:var(--border-soft); stroke-width:1; }
 .ch-ylb{ fill:var(--hint); font-size:10px; font-weight:600; }
 .ch-xlb{ fill:var(--hint); font-size:10px; font-weight:600; text-anchor:middle; }
+/* Bugungi kun ko'rsatkichi — grafikda vertikal punktir chiziq */
+.ch-today{ stroke:var(--accent); stroke-width:1.5; stroke-dasharray:4 4; opacity:.75; }
+.ch-today-lb{ fill:var(--accent); font-size:10px; font-weight:800; letter-spacing:.2px; }
 /* Kichik segment tanlagich (14/30/90 kun) */
 .seg.seg-sm{ display:inline-flex; padding:2px; }
 .seg.seg-sm button{ padding:5px 11px; font-size:11.5px; }
@@ -1186,39 +1199,62 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
    tarjima esa bosilgan so'zning yonidagi kichik oynachada.
    ============================================================ */
 
+/* Sarlavha va matn o'lchamlari BIR NISBATDA ushlanadi (sarlavha = matn x1.45,
+   ichki sarlavhalar x1.2 va x1.06). Ilgari har breakpointda qo'lda yozilgani
+   uchun nisbat turlicha edi (mobil 1.44x, desktop 1.58x) va sarlavha matnga
+   nomutanosib ko'rinardi. */
 .rd-title{
   font-family:Georgia,"Times New Roman",serif;
-  font-size:26px; font-weight:700; line-height:1.3;
-  text-align:center; margin:6px 0 4px; letter-spacing:-.2px;
+  font-size:25px; font-weight:700; line-height:1.3;
+  text-align:center; margin:6px 0 22px; letter-spacing:-.2px;
 }
-.rd-hint{ font-size:11.5px; color:var(--hint); text-align:center; margin:0 0 26px; }
 
+/* Matn kitobdagidek TEKIS va UZLUKSIZ oqadi.
+   `text-align:justify` ATAYLAB ishlatilmaydi: tor ustunda u so'zlar orasini
+   cho'zib, matnni "egri qiyshiq" qilib ko'rsatardi. Oddiy chapga tekislash
+   ekranda ancha toza chiqadi. Gaplar alohida blok emas — bir xatboshi ichida
+   ketma-ket, oddiy bo'shliq bilan davom etadi. */
 .rd-text{
   font-family:Georgia,"Times New Roman",serif;
-  font-size:18.5px; line-height:1.95; color:var(--text);
-  max-width:38em; margin:0 auto;
+  font-size:17px; line-height:1.68; color:var(--text);
+  max-width:34em; margin:0 auto;
   padding-bottom:96px;                 /* pastdagi pleyer matnni yopmasin */
-  text-align:justify; hyphens:auto;
+  text-align:left;
+  word-spacing:normal; letter-spacing:0;
 }
-.rd-p{ margin:0 0 1.15em; text-indent:1.4em; }
+/* Desktopda matn butun kenglikni egallaydi (foydalanuvchi so'rovi:
+   "shuncha bo'sh joy bor, nega foydalanmading").
+   Qator uzayganda o'qish qiyinlashmasligi uchun shrift va qator oralig'i
+   ham birga oshiriladi — belgilar soni me'yorga yaqin qoladi. */
+@media (min-width:920px){
+  .rd-text{ max-width:none; font-size:19px; line-height:1.75; }
+  .rd-title{ font-size:28px; margin-bottom:26px; }
+  .rd-h1{ font-size:23px; }
+  .rd-h2{ font-size:20px; }
+}
+.rd-p{ margin:0 0 0.9em; text-indent:1.5em; }
 .rd-p:first-child{ text-indent:0; }     /* birinchi xatboshi chekinmaydi (tipografiya odati) */
 
 .rd-h1, .rd-h2{
   font-family:Georgia,"Times New Roman",serif; text-align:center;
   font-weight:700; line-height:1.35;
 }
-.rd-h1{ font-size:22px; margin:34px 0 14px; }
-.rd-h2{ font-size:18.5px; margin:28px 0 12px; color:var(--text-2); }
+.rd-h1{ font-size:20.5px; margin:32px 0 13px; }
+.rd-h2{ font-size:18px; margin:26px 0 11px; color:var(--text-2); }
 
 /* Gap — bosilsa tarjimasi chiqadi. Ostiga chiziq TORTILMAYDI: so'zlarning
    nuqtali chizig'i bilan qo'shilib matnni o'qib bo'lmas holga keltirardi. */
+/* Gap tinch holatda HECH QANDAY belgiga ega emas — matn butun ko'rinadi.
+   Fon faqat bosilganda yoki o'qilayotganda paydo bo'ladi. */
 .rd-s{ cursor:pointer; border-radius:4px; transition:background .15s ease; }
 .rd-s.reading{ background:var(--accent-soft); }
 .rd-s.on{ background:var(--card-2); }
 
-/* So'z — tarjimasi bor bo'lsa ostiga ingichka nuqtali chiziq */
-.rd-w{ cursor:pointer; border-radius:3px; padding:0 1px; }
-.rd-w.has{ border-bottom:1px dotted var(--hint); }
+/* So'z — tarjimasi bor bo'lsa ostiga juda ingichka, xira nuqtali chiziq.
+   `padding` bermaymiz: u so'zlar orasini kengaytirib, qatorni notekis
+   ko'rsatardi. */
+.rd-w{ cursor:pointer; border-radius:3px; }
+.rd-w.has{ border-bottom:1px dotted var(--border); }
 .rd-w.on{ background:var(--accent); color:var(--accent-ink); border-bottom-color:transparent; }
 @media (hover:hover){ .rd-w.has:hover{ background:var(--accent-soft); } }
 
@@ -1293,6 +1329,15 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
 }
 .rd-pop-tr{ font-size:15.5px; font-weight:700; line-height:1.35; color:var(--text); }
 .rd-pop-tr i{ color:var(--hint); font-weight:500; font-size:13.5px; }
+/* "Gap tarjimasi" — so'z oynachasi ichidagi qo'shimcha tugma */
+.rd-pop-sent{
+  display:flex; align-items:center; gap:6px; width:100%;
+  margin-top:9px; padding:7px 9px; border:0; border-radius:9px; cursor:pointer;
+  background:none; color:var(--hint); font-size:12px; font-weight:600;
+  border-top:1px solid var(--border-soft); border-radius:0; padding-left:0;
+}
+.rd-pop-sent:active{ color:var(--accent); }
+
 .rd-pop-acts{ display:flex; gap:7px; margin-top:11px; }
 .rd-pop-b{
   flex:1; display:flex; align-items:center; justify-content:center; gap:6px;
@@ -1316,10 +1361,10 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
 }
 
 @media (max-width:520px){
-  .rd-title{ font-size:23px; }
-  .rd-text{ font-size:17.5px; line-height:1.9; text-align:left; }
-  .rd-h1{ font-size:20px; }
-  .rd-h2{ font-size:17px; }
+  .rd-title{ font-size:23px; margin-bottom:20px; }   /* 16 x 1.44 */
+  .rd-text{ font-size:16px; line-height:1.66; }
+  .rd-h1{ font-size:19.5px; }                        /* 16 x 1.22 */
+  .rd-h2{ font-size:17px; }                          /* 16 x 1.06 */
 }
 
 /* ============================================================
@@ -1362,3 +1407,62 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
 
 /* Desktopda jest yo'q (sichqoncha bilan sidebar qulayroq) */
 @media (min-width:920px){ .nav-dial{ display:none; } }
+
+/* Bo'lim halqalari ko'p bo'lsa yangi qatorga o'tsin (bot guruhlari soni
+   oldindan noma'lum — 2 ta ham, 6 ta ham bo'lishi mumkin). */
+.wd-sub{ flex-wrap:wrap; row-gap:14px; }
+.wd-ring{ min-width:64px; }
+.wd-lbl{ max-width:90px; margin-left:auto; margin-right:auto;
+         overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wd-empty{ font-size:12.5px; color:var(--hint); margin:0; text-align:center; width:100%; }
+
+/* ============================================================
+   Bildirishnomalar (notify.js) — bosh sahifa yuqorisidagi qo'ng'iroq
+   ============================================================ */
+.h-top{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+.h-hello{ font-size:19px; font-weight:750; letter-spacing:-.2px; min-width:0;
+          overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.nt-bell{
+  position:relative; flex-shrink:0;
+  width:40px; height:40px; border:0; border-radius:50%; cursor:pointer;
+  background:var(--card-2); color:var(--text-2);
+  display:flex; align-items:center; justify-content:center;
+}
+.nt-bell:active{ transform:scale(.94); }
+/* O'qilmagan soni — qo'ng'iroq ustidagi kichik nishon */
+.nt-badge{
+  position:absolute; top:-2px; right:-2px; min-width:18px; height:18px; padding:0 4px;
+  border-radius:99px; background:var(--danger); color:#fff;
+  font-size:10.5px; font-weight:800; line-height:18px; text-align:center;
+  border:2px solid var(--bg);
+}
+
+.nt-row.read .li-title{ color:var(--text-2); font-weight:500; }
+.nt-row .li-title{ font-weight:650; }
+
+@media (max-width:400px){
+  .h-hello{ font-size:17.5px; }
+  .nt-bell{ width:36px; height:36px; }
+}
+
+/* Gap-ma-gap rejim tugmasi (Reading pleyeri) — yoqilganda aksent rangda */
+.rd-pl-step{
+  position:absolute; left:14px;
+  width:32px; height:32px; border:0; border-radius:9px; cursor:pointer;
+  background:var(--card-2); color:var(--hint);
+  display:flex; align-items:center; justify-content:center;
+}
+.rd-pl-step.on{ background:var(--accent-soft); color:var(--accent); }
+.rd-pl-step:active{ transform:scale(.94); }
+
+/* "Mening mashqlarim" — kunlik qisqa ro'yxat sarlavhasi va progress chizig'i */
+.mine-head{ display:flex; align-items:baseline; gap:7px; margin:2px 2px 8px; }
+.mine-head b{ font-size:20px; font-weight:800; }
+.mine-head span{ font-size:12px; color:var(--hint); font-weight:600; }
+.mine-bar{ height:5px; border-radius:99px; background:var(--card-2); overflow:hidden; margin:0 2px 14px; }
+.mine-bar i{ display:block; height:100%; background:var(--success); border-radius:99px; transition:width .3s ease; }
+
+/* Lug'at sarlavhasidagi ixcham amal tugmalari (yozuvsiz, faqat belgi) */
+.voc-acts{ display:flex; gap:2px; margin-left:auto; }
+.voc-acts .icon-btn{ width:36px; height:36px; }
