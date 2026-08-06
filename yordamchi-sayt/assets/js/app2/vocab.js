@@ -88,6 +88,23 @@
     return (i < 0 ? p : p.slice(0, i)).trim() || null;
   }
   /* Kategoriya yashiringan papkalardan birining ICHIDAMI (istalgan chuqurlikda) */
+  /* --- MD fayllar (kitoblar) qaysi papkada turishi ---------------------
+     Ilgari MD fayllar `{nom: matn}` ko'rinishida, papkasiz saqlanardi —
+     shuning uchun ular HAR BIR papka ichida ko'rinardi. Endi alohida
+     xarita nomni papkaga bog'laydi. Eski fayllar (xaritada yo'q) ildizda
+     qoladi — ular haqiqatan ildizga yuklangan. */
+  function mdFolderKey(lang) { return 'vocab_md_folders_v1_' + lang; }
+  function mdFolders(lang) {
+    try {
+      var v = JSON.parse(localStorage.getItem(mdFolderKey(lang)) || '{}');
+      return (v && typeof v === 'object') ? v : {};
+    } catch (e) { return {}; }
+  }
+  function setMdFolders(lang, map) {
+    try { localStorage.setItem(mdFolderKey(lang), JSON.stringify(map)); } catch (e) {}
+  }
+  function mdFolderOf(lang, name) { return mdFolders(lang)[name] || ''; }
+
   function underHiddenFolder(cat, hidF) {
     if (!hidF || !hidF.length) return false;
     var p = catParent(cat);
@@ -134,8 +151,12 @@
     App.reload();
   };
   App.actions.vocabHiddenSheet = function (a) {
-    var cats = hiddenCats(a.lang);
-    var folders = hiddenFolders(a.lang);
+    /* FAQAT shu papkada yashirilganlar. `a.folder` berilmasa (eski
+       havolalar) — hammasi, avvalgidek. */
+    var folder = a.folder;
+    var byFolder = function (p) { return folder === undefined || catParent(p) === folder; };
+    var cats = hiddenCats(a.lang).filter(byFolder);
+    var folders = hiddenFolders(a.lang).filter(byFolder);
     var html = '';
 
     if (folders.length) {
@@ -218,7 +239,8 @@
       page.innerHTML = topbar(inFolder ? lastSeg(inFolder) : LABEL[lang].hub, backView, backParams,
         '<div class="voc-acts">' +
         '<button class="icon-btn ghost" data-act="vocabAddCat" data-arg=\'' + App.arg({ lang: lang, folder: inFolder }) + '\' aria-label="Yangi kategoriya" title="Yangi kategoriya"><span data-icon="plus" data-icon-size="19"></span></button>' +
-        '<button class="icon-btn ghost" data-act="vocabDbOptions" data-arg=\'' + App.arg({ lang: lang }) + '\' aria-label="Baza qo\'shish" title="Baza qo\'shish"><span data-icon="upload" data-icon-size="18"></span></button>' +
+        /* `folder` ham uzatiladi — MD fayl JORIY papkaga yuklanadi */
+        '<button class="icon-btn ghost" data-act="vocabDbOptions" data-arg=\'' + App.arg({ lang: lang, folder: params.folder || '' }) + '\' aria-label="Baza qo\'shish" title="Baza qo\'shish"><span data-icon="upload" data-icon-size="18"></span></button>' +
         '<button class="icon-btn ghost" data-act="vocabSendSheet" data-arg=\'' + App.arg({ lang: lang }) + '\' aria-label="Boostdayga yuborish" title="Boostdayga yuborish"><span data-icon="message" data-icon-size="18"></span></button>' +
         '</div>') +
         (inFolder ? '<div class="lib-crumb" id="voc-crumb"></div>' : '') +
@@ -315,9 +337,13 @@
           html = App.empty({ icon: 'list', title: 'Bo\'sh papka', text: '' });
         }
         
+        /* MD fayllar FAQAT o'z papkasida ko'rinadi (ilgari hamma papkada
+           chiqib turardi — ichma-ich papka ochilganda ham). */
         var mdFiles = {};
         try { mdFiles = JSON.parse(localStorage.getItem('vocab_md_files_v1_' + lang) || '{}'); } catch(ex) {}
-        var mdKeys = Object.keys(mdFiles);
+        var mdKeys = Object.keys(mdFiles).filter(function (n) {
+          return mdFolderOf(lang, n) === folder;
+        });
         if (mdKeys.length) {
           html += '<div class="list-label" style="margin-top:16px">MD Fayllar (Kitoblar)</div>';
           html += mdKeys.map(function(fname) {
@@ -329,13 +355,17 @@
           }).join('');
         }
         
-        // Yashiringanlar — ro'yxat oxirida (papkalar ham, alohida lug'atlar ham)
-        if (hid.length || hidF.length) {
+        /* Yashiringanlar — FAQAT o'sha narsa yashirilgan papkada ko'rinadi.
+           Ilgari global ro'yxat ishlatilgani uchun bu qator har bir papkada,
+           hatto hech narsa yashirilmagan ichki papkalarda ham chiqardi. */
+        var hidHere = hid.filter(function (c) { return catParent(c) === folder; });
+        var hidFHere = hidF.filter(function (f) { return catParent(f) === folder; });
+        if (hidHere.length || hidFHere.length) {
           var parts = [];
-          if (hidF.length) parts.push(hidF.length + ' papka');
-          if (hid.length) parts.push(hid.length + ' lug\'at');
+          if (hidFHere.length) parts.push(hidFHere.length + ' papka');
+          if (hidHere.length) parts.push(hidHere.length + ' lug\'at');
           html += '<button class="list-row" data-act="vocabHiddenSheet" data-arg=\'' +
-            App.arg({ lang: lang }) + '\' style="margin-top:14px">' +
+            App.arg({ lang: lang, folder: folder }) + '\' style="margin-top:14px">' +
             '<span class="li-ic" data-icon="close" data-icon-size="15"></span>' +
             '<div class="li-main"><div class="li-title">Yashiringanlar</div>' +
             '<div class="li-sub">' + parts.join(' · ') + ' · qaytarish mumkin</div></div>' +
@@ -386,8 +416,12 @@
         try { mdFiles = JSON.parse(localStorage.getItem('vocab_md_files_v1_' + a.lang) || '{}'); } catch(ex) {}
         mdFiles[finalName] = text;
         localStorage.setItem('vocab_md_files_v1_' + a.lang, JSON.stringify(mdFiles));
+        /* Fayl QAYSI papkada yuklangan bo'lsa o'sha yerda qoladi */
+        var fmap = mdFolders(a.lang);
+        fmap[finalName] = a.folder || '';
+        setMdFolders(a.lang, fmap);
         App.toast('Baza yuklandi!');
-        App.go('vocab', { lang: a.lang });
+        App.go('vocab', { lang: a.lang, folder: a.folder || '' });
       };
       reader.readAsText(file);
     };
@@ -398,9 +432,14 @@
     if (confirm(a.mdId + ' ni o\'chirishni xohlaysizmi?')) {
       var mdFiles = {};
       try { mdFiles = JSON.parse(localStorage.getItem('vocab_md_files_v1_' + a.lang) || '{}'); } catch(ex) {}
+      var wasIn = mdFolderOf(a.lang, a.mdId);
       delete mdFiles[a.mdId];
       localStorage.setItem('vocab_md_files_v1_' + a.lang, JSON.stringify(mdFiles));
-      App.go('vocab', { lang: a.lang });
+      // Papka yozuvi ham tozalansin — aks holda xarita asta-sekin axlat to'playdi
+      var fmap = mdFolders(a.lang);
+      delete fmap[a.mdId];
+      setMdFolders(a.lang, fmap);
+      App.go('vocab', { lang: a.lang, folder: wasIn });
     }
   };
 
