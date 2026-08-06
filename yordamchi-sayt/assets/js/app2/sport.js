@@ -59,6 +59,19 @@
   }
 
   var S = { data: null, boostDone: [] };
+  /* ILOVAGA QAYTGANDA ma'lumot eskirgan deb belgilanadi.
+     Odatiy holat: foydalanuvchi mashqni TELEGRAMDA belgilaydi va ilovaga
+     qaytadi. Kesh butun sessiya davomida saqlangani uchun "bajarildi"
+     belgisi ko'rinmay qolardi — endi qaytishda qaytadan olinadi. */
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) return;
+    S.data = null;
+    var v = App.currentView && App.currentView();
+    if (!v || ['sport', 'sport_cat', 'sport_exercise', 'sport_mine'].indexOf(v) < 0) return;
+    if (document.querySelector('.sheet.show')) return;   // oyna ochiq — bezovta qilmaymiz
+    App.reload();
+  });
+
   function loadAll(force) {
     if (S.data && !force) return Promise.resolve(S.data);
     return App.call('sport_get_all').then(function (j) {

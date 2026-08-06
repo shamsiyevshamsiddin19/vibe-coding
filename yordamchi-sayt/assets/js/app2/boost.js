@@ -15,6 +15,18 @@
 
   var B = { data: null, channels: null, stats: null, filter: 'all', search: '' };
 
+  /* ILOVAGA QAYTGANDA reja ma'lumoti eskirgan deb belgilanadi — vazifa
+     Telegramda belgilangan bo'lishi mumkin (eng keng tarqalgan holat).
+     Sport bo'limida ham xuddi shunday qilingan. */
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) return;
+    B.data = null;
+    var v = App.currentView && App.currentView();
+    if (!v || ['boost', 'boost_plan', 'home', 'kun'].indexOf(v) < 0) return;
+    if (document.querySelector('.sheet.show')) return;
+    App.reload();
+  });
+
   function call(action, payload) {
     return App.call('boost_' + action, payload || {});
   }
@@ -428,9 +440,15 @@
          shuning uchun `setDone` qayta yozmaydi (noBoostSync=true). */
       var task = window.BoostDay && BoostDay.findTaskByName
         ? findTaskTextById(a.id, a.index) : '';
+      /* Sport ma'lumoti ham YUKLANGAN bo'lishi shart — `findByName`
+         `S.data` bo'sh bo'lsa darrov `null` qaytaradi. Ilova Boostdayda
+         ochilib, Sport bo'limi hech ochilmagan bo'lsa aynan shunday
+         bo'lardi va galichka Sportga o'tmasdi. */
       if (task && window.SportBridge && SportBridge.findByName) {
-        var ex = SportBridge.findByName(task);
-        if (ex) SportBridge.setDone(ex.cat, ex.id, isTaskDone(a.id, a.index));
+        SportBridge.ensureLoaded().then(function () {
+          var ex = SportBridge.findByName(task);
+          if (ex) SportBridge.setDone(ex.cat, ex.id, isTaskDone(a.id, a.index));
+        }).catch(function () {});
       }
       renderActiveSheet();
       renderTodayButton(App.el('page'));
@@ -1733,12 +1751,20 @@
        Allaqachon shu holatda bo'lsa hech narsa qilmaydi — `toggle_task`
        almashtiruvchi bo'lgani uchun ikki tomon toggle qilsa holat buzilardi. */
     setTaskDone: function (text, want) {
-      var t = window.BoostDay.findTaskByName(text);
-      if (!t) return Promise.resolve(false);
-      if ((t.status === 1) === !!want) return Promise.resolve(false);
-      return window.BoostDay.toggle(t.planId, t.index)
-        .then(function () { return true; })
-        .catch(function () { return false; });
+      /* MUHIM: avval ma'lumot YUKLANGANIGA ishonch hosil qilamiz.
+         `findTaskByName` `B.data` ga tayanadi; ilova to'g'ridan-to'g'ri
+         Sport bo'limida ochilgan bo'lsa (router oxirgi manzilni tiklaydi)
+         Boostday hech qachon yuklanmagan bo'ladi va qidiruv JIMGINA
+         hech nima topmasdi — natijada Sportda belgilangan mashq
+         Boostdayda belgilanmay qolardi. */
+      return window.BoostDay.ensureLoaded().then(function () {
+        var t = window.BoostDay.findTaskByName(text);
+        if (!t) return false;
+        if ((t.status === 1) === !!want) return false;
+        return window.BoostDay.toggle(t.planId, t.index)
+          .then(function () { return true; })
+          .catch(function () { return false; });
+      }).catch(function () { return false; });
     }
   };
 
