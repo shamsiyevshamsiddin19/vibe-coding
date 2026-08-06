@@ -362,11 +362,25 @@
           }).join('')
         : '<p class="wd-empty">Botda reja kiritilmagan</p>';
 
+      /* UMUMIY ko'rsatkich ikki ko'rinishda chiziladi, ikkalasi ham
+         markupda turadi va kerakligini CSS tanlaydi:
+           telefon   — katta halqa (`.wd-ring`), avvalgidek
+           kompyuter — tepada butun kenglikdagi CHIZIQ (`.wd-line`);
+                       shunda ustunlarga butun kenglik qoladi. */
+      var allPct = pct(doneTasks, totalTasks);
       box.innerHTML =
         '<div class="hsec" style="margin-top:24px"><h2>Kunlik statistika</h2></div>' +
         '<div class="wd-card">' +
           '<div class="wd-main">' +
-            mkRing(pct(doneTasks, totalTasks), 'var(--accent)', 'Umumiy kun', doneTasks + ' / ' + totalTasks + ' vazifa') +
+            mkRing(allPct, 'var(--accent)', 'Umumiy kun', doneTasks + ' / ' + totalTasks + ' vazifa') +
+            '<div class="wd-line">' +
+              '<div class="wd-line-top">' +
+                '<b>Umumiy kun</b>' +
+                '<span>' + doneTasks + ' / ' + totalTasks + ' vazifa</span>' +
+                '<em>' + allPct + '%</em>' +
+              '</div>' +
+              '<div class="wd-bar"><i style="width:' + allPct + '%"></i></div>' +
+            '</div>' +
           '</div>' +
           '<div class="wd-sub">' + subs + '</div>' +
         '</div>';

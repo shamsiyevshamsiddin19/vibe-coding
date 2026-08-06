@@ -1430,19 +1430,37 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
          overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .wd-empty{ font-size:12.5px; color:var(--hint); margin:0; text-align:center; width:100%; }
 
-/* Vazifalar ro'yxati — FAQAT kompyuterda (telefonda joy yetishmaydi,
-   halqa + foiz yetarli). */
+/* Vazifalar ro'yxati va umumiy CHIZIQ — FAQAT kompyuterda (telefonda joy
+   yetishmaydi, halqa + foiz yetarli). */
 .wd-detail{ display:none; }
+.wd-line{ display:none; }
 
 @media (min-width:980px){
   /* Kompyuterda vidjet ustunlarga bo'linadi: chapda katta UMUMIY halqa,
      o'ngda har bo'lim uchun teng kenglikdagi ustun. Ustunlar TENG
      BALANDLIKDA (`stretch`) va nozik ajratgich chiziq bilan bo'linadi —
      shu sabab pastki chekka tekis chiqadi. */
-  .wd-card{ flex-wrap:nowrap; align-items:stretch; gap:0; padding:20px 4px 20px 20px; }
+  /* Kompyuterda vidjet TIK joylashadi: tepada umumiy chiziq, ostida
+     bo'limlar. Umumiy halqa chapda turganda ustunlarni siqib qo'yardi. */
+  .wd-card{ flex-direction:column; flex-wrap:nowrap; align-items:stretch; gap:0; padding:18px 20px 20px; }
   .wd-main{
-    display:flex; align-items:center; padding-right:26px; margin-right:2px;
-    border-right:1px solid var(--border-soft);
+    display:block; width:100%; padding:0 0 15px; margin:0 0 16px;
+    border-right:0; border-bottom:1px solid var(--border-soft);
+  }
+  .wd-main .wd-ring{ display:none; }        /* halqa faqat telefonda */
+
+  .wd-line{ display:block; }
+  .wd-line-top{ display:flex; align-items:baseline; gap:10px; margin-bottom:9px; }
+  .wd-line-top b{ font-size:13.5px; font-weight:700; color:var(--text); }
+  .wd-line-top span{ font-size:11.5px; color:var(--hint); font-family:var(--mono); }
+  .wd-line-top em{
+    margin-left:auto; font-style:normal; font-family:var(--mono);
+    font-size:16px; font-weight:800; color:var(--accent);
+  }
+  .wd-bar{ height:7px; border-radius:99px; background:var(--border-soft); overflow:hidden; }
+  .wd-bar i{
+    display:block; height:100%; border-radius:99px; background:var(--accent);
+    transition:width .5s cubic-bezier(.25,.9,.3,1);
   }
   /* `minmax(190px,1fr)` — ustunlar bo'sh joyni TENG bo'lishadi, lekin
      190px dan torayib ketmaydi: guruhlar ko'p bo'lsa siqilish o'rniga
@@ -1480,12 +1498,6 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
     white-space:nowrap;
   }
 
-  /* Umumiy halqa — kattaroq va tik joylashgan (kichraytirilmaydi) */
-  .wd-main .wd-head{ display:block; margin:0; text-align:center; }
-  .wd-main .wd-ring-svg{ margin:0 auto; width:92px; height:92px; }
-  .wd-main .wd-ring-mid{ font-size:22px; }
-  .wd-main .wd-lbl{ text-align:center; margin-top:10px; font-size:13px; }
-  .wd-main .wd-val{ text-align:center; }
 
   .wd-detail{
     display:flex; flex-direction:column; gap:1px;
