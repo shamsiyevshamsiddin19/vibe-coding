@@ -1424,6 +1424,28 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
          overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .wd-empty{ font-size:12.5px; color:var(--hint); margin:0; text-align:center; width:100%; }
 
+/* Har bir halqadagi vazifalar ro'yxati — FAQAT kompyuterda (telefonda
+   joy yetishmaydi, halqa+foiz yetarli). Bo'sh joy ko'p bo'lgan keng
+   ekranda halqalar bir-biridan uzoqda "yolg'iz" turmasin deb qo'shildi. */
+.wd-detail{ display:none; }
+@media (min-width:980px){
+  .wd-card{ flex-wrap:nowrap; }
+  .wd-sub{ flex-wrap:nowrap; justify-content:flex-start; gap:28px; }
+  .wd-ring{ min-width:132px; text-align:left; }
+  .wd-ring-svg{ margin:0; }
+  .wd-lbl{ margin-left:0; margin-right:0; max-width:none; text-align:left; }
+  .wd-val{ text-align:left; display:block; }
+  .wd-detail{ display:block; margin-top:9px; text-align:left; }
+  .wd-ditem{
+    display:flex; align-items:center; gap:6px; font-size:11.5px;
+    color:var(--hint); padding:2px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .wd-ditem .wd-dot{ width:6px; height:6px; border-radius:50%; border:1.5px solid var(--border); flex-shrink:0; }
+  .wd-ditem span[data-icon]{ color:var(--success); flex-shrink:0; }
+  .wd-ditem.done{ color:var(--text-2); text-decoration:line-through; text-decoration-color:var(--border); }
+  .wd-ditem.more{ color:var(--hint); font-style:italic; }
+}
+
 /* ============================================================
    Bildirishnomalar (notify.js) — bosh sahifa yuqorisidagi qo'ng'iroq
    ============================================================ */

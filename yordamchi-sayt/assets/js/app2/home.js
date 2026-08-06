@@ -285,10 +285,25 @@
     // Faqat Boostday kerak — vidjet endi sport ma'lumotini ishlatmaydi
     if (window.BoostDay) boot.push(window.BoostDay.ensureLoaded());
 
-    function mkRing(pct, color, size, stroke, label, valLabel, arg) {
+    /* `items` berilsa — kompyuterda (bo'sh joy ko'p) halqa yoniga vazifalar
+       ro'yxati ham chiqadi (`.wd-detail`, faqat desktop kengligida ko'rinadi
+       — CSS: @media min-width:980px). Telefonda hech narsa o'zgarmaydi. */
+    function mkRing(pct, color, size, stroke, label, valLabel, arg, items) {
       var r = (size - stroke) / 2;
       var c = 2 * Math.PI * r;
       var on = Math.max(0, Math.min(100, pct)) / 100 * c;
+      var detail = '';
+      if (items && items.length) {
+        var MAX = 6;
+        detail = '<div class="wd-detail">' +
+          items.slice(0, MAX).map(function (t) {
+            return '<div class="wd-ditem' + (t.done ? ' done' : '') + '">' +
+              (t.done ? '<span data-icon="check" data-icon-size="12"></span>' : '<i class="wd-dot"></i>') +
+              '<span>' + App.esc(App.normTaskName(t.text)) + '</span></div>';
+          }).join('') +
+          (items.length > MAX ? '<div class="wd-ditem more">+' + (items.length - MAX) + ' ko\'proq</div>' : '') +
+          '</div>';
+      }
       return '<div class="wd-ring"' +
         (arg ? ' data-act="go" data-arg=\'' + App.arg(arg) + '\' style="cursor:pointer"' : '') + '>' +
         '<div class="wd-ring-svg" style="width:' + size + 'px;height:' + size + 'px">' +
@@ -301,6 +316,7 @@
         '</div>' +
         '<div class="wd-lbl">' + App.esc(label) + '</div>' +
         '<div class="wd-val">' + App.esc(valLabel) + '</div>' +
+        detail +
         '</div>';
     }
 
@@ -318,7 +334,7 @@
       var subs = parts.length
         ? parts.map(function (p, i) {
             return mkRing(pct(p.done, p.total), p.color || RING_COLORS[i % RING_COLORS.length],
-                          54, 5, p.name, p.done + '/' + p.total, p.go);
+                          54, 5, p.name, p.done + '/' + p.total, p.go, p.items);
           }).join('')
         : '<p class="wd-empty">Botda reja kiritilmagan</p>';
 
@@ -343,7 +359,7 @@
       if (window.BoostDay && BoostDay.dayGroups) {
         try {
           BoostDay.dayGroups(ymd, dayOfWeek).forEach(function (g) {
-            if (g.total) parts.push({ name: g.name, total: g.total, done: g.done, color: g.color, go: { v: 'boost' } });
+            if (g.total) parts.push({ name: g.name, total: g.total, done: g.done, color: g.color, go: { v: 'boost' }, items: g.items });
           });
         } catch (e) {}
       }

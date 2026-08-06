@@ -1701,10 +1701,13 @@
        Qaytaradi: [{ name, total, done, color }]. */
     dayGroups: function (dateStr, dow) {
       var d = B.data || {}, map = {}, order = [];
-      function add(gname, color, done) {
-        if (!map[gname]) { map[gname] = { name: gname, total: 0, done: 0, color: color }; order.push(gname); }
+      /* `items` — kompyuterda bo'sh joyni to'ldirib, vazifa nomlarini
+         ko'rsatish uchun (home.js kengaytirilgan vidjeti). */
+      function add(gname, color, done, text) {
+        if (!map[gname]) { map[gname] = { name: gname, total: 0, done: 0, color: color, items: [] }; order.push(gname); }
         map[gname].total++;
         if (done) map[gname].done++;
+        map[gname].items.push({ text: text, done: done });
       }
       function scan(p) {
         var info = tinfo(p.plan_type);
@@ -1715,8 +1718,9 @@
         groups.forEach(function (g) {
           var gname = (g.name || '').trim() || fallback;
           (g.tasks || []).forEach(function (t) {
-            if (!(t.text || '').trim()) return;
-            add(gname, info.c, +t.status === 1);
+            var txt = (t.text || '').trim();
+            if (!txt) return;
+            add(gname, info.c, +t.status === 1, txt);
           });
         });
       }
