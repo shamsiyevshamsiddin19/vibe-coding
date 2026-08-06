@@ -863,12 +863,18 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
 .wd-main{ flex:0 0 auto; padding-right:18px; border-right:1px solid var(--border-soft); }
 .wd-sub{ flex:1; display:flex; justify-content:space-around; gap:10px; min-width:190px; }
 .wd-ring{ text-align:center; }
-.wd-ring-svg{ position:relative; margin:0 auto; }
+/* `.wd-head` telefonda oddiy blok — halqa tepada, nomi ostida.
+   Kompyuterda flex qatoriga aylanadi (pastdagi @media).
+   Halqa o'lchami FAQAT shu yerdan boshqariladi (SVG normallashtirilgan
+   100 birlikli viewBox'da, shuning uchun har qanday o'lchamga cho'ziladi). */
+.wd-ring-svg{ position:relative; margin:0 auto; width:54px; height:54px; }
+.wd-main .wd-ring-svg{ width:92px; height:92px; }
 .wd-ring-svg svg{ width:100%; height:100%; transform:rotate(-90deg); }
 .wd-ring-mid{
   position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-  font-weight:800; font-family:var(--mono); color:var(--text);
+  font-weight:800; font-family:var(--mono); color:var(--text); font-size:13px;
 }
+.wd-main .wd-ring-mid{ font-size:22px; }
 .wd-lbl{ margin-top:8px; font-size:12px; font-weight:650; color:var(--text); }
 .wd-val{ font-size:10.5px; color:var(--hint); font-weight:600; }
 @media (max-width:520px){
@@ -1424,26 +1430,81 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
          overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .wd-empty{ font-size:12.5px; color:var(--hint); margin:0; text-align:center; width:100%; }
 
-/* Har bir halqadagi vazifalar ro'yxati — FAQAT kompyuterda (telefonda
-   joy yetishmaydi, halqa+foiz yetarli). Bo'sh joy ko'p bo'lgan keng
-   ekranda halqalar bir-biridan uzoqda "yolg'iz" turmasin deb qo'shildi. */
+/* Vazifalar ro'yxati — FAQAT kompyuterda (telefonda joy yetishmaydi,
+   halqa + foiz yetarli). */
 .wd-detail{ display:none; }
+
 @media (min-width:980px){
-  .wd-card{ flex-wrap:nowrap; }
-  .wd-sub{ flex-wrap:nowrap; justify-content:flex-start; gap:28px; }
-  .wd-ring{ min-width:132px; text-align:left; }
-  .wd-ring-svg{ margin:0; }
-  .wd-lbl{ margin-left:0; margin-right:0; max-width:none; text-align:left; }
-  .wd-val{ text-align:left; display:block; }
-  .wd-detail{ display:block; margin-top:9px; text-align:left; }
-  .wd-ditem{
-    display:flex; align-items:center; gap:6px; font-size:11.5px;
-    color:var(--hint); padding:2px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  /* Kompyuterda vidjet ustunlarga bo'linadi: chapda katta UMUMIY halqa,
+     o'ngda har bo'lim uchun teng kenglikdagi ustun. Ustunlar TENG
+     BALANDLIKDA (`stretch`) va nozik ajratgich chiziq bilan bo'linadi —
+     shu sabab pastki chekka tekis chiqadi. */
+  .wd-card{ flex-wrap:nowrap; align-items:stretch; gap:0; padding:20px 4px 20px 20px; }
+  .wd-main{
+    display:flex; align-items:center; padding-right:26px; margin-right:2px;
+    border-right:1px solid var(--border-soft);
   }
-  .wd-ditem .wd-dot{ width:6px; height:6px; border-radius:50%; border:1.5px solid var(--border); flex-shrink:0; }
-  .wd-ditem span[data-icon]{ color:var(--success); flex-shrink:0; }
-  .wd-ditem.done{ color:var(--text-2); text-decoration:line-through; text-decoration-color:var(--border); }
-  .wd-ditem.more{ color:var(--hint); font-style:italic; }
+  /* `minmax(190px,1fr)` — ustunlar bo'sh joyni TENG bo'lishadi, lekin
+     190px dan torayib ketmaydi: guruhlar ko'p bo'lsa siqilish o'rniga
+     yangi qatorga o'raladi (6 ta guruhda ustunlar 78px ga siqilib,
+     matn butunlay ko'rinmay qolgan edi). */
+  .wd-sub{
+    flex:1; display:grid; min-width:0;
+    grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+    column-gap:22px; row-gap:22px;
+  }
+
+  .wd-ring{
+    min-width:0; text-align:left; padding:3px 10px 3px 13px;
+    border-left:2px solid var(--wd-c,var(--border-soft));
+    border-radius:0 8px 8px 0;
+    transition:background .14s ease;
+  }
+  .wd-ring[data-act]:hover{ background:var(--bg-elev); }
+
+  /* Halqa endi nom bilan BIR QATORDA — "yolg'iz suzib turish" muammosi shu
+     bilan hal bo'ladi. */
+  .wd-head{ display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+  /* Kompyuterda halqa ixchamroq — bo'shagan joy nom uchun ketadi */
+  .wd-ring-svg{ margin:0; flex-shrink:0; width:44px; height:44px; }
+  .wd-ring-mid{ font-size:11px; }
+  .wd-meta{ min-width:0; flex:1; }
+  /* Ustun torayganda ham nom va son BIR QATORDA qolsin — aks holda
+     "0 / 2" uch qatorga bo'linib, ustun balandligini buzardi. */
+  .wd-lbl{
+    margin:0; max-width:none; text-align:left; font-size:12.5px; line-height:1.25;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .wd-val{
+    text-align:left; margin-top:2px; font-family:var(--mono); font-size:11px;
+    white-space:nowrap;
+  }
+
+  /* Umumiy halqa — kattaroq va tik joylashgan (kichraytirilmaydi) */
+  .wd-main .wd-head{ display:block; margin:0; text-align:center; }
+  .wd-main .wd-ring-svg{ margin:0 auto; width:92px; height:92px; }
+  .wd-main .wd-ring-mid{ font-size:22px; }
+  .wd-main .wd-lbl{ text-align:center; margin-top:10px; font-size:13px; }
+  .wd-main .wd-val{ text-align:center; }
+
+  .wd-detail{
+    display:flex; flex-direction:column; gap:1px;
+    border-top:1px solid var(--border-soft); padding-top:9px;
+  }
+  .wd-ditem{
+    display:flex; align-items:center; gap:7px; font-size:11.5px;
+    color:var(--text-2); padding:2.5px 0; min-width:0;
+  }
+  .wd-dtxt{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .wd-dot{
+    width:7px; height:7px; border-radius:50%;
+    border:1.5px solid var(--border); flex-shrink:0; opacity:.85;
+  }
+  .wd-tick{ color:var(--success); flex-shrink:0; display:flex; }
+  .wd-ditem.done .wd-dtxt{
+    color:var(--hint); text-decoration:line-through; text-decoration-color:var(--border);
+  }
+  .wd-ditem.more{ color:var(--hint); font-size:11px; font-style:italic; padding-left:14px; }
 }
 
 /* ============================================================

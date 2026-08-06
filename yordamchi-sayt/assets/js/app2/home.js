@@ -285,37 +285,58 @@
     // Faqat Boostday kerak — vidjet endi sport ma'lumotini ishlatmaydi
     if (window.BoostDay) boot.push(window.BoostDay.ensureLoaded());
 
-    /* `items` berilsa — kompyuterda (bo'sh joy ko'p) halqa yoniga vazifalar
-       ro'yxati ham chiqadi (`.wd-detail`, faqat desktop kengligida ko'rinadi
-       — CSS: @media min-width:980px). Telefonda hech narsa o'zgarmaydi. */
-    function mkRing(pct, color, size, stroke, label, valLabel, arg, items) {
-      var r = (size - stroke) / 2;
+    /* Bitta halqa. Tuzilishi ATAYLAB bir xil — telefonda ham, kompyuterda
+       ham AYNI markup ishlatiladi, farqni faqat CSS qiladi:
+         telefon  — halqa tepada, nomi ostida (markazlangan)
+         kompyuter — halqa nom bilan BIR QATORDA (chapda), ostida vazifalar
+       Ilgari halqa matn ustida "yolg'iz" suzib turardi va ustunlar turli
+       balandlikda tugab, o'ng tomon tarqoq ko'rinardi. */
+    /* O'lcham ATAYLAB berilmaydi — SVG normallashtirilgan 100 birlikli
+       viewBox'da chiziladi va HAQIQIY o'lchamni CSS beradi. Shu sabab bir
+       xil markup telefonda katta (54px), kompyuterda ixcham (44px) halqa
+       bo'lib chiqadi va nom uchun joy qoladi (ilgari o'lcham inline
+       yozilgani uchun kompyuterda nom qisqarib ketardi). */
+    function mkRing(pct, color, label, valLabel, arg, items) {
+      var STROKE = 9;                        // 100 birlikdan
+      var r = (100 - STROKE) / 2;
       var c = 2 * Math.PI * r;
       var on = Math.max(0, Math.min(100, pct)) / 100 * c;
+
       var detail = '';
       if (items && items.length) {
         var MAX = 6;
         detail = '<div class="wd-detail">' +
           items.slice(0, MAX).map(function (t) {
-            return '<div class="wd-ditem' + (t.done ? ' done' : '') + '">' +
-              (t.done ? '<span data-icon="check" data-icon-size="12"></span>' : '<i class="wd-dot"></i>') +
-              '<span>' + App.esc(App.normTaskName(t.text)) + '</span></div>';
+            var txt = App.normTaskName(t.text);
+            return '<div class="wd-ditem' + (t.done ? ' done' : '') + '" title="' + App.esc(txt) + '">' +
+              (t.done ? '<span class="wd-tick" data-icon="check" data-icon-size="11"></span>'
+                      : '<i class="wd-dot" style="border-color:' + color + '"></i>') +
+              '<span class="wd-dtxt">' + App.esc(txt) + '</span></div>';
           }).join('') +
           (items.length > MAX ? '<div class="wd-ditem more">+' + (items.length - MAX) + ' ko\'proq</div>' : '') +
           '</div>';
       }
-      return '<div class="wd-ring"' +
-        (arg ? ' data-act="go" data-arg=\'' + App.arg(arg) + '\' style="cursor:pointer"' : '') + '>' +
-        '<div class="wd-ring-svg" style="width:' + size + 'px;height:' + size + 'px">' +
-        '<svg viewBox="0 0 ' + size + ' ' + size + '">' +
-        '<circle cx="' + (size / 2) + '" cy="' + (size / 2) + '" r="' + r + '" fill="none" stroke="var(--border)" stroke-width="' + stroke + '"></circle>' +
-        '<circle cx="' + (size / 2) + '" cy="' + (size / 2) + '" r="' + r + '" fill="none" stroke="' + color +
-        '" stroke-width="' + stroke + '" stroke-linecap="round" stroke-dasharray="' + on.toFixed(1) + ' ' + c.toFixed(1) + '"></circle>' +
-        '</svg>' +
-        '<div class="wd-ring-mid" style="font-size:' + Math.round(size / 4.2) + 'px">' + pct + '%</div>' +
+
+      /* `--wd-c` — bo'lim rangi. Kompyuterda ustunning chap chekkasidagi
+         nozik belgi shu rangda bo'ladi (halqa bilan bir xil), shu sabab
+         ustunlar orasiga alohida ajratgich chiziq kerak emas — guruhlar
+         ko'p bo'lib ikkinchi qatorga o'ralganda ham chalkashmaydi. */
+      return '<div class="wd-ring" style="--wd-c:' + color +
+        (arg ? ';cursor:pointer"' + ' data-act="go" data-arg=\'' + App.arg(arg) + '\'' : '"') + '>' +
+        '<div class="wd-head">' +
+          '<div class="wd-ring-svg">' +
+          '<svg viewBox="0 0 100 100">' +
+          '<circle cx="50" cy="50" r="' + r + '" fill="none" stroke="var(--border)" stroke-width="' + STROKE + '"></circle>' +
+          '<circle cx="50" cy="50" r="' + r + '" fill="none" stroke="' + color +
+          '" stroke-width="' + STROKE + '" stroke-linecap="round" stroke-dasharray="' + on.toFixed(1) + ' ' + c.toFixed(1) + '"></circle>' +
+          '</svg>' +
+          '<div class="wd-ring-mid">' + pct + '%</div>' +
+          '</div>' +
+          '<div class="wd-meta">' +
+            '<div class="wd-lbl">' + App.esc(label) + '</div>' +
+            '<div class="wd-val">' + App.esc(valLabel) + '</div>' +
+          '</div>' +
         '</div>' +
-        '<div class="wd-lbl">' + App.esc(label) + '</div>' +
-        '<div class="wd-val">' + App.esc(valLabel) + '</div>' +
         detail +
         '</div>';
     }
@@ -324,6 +345,9 @@
        kichkinasi. Bo'limlar — botda kiritilgan GURUHLAR + Sport.
        ("Jadval" va yagona "Boostday" halqalari olib tashlandi: ular bir
        xil ishni ikki marta ko'rsatardi.) */
+    /* Har bo'limga O'Z rangi. Ilgari `p.color` (reja TURI rangi) ustun edi —
+       bitta rejadagi hamma guruh bir xil rang olardi, natijada uchala halqa
+       ham bir xil yashil chiqib, bo'limlarni bir-biridan ajratib bo'lmasdi. */
     var RING_COLORS = ['var(--purple)', 'var(--success)', 'var(--coral)', 'var(--warn)', 'var(--accent)'];
 
     function paint(parts) {
@@ -333,8 +357,8 @@
 
       var subs = parts.length
         ? parts.map(function (p, i) {
-            return mkRing(pct(p.done, p.total), p.color || RING_COLORS[i % RING_COLORS.length],
-                          54, 5, p.name, p.done + '/' + p.total, p.go, p.items);
+            return mkRing(pct(p.done, p.total), RING_COLORS[i % RING_COLORS.length],
+                          p.name, p.done + '/' + p.total, p.go, p.items);
           }).join('')
         : '<p class="wd-empty">Botda reja kiritilmagan</p>';
 
@@ -342,7 +366,7 @@
         '<div class="hsec" style="margin-top:24px"><h2>Kunlik statistika</h2></div>' +
         '<div class="wd-card">' +
           '<div class="wd-main">' +
-            mkRing(pct(doneTasks, totalTasks), 'var(--accent)', 92, 8, 'Umumiy kun', doneTasks + ' / ' + totalTasks + ' vazifa') +
+            mkRing(pct(doneTasks, totalTasks), 'var(--accent)', 'Umumiy kun', doneTasks + ' / ' + totalTasks + ' vazifa') +
           '</div>' +
           '<div class="wd-sub">' + subs + '</div>' +
         '</div>';
