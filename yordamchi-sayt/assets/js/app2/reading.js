@@ -108,14 +108,27 @@
 
   /* ================= TTS ================= */
 
+  /* O'qish `TTS` qatlami orqali ketadi (assets/js/core/tts.js): u eng
+     yaxshi ovozni tanlaydi, uzun gapni bo'laklaydi, Chrome'ning to'xtab
+     qolishini oldini oladi va XATO bo'lsa ham `done` ni chaqiradi —
+     shuning uchun bitta gap yiqilsa matn to'xtab qolmaydi. */
   function speak(text, done) {
-    try { window.speechSynthesis.cancel(); } catch (e) {}
     if (!text) { if (done) done(); return; }
-    var u = new SpeechSynthesisUtterance(text);
-    u.lang = R.lang;
-    u.rate = R.rate;
-    if (done) u.onend = function () { if (R.alive) done(); };
-    try { window.speechSynthesis.speak(u); } catch (e) { if (done) done(); }
+    if (!window.TTS || !TTS.ok()) {
+      App.toast('Bu brauzerda ovoz mavjud emas');
+      if (done) done();
+      return;
+    }
+    TTS.speak(text, { lang: R.lang, rate: R.rate }, function (err) {
+      if (!R.alive) return;
+      if (err) {
+        /* Jimgina to'xtab qolmasin — sabab ko'rinsin, lekin o'qish
+           keyingi gapdan davom etaversin. */
+        R.errCount = (R.errCount || 0) + 1;
+        if (R.errCount <= 2) App.toast('Ovozda uzilish — davom etyapmiz');
+      }
+      if (done) done();
+    });
   }
 
   function highlight(n) {
@@ -132,9 +145,30 @@
   function stopAll() {
     R.playing = false;
     R.alive = false;
-    try { window.speechSynthesis.cancel(); } catch (e) {}
+    /* Gaplar orasidagi kutish ham bekor qilinsin — aks holda to'xtatilgandan
+       keyin yana bitta gap o'qilib ketardi. */
+    if (R.gapTimer) { clearTimeout(R.gapTimer); R.gapTimer = null; }
+    if (window.TTS) TTS.cancel(); else { try { window.speechSynthesis.cancel(); } catch (e) {} }
+    releaseWake();
     highlight(-1);
     paintPlayer();
+  }
+
+  /* ---------- Ekran o'chib qolmasin ----------
+     Uzoq matn tinglayotganda telefon ekrani o'chsa, ba'zi brauzerlarda
+     o'qish ham to'xtaydi. Wake Lock qo'llab-quvvatlanmasa jimgina
+     e'tiborsiz qoladi. */
+  function requestWake() {
+    if (R.wake || !navigator.wakeLock) return;
+    navigator.wakeLock.request('screen').then(function (w) {
+      R.wake = w;
+      w.addEventListener('release', function () { R.wake = null; });
+    }).catch(function () {});
+  }
+  function releaseWake() {
+    if (!R.wake) return;
+    try { R.wake.release(); } catch (e) {}
+    R.wake = null;
   }
 
   function step(n) {
@@ -168,7 +202,10 @@
     paintPlayer();
     speak(R.sentences[n].text, function () {
       if (R.stepMode) R.pendingStop = true;   // keyingi qadamda to'xtaydi
-      step(n + 1);
+      /* Gaplar orasida kichik jimlik — tinglab tushunish uchun muhim.
+         Tezlikka bog'liq: sekin o'qilsa pauza ham uzunroq bo'ladi. */
+      var pause = Math.round(260 / (R.rate || 1));
+      R.gapTimer = setTimeout(function () { step(n + 1); }, pause);
     });
   }
 
@@ -211,6 +248,8 @@
         '<button class="rd-pl-step' + (R.stepMode ? ' on' : '') + '" data-act="rdStepMode" ' +
         'aria-label="Gap-ma-gap rejim" title="Har gapdan keyin to\'xtash">' +
         '<span data-icon="pauseDot" data-icon-size="16"></span></button>' +
+        '<button class="rd-pl-step" data-act="rdVoice" aria-label="Ovozni tanlash" title="Ovozni tanlash">' +
+        '<span data-icon="volume" data-icon-size="16"></span></button>' +
       '</div>';
     App.icons(box);
   }
@@ -219,18 +258,25 @@
 
   App.actions.rdOpenBar = function () { R.barOpen = true; paintPlayer(); };
   App.actions.rdCloseBar = function () {
-    if (R.playing) { R.playing = false; try { window.speechSynthesis.cancel(); } catch (e) {} highlight(-1); }
+    if (R.playing) { R.playing = false; if (window.TTS) TTS.cancel(); else { try { window.speechSynthesis.cancel(); } catch (e) {} } highlight(-1); }
     R.barOpen = false; paintPlayer();
   };
 
   App.actions.rdToggle = function () {
     if (R.playing) {
       R.playing = false;
-      try { window.speechSynthesis.cancel(); } catch (e) {}
+      if (R.gapTimer) { clearTimeout(R.gapTimer); R.gapTimer = null; }
+      if (window.TTS) TTS.cancel(); else { try { window.speechSynthesis.cancel(); } catch (e) {} }
+      releaseWake();
       paintPlayer();
       return;
     }
     if (!R.sentences.length) { App.toast('Matnda o\'qiladigan gap yo\'q'); return; }
+    /* Birinchi matn ba'zan "yutib yuboriladi" — foydalanuvchi harakatidan
+       (aynan shu bosishdan) foydalanib ovozni isitib olamiz. */
+    if (window.TTS) TTS.prime();
+    requestWake();
+    R.errCount = 0;
     R.playing = true; R.alive = true;
     step(R.idx >= 0 && R.idx < R.sentences.length ? R.idx : 0);
   };
@@ -246,7 +292,7 @@
     if (n < 0) n = 0;
     if (n >= R.sentences.length) n = R.sentences.length - 1;
     R.alive = true;
-    if (R.playing) { try { window.speechSynthesis.cancel(); } catch (e) {} step(n); }
+    if (R.playing) { if (window.TTS) TTS.cancel(); else { try { window.speechSynthesis.cancel(); } catch (e) {} } step(n); }
     else { R.idx = n; highlight(n); paintPlayer(); }
   }
 
@@ -258,12 +304,64 @@
     App.toast(R.stepMode ? 'Gap-ma-gap: har gapdan keyin to\'xtaydi' : 'Uzluksiz o\'qish');
   };
 
+  /* ---------- Ovozni tanlash ----------
+     Bir tilda bir nechta ovoz bo'ladi va ular sifati bo'yicha KESKIN
+     farq qiladi. Standart holatda eng yaxshisi tanlanadi, lekin
+     foydalanuvchi o'zi ham eshitib tanlashi mumkin — tanlovi til
+     bo'yicha eslab qolinadi. */
+  App.actions.rdVoice = function () {
+    if (!window.TTS || !TTS.ok()) { App.toast('Bu brauzerda ovoz mavjud emas'); return; }
+    var sh = App.sheet('<div id="rd-voices"><div class="load-wrap"><div class="spinner"></div></div></div>',
+                       { title: 'Ovozni tanlash' });
+    TTS.ready().then(function () {
+      var box = sh.querySelector('#rd-voices'); if (!box) return;
+      var list = TTS.voicesFor(R.lang);
+      if (!list.length) {
+        box.innerHTML = App.empty({
+          icon: 'alert', title: 'Ovoz topilmadi',
+          text: R.lang + ' uchun qurilmangizda ovoz yo\'q. Telefon sozlamalaridan ' +
+                'til paketini yuklab oling.'
+        });
+        App.icons(box);
+        return;
+      }
+      var cur = TTS.pick(R.lang);
+      box.innerHTML =
+        '<p class="muted" style="font-size:12px;margin:0 0 12px">Bosilganda namuna o\'qiladi. ' +
+        'Eng tepadagisi — tizim eng sifatli deb hisoblagani.</p>' +
+        list.map(function (v, i) {
+          var on = cur && v.voiceURI === cur.voiceURI;
+          return '<button class="list-row" data-act="rdPickVoice" data-arg=\'' +
+            App.arg({ uri: v.voiceURI }) + '\'>' +
+            '<span class="li-ic" style="background:' + (on ? 'var(--accent-soft)' : 'none') +
+            ';color:' + (on ? 'var(--accent)' : 'var(--hint)') + '" data-icon="' +
+            (on ? 'check' : 'volume') + '" data-icon-size="15"></span>' +
+            '<div class="li-main"><div class="li-title">' + App.esc(v.name) + '</div>' +
+            '<div class="li-sub">' + App.esc(v.lang) +
+            (i === 0 ? ' · tavsiya etiladi' : '') +
+            (v.localService === false ? ' · onlayn' : '') + '</div></div></button>';
+        }).join('');
+      App.icons(box);
+    }).catch(function () {});
+  };
+
+  App.actions.rdPickVoice = function (a) {
+    TTS.setVoice(R.lang, a.uri);
+    var v = TTS.voicesFor(R.lang).find(function (x) { return x.voiceURI === a.uri; });
+    /* Namuna — tanlangan ovoz bilan darhol eshitiladi, shunda taqqoslash oson */
+    var demo = R.lang.indexOf('ru') === 0
+      ? 'Это пример голоса. Послушайте, как звучит текст.'
+      : 'This is a voice sample. Listen how the text sounds.';
+    TTS.speak(demo, { lang: R.lang, rate: R.rate, voice: v }, function () {});
+    App.actions.rdVoice();      // ro'yxatni belgisi bilan qayta chizamiz
+  };
+
   App.actions.rdSpeed = function () {
     var opts = [0.6, 0.75, 0.9, 1, 1.15, 1.3];
     R.rate = opts[(opts.indexOf(R.rate) + 1) % opts.length];
     try { localStorage.setItem('reading_rate', String(R.rate)); } catch (e) {}
     paintPlayer();
-    if (R.playing) { try { window.speechSynthesis.cancel(); } catch (e) {} step(R.idx < 0 ? 0 : R.idx); }
+    if (R.playing) { if (window.TTS) TTS.cancel(); else { try { window.speechSynthesis.cancel(); } catch (e) {} } step(R.idx < 0 ? 0 : R.idx); }
   };
 
   /* ================= Tarjima oynachasi (popover) =================

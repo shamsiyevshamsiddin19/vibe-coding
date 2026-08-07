@@ -1532,8 +1532,15 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
    Bildirishnomalar (notify.js) — bosh sahifa yuqorisidagi qo'ng'iroq
    ============================================================ */
 .h-top{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
-.h-hello{ font-size:19px; font-weight:750; letter-spacing:-.2px; min-width:0;
-          overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.h-hello{ min-width:0; }
+.h-hello b{ display:block; font-size:19px; font-weight:750; letter-spacing:-.2px;
+            overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* Almashib turadigan quyosh ma'lumoti — har o'zgarishda yumshoq suriladi */
+.h-sun{ display:block; margin-top:3px; font-size:12px; font-weight:600; color:var(--hint);
+        overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.h-sun.in{ animation:hsun .38s cubic-bezier(.25,.9,.3,1); }
+@keyframes hsun{ from{ opacity:0; transform:translateY(5px); } to{ opacity:1; transform:none; } }
+@media (prefers-reduced-motion:reduce){ .h-sun.in{ animation:none; } }
 
 .nt-bell{
   position:relative; flex-shrink:0;
@@ -1554,7 +1561,8 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
 .nt-row .li-title{ font-weight:650; }
 
 @media (max-width:400px){
-  .h-hello{ font-size:17.5px; }
+  .h-hello b{ font-size:17.5px; }
+  .h-sun{ font-size:11.5px; }
   .nt-bell{ width:36px; height:36px; }
 }
 

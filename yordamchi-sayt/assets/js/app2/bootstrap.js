@@ -163,6 +163,37 @@
     if (list[i]) App.go(list[i]);
   }
 
+  /* ---------- Surib almashtirish uchun ALOHIDA tartib ----------
+     Bosh sahifa — MARKAZ. Fikr shunday: ba'zi bo'limlar bosh sahifadan
+     O'NGDA, ba'zilari CHAPDA turadi:
+         <- Arxiv <- Kun hisobi <- [BOSH] -> Maqsad -> Statistika ->
+     Ro'yxat AYLANMA: bosh sahifada turib ikkala tomonga ham surish
+     mumkin. Ilgari bosh sahifa ro'yxatning boshida edi va `goIndex`
+     chetga qisib qo'yardi — shuning uchun chapga surish umuman
+     ishlamasdi.
+     `settings` ataylab chiqarilgan: tasodifan surib Sozlamalarga
+     tushib qolmaslik uchun (u yon panel va "Yana" dan ochiladi). */
+  var SWIPE_LEFT = ['arxiv', 'kun'];
+
+  function swipeList() {
+    var vis = navList();
+    var has = function (v) { return vis.indexOf(v) >= 0; };
+    var left = SWIPE_LEFT.filter(has);
+    var right = vis.filter(function (v) {
+      return v !== 'home' && v !== 'settings' && left.indexOf(v) < 0;
+    });
+    // Chapdagilar ro'yxat OXIRIGA teskari tartibda qo'yiladi, shunda
+    // bosh sahifadan orqaga surilganda birinchi bo'lib `left[0]` chiqadi.
+    return ['home'].concat(right, left.slice().reverse());
+  }
+
+  /* Aylanma o'tish — chetga yetganda ikkinchi uchidan davom etadi. */
+  function goWrap(list, i) {
+    if (!list.length) return;
+    var n = ((i % list.length) + list.length) % list.length;
+    if (list[n]) App.go(list[n]);
+  }
+
   /* ---------- 1) Pastki paneldagi g'ildirak ---------- */
   var DIAL = null;   // { list, start, idx, startIdx, el, moved }
   var STEP = 44;     // necha px surilganda bitta bo'lim almashadi
@@ -278,7 +309,7 @@
     page.addEventListener('touchstart', function (e) {
       if (e.touches.length !== 1 || blocked(e.target)) { on = false; return; }
       sx = e.touches[0].clientX; sy = e.touches[0].clientY;
-      on = true; list = navList();
+      on = true; list = swipeList();
     }, { passive: true });
 
     page.addEventListener('touchend', function (e) {
@@ -289,7 +320,9 @@
       // Aniq gorizontal harakat bo'lsagina: uzunligi yetarli va burchagi tor
       if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
       var i = currentIndex(list);
-      goIndex(list, dx < 0 ? i + 1 : i - 1);   // chapga surish -> keyingisi
+      // Barmoq chapga -> o'ngdagi bo'lim keladi (Maqsad, Statistika...)
+      // Barmoq o'ngga -> chapdagi bo'lim keladi (Arxiv, Kun hisobi...)
+      goWrap(list, dx < 0 ? i + 1 : i - 1);
     }, { passive: true });
   }
 

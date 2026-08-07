@@ -49,16 +49,139 @@
         Goals.load().then(function () { renderRings(Goals.stats()); }).catch(function () {});
       }
     },
-    leave: function () { unbindResize(); }
+    leave: function () { unbindResize(); stopHello(); }
   });
 
-  /* Kun vaqtiga qarab salomlashuv — qo'ng'iroq yolg'iz turmasin */
+  /* =========================================================
+     QUYOSH HISOBI — chiqish/botish vaqti
+     Serverdan yoki API'dan olinmaydi, o'rnida hisoblanadi: internetsiz
+     ham ishlaydi va hech qanday joylashuv so'rovi chiqmaydi.
+     Algoritm — standart quyosh pozitsiyasi formulasi (SunCalc bilan bir xil).
+     Joylashuv: sozlanmagan bo'lsa Toshkent.
+     ========================================================= */
+  var RAD = Math.PI / 180, DAY_MS = 86400000, J1970 = 2440588, J2000 = 2451545;
+  var OBLIQ = RAD * 23.4397;
+
+  function toDays(d) { return d.valueOf() / DAY_MS - 0.5 + J1970 - J2000; }
+  function fromJulian(j) { return new Date((j + 0.5 - J1970) * DAY_MS); }
+
+  function sunTimes(date, lat, lng) {
+    var lw = RAD * -lng, phi = RAD * lat, d = toDays(date);
+    var J0 = 0.0009;
+    var n = Math.round(d - J0 - lw / (2 * Math.PI));
+    var ds = J0 + (0 + lw) / (2 * Math.PI) + n;
+    var M = RAD * (357.5291 + 0.98560028 * ds);
+    var C = RAD * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M));
+    var L = M + C + RAD * 102.9372 + Math.PI;
+    var dec = Math.asin(Math.sin(OBLIQ) * Math.sin(L));
+    var Jnoon = J2000 + ds + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * L);
+
+    // -0.833° — atmosfera sinishi va quyosh diskining kattaligi hisobga olingan
+    var h0 = RAD * -0.833;
+    var cosW = (Math.sin(h0) - Math.sin(phi) * Math.sin(dec)) / (Math.cos(phi) * Math.cos(dec));
+    if (cosW > 1 || cosW < -1) return null;      // qutb kuni/tuni
+    var w = Math.acos(cosW);
+    var a = J0 + (w + lw) / (2 * Math.PI) + n;
+    var Jset = J2000 + a + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * L);
+    var Jrise = Jnoon - (Jset - Jnoon);
+    return { rise: fromJulian(Jrise), set: fromJulian(Jset), noon: fromJulian(Jnoon) };
+  }
+
+  function geo() {
+    var lat = parseFloat(ls('geo_lat', '')), lon = parseFloat(ls('geo_lon', ''));
+    if (isFinite(lat) && isFinite(lon)) return { lat: lat, lon: lon };
+    return { lat: 41.2995, lon: 69.2401 };       // Toshkent
+  }
+
+  function hhmm(d) {
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+  /* "2 soat 15 daqiqa" / "40 daqiqa" */
+  function dur(ms) {
+    var m = Math.max(0, Math.round(ms / 60000));
+    var h = Math.floor(m / 60); m = m % 60;
+    if (h && m) return h + ' soat ' + m + ' daqiqa';
+    if (h) return h + ' soat';
+    return m + ' daqiqa';
+  }
+
+  /* =========================================================
+     Salomlashuv + ALMASHIB TURADIGAN quyosh ma'lumoti
+     ========================================================= */
+  var HELLO_T = null, HELLO_I = 0;
+
+  function helloLines() {
+    var now = new Date(), g = geo();
+    var t = sunTimes(now, g.lat, g.lon);
+    var lines = [];
+
+    if (t) {
+      // Ertangi chiqish — bugungisi allaqachon o'tgan bo'lsa kerak bo'ladi
+      var tomorrow = new Date(now.getTime() + DAY_MS);
+      var t2 = sunTimes(tomorrow, g.lat, g.lon);
+
+      if (now < t.rise) {
+        lines.push('Quyosh chiqishiga ' + dur(t.rise - now) + ' bor');
+      } else if (now < t.set) {
+        lines.push('Quyosh botishiga ' + dur(t.set - now) + ' bor');
+        lines.push('Quyosh ' + hhmm(t.rise) + ' da chiqqan');
+      } else {
+        lines.push('Quyosh ' + hhmm(t.set) + ' da botdi');
+        if (t2) lines.push('Quyosh chiqishiga ' + dur(t2.rise - now) + ' bor');
+      }
+      lines.push('Bugun kunduz ' + dur(t.set - t.rise));
+      lines.push('Chiqishi ' + hhmm(t.rise) + ' · botishi ' + hhmm(t.set));
+    }
+
+    lines.push(App.uzDate(now));
+    return lines;
+  }
+
+  /* Salomlashuv ham SOATGA emas, QUYOSHGA qarab tanlanadi — yozda va
+     qishda kun uzunligi ancha farq qiladi, qat'iy soat bilan "Xayrli
+     kech" quyosh hali tikka turganda ham chiqib qolardi. */
+  function greetWord() {
+    var now = new Date(), g = geo();
+    var t = sunTimes(now, g.lat, g.lon);
+    if (!t) {
+      var h = now.getHours();
+      return h < 5 ? 'Xayrli tun' : h < 12 ? 'Xayrli tong' : h < 18 ? 'Xayrli kun' : 'Xayrli kech';
+    }
+    var HOUR = 3600000;
+    if (now < t.rise - HOUR) return 'Xayrli tun';
+    if (now < t.rise + 5 * HOUR) return 'Xayrli tong';
+    if (now < t.set - 3 * HOUR) return 'Xayrli kun';
+    if (now < t.set + HOUR) return 'Xayrli kech';
+    return 'Xayrli tun';
+  }
+
   function renderHello() {
+    stopHello();
     var box = App.el('h-hello'); if (!box) return;
-    var h = new Date().getHours();
-    var greet = h < 5 ? 'Xayrli tun' : h < 12 ? 'Xayrli tong' : h < 18 ? 'Xayrli kun' : 'Xayrli kech';
     var name = (ls('user_name', '') || '').trim();
-    box.innerHTML = '<b>' + App.esc(greet) + (name ? ', ' + App.esc(name) : '') + '</b>';
+
+    box.innerHTML = '<b id="h-greet"></b><span class="h-sun" id="h-sun"></span>';
+
+    function paint() {
+      var g = App.el('h-greet'), s = App.el('h-sun');
+      if (!g || !s) { stopHello(); return; }      // sahifa almashgan
+      g.textContent = greetWord() + (name ? ', ' + name : '');
+      var lines = helloLines();
+      HELLO_I = HELLO_I % lines.length;
+      s.textContent = lines[HELLO_I];
+      s.classList.remove('in');
+      void s.offsetWidth;                          // animatsiyani qayta boshlash
+      s.classList.add('in');
+    }
+
+    paint();
+    /* Har 6 soniyada keyingi xabar. Bo'limdan chiqilganda `leave` ilagi
+       to'xtatadi — aks holda taymer fonda ishlab yuraverardi. */
+    HELLO_T = setInterval(function () { HELLO_I++; paint(); }, 6000);
+  }
+
+  function stopHello() {
+    if (HELLO_T) { clearInterval(HELLO_T); HELLO_T = null; }
   }
 
   /* ---------- Halqali ko'rsatkichlar ---------- */
