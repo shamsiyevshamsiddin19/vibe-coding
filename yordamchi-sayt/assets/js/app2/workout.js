@@ -1,19 +1,16 @@
-/* Workout — TURNIK MAHORATI bosqichma-bosqich.
+/* Workout — TURNIKDA BAJARILADIGAN ELEMENTLAR.
  *
- * Osondan qiyinga qarab tuzilgan yo'l xaritasi: har bir ko'nikma o'zidan
- * oldingisini talab qiladi, shuning uchun tartibni buzib "muscle-up"ga
- * sakrab bo'lmaydi — u qulflangan turadi.
+ * Ro'yxat foydalanuvchi bergan 10 ta klassik turnik elementi (rus
+ * atamalari bilan — voraut muhitida shu nomlar ishlatiladi). Tartib
+ * ataylab o'zgartirilmagan: osondan qiyinga qarab boradi.
  *
- * Har ko'nikmada:
- *   - MAQSAD        — nimaga erishilsa o'zlashtirilgan hisoblanadi
- *   - BAZAVIY KUCH  — shu ko'nikmaga kirishdan oldin kerak bo'lgan kuch
- *                     (masalan 6 ta tortilish, 10 ta brus, 30 ta ajimaniya)
- *   - VIDEO         — YouTube darsligi (ID lar tekshirilgan, jonli)
- *   - TEXNIKA       — bajarish tartibi va tipik xatolar
+ * Ko'rinishi ATAYLAB Sport bo'limidagi mashqlar ro'yxati bilan bir xil:
+ * chapda rasm, o'rtada nom va qisqa ma'lumot, o'ngda "bajardim" belgisi.
  *
- * Rasm sifatida YouTube'ning O'Z old ko'rinishi ishlatiladi
- * (img.youtube.com/vi/<id>/hqdefault.jpg): u har doim aynan o'sha
- * mashqni ko'rsatadi va videoning o'zi bilan bir joydan keladi.
+ * Rasm sifatida YouTube darsligining O'Z old ko'rinishi ishlatiladi
+ * (img.youtube.com/vi/<id>/hqdefault.jpg) — u har doim aynan o'sha
+ * elementni ko'rsatadi va video bilan bir manbadan keladi.
+ * Barcha video ID lari oEmbed orqali BITTALAB tekshirilgan.
  */
 (function () {
   'use strict';
@@ -27,230 +24,212 @@
   function saveDone(a) { try { localStorage.setItem(DONE_KEY, JSON.stringify(a)); } catch (e) {} }
   function isDone(id) { return doneList().indexOf(id) >= 0; }
 
-  var LEVELS = [
-    { n: 1, t: 'Poydevor',        s: 'Turnikka hali tortila olmasangiz — shu yerdan',  c: 'var(--success)' },
-    { n: 2, t: 'Birinchi tortilish', s: 'Toza tortilish va uni ko\'paytirish',          c: 'var(--accent)' },
-    { n: 3, t: 'Kuch va hajm',    s: 'Takrorni oshirish, qorin va portlovchi kuch',     c: 'var(--warn)' },
-    { n: 4, t: 'Mahorat',         s: 'Muscle-up va front lever',                        c: 'var(--coral)' }
-  ];
+  var LVL = {
+    1: { n: 'Oson', c: 'var(--success)' },
+    2: { n: 'O\'rta', c: 'var(--warn)' },
+    3: { n: 'Qiyin', c: 'var(--danger)' }
+  };
 
-  /* `need` — oldin o'zlashtirilishi shart bo'lgan ko'nikmalar.
-     `base` — bazaviy kuch talabi (chip sifatida ko'rsatiladi). */
+  /* `base` — elementga kirishdan oldin kerak bo'lgan kuch (chip bo'lib
+     ko'rinadi). `yt` — tekshirilgan YouTube darsligi. */
   var SKILLS = [
     {
-      id: 'hang', lvl: 1, n: 'Osilib turish', en: 'Dead hang',
-      goal: '3 × 30 soniya', need: [], base: [],
-      yt: 'OT-wTpxP9uo',
-      md: "**Nima beradi:** panja kuchi, yelka barqarorligi, umurtqani cho'zish. Turnikdagi HAMMA narsa shundan boshlanadi.\n\n" +
+      id: 'detskiy', n: 'Bolalar chiqishi', ru: 'ДЕТСКИЙ ВЫХОД', lvl: 1,
+      goal: '1 toza takror',
+      base: [{ n: 'Tortilish', v: '8 ta' }, { n: 'Brus', v: '8 ta' }],
+      yt: 'gdShAAess9g',
+      md: "**Nima beradi:** kuch bilan chiqishga (выход силой) birinchi qadam. " +
+        "Ikkala qo'l birdan emas, NAVBAT bilan turnik ustiga o'tadi — shuning uchun " +
+        "ancha yengil. Xalq orasida \"сплошные мучения\" deb ham ataladi, chunki " +
+        "texnikasi qo'pol ko'rinadi.\n\n" +
         "## Bajarish\n" +
-        "1. Turnikni yelka kengligida, panja ustidan ushlang (kaft o'zingizdan tashqariga).\n" +
-        "2. Bosh barmoqni turnik atrofiga o'rang — \"maymun ushlash\" emas.\n" +
-        "3. Osiling, lekin **yelkani quloqqa yopishtirmang** — yelkani pastga torting.\n" +
-        "4. Tanani tebranishdan to'xtating, qorinni siqing.\n" +
-        "5. Bir tekis nafas oling.\n\n" +
+        "1. Turnikni ustidan, yelka kengligida ushlang. Bosh barmoq turnik ustida bo'lsa o'tish osonroq.\n" +
+        "2. Tanani biroz silkitib, kuchli tortiling — ko'krak turnikga yaqinlashsin.\n" +
+        "3. Eng yuqori nuqtada BIR qo'lni turnik ustiga chiqaring (tirsakni aylantiring).\n" +
+        "4. O'sha qo'lga tayanib, ikkinchi qo'lni ham chiqaring.\n" +
+        "5. Ikkala tirsakni to'g'irlab, upor holatiga turing.\n\n" +
         "## Tipik xatolar\n" +
-        "- Yelkani bo'sh tashlash (butunlay osilib qolish) — yelka bo'g'imiga zarar\n" +
-        "- Bosh barmoqni turnik ustida qoldirish — panja tez charchaydi\n" +
-        "- Tebranib turish\n\n" +
-        "> **Maslahat:** 30 soniya chiqmasa 3 × 10 dan boshlang, har hafta 5 soniya qo'shing. Panja kuchi tortilishdan oldin kerak."
+        "- Juda kam balandlikka chiqish — qo'l o'tishga joy topmaydi\n" +
+        "- Oyoq bilan haddan tashqari tepish (element umuman yo'qoladi)\n" +
+        "- Yelka isitilmagan holda urinish\n\n" +
+        "> **Maslahat:** Bu — o'rganish bosqichi, yakuniy maqsad emas. Harakat yo'li " +
+        "o'rnashgach `ВЫХОД СИЛОЙ` ga o'ting va navbat bilan emas, IKKALA qo'lni " +
+        "birga chiqarishga harakat qiling."
     },
     {
-      id: 'aussie', lvl: 1, n: 'Avstraliya tortilishi', en: 'Australian pull-up / inverted row',
-      goal: '3 × 10 marta', need: ['hang'],
-      base: [{ n: 'Osilib turish', v: '30 s' }],
-      yt: '5Vy6mjhXg7s',
-      md: "**Nima beradi:** tortilishning yengillashtirilgan shakli — orqa va bitsepsni tortilishga tayyorlaydi.\n\n" +
+      id: 'perevorot', n: 'Ag\'darilib ko\'tarilish', ru: 'ПОДЪЁМ ПЕРЕВОРОТОМ', lvl: 1,
+      goal: '3 × 3 takror',
+      base: [{ n: 'Tortilish', v: '5 ta' }, { n: 'Oyoq ko\'tarish', v: '8 ta' }],
+      yt: 'IsFtu8z9poU',
+      md: "**Nima beradi:** turnikning eng klassik elementi — maktab dasturidan. " +
+        "Qorin, orqa va panja birga ishlaydi; keyingi elementlarning ko'pi shu " +
+        "harakat tuyg'usiga tayanadi.\n\n" +
         "## Bajarish\n" +
-        "1. Past turnik (ko'krak balandligida) toping.\n" +
-        "2. Osiling, tovon yerda, tana **to'g'ri chiziq** — dumbani solintirmang.\n" +
-        "3. Ko'krakni turnikga tortib keling.\n" +
-        "4. Kurak suyaklarini bir-biriga siqing.\n" +
-        "5. Sekin tushing.\n\n" +
+        "1. Turnikda osiling, qo'l yelka kengligidan biroz kengroq.\n" +
+        "2. Bir vaqtda TORTILING va oyoqni yuqoriga — turnik OSHIB o'tadigan qilib — ko'taring.\n" +
+        "3. Chanoqni turnikga yaqin tuting: qanchalik yaqin bo'lsa, aylanish shuncha yengil.\n" +
+        "4. Oyoq turnikdan o'tgach tanani aylantiring va upor holatiga chiqing.\n" +
+        "5. Nazorat bilan orqaga qaytib osiling.\n\n" +
         "## Tipik xatolar\n" +
-        "- Chanoqni pastga solintirish\n" +
-        "- Faqat qo'l bilan tortish, kurakni ishlatmaslik\n" +
-        "- Yarim amplituda\n\n" +
-        "> **Maslahat:** Og'irlashtirish uchun oyoqni balandroq joyga qo'ying — tana gorizontalga yaqinlashgani sari qiyinlashadi."
+        "- Oyoqni oldin ko'tarib, keyin tortilish (ikkisi BIRGA bo'lishi kerak)\n" +
+        "- Chanoqni turnikdan uzoq tutish — aylanishga kuch yetmaydi\n" +
+        "- Boshni orqaga tashlash\n\n" +
+        "> **Maslahat:** Boshlashda past turnikdan foydalaning — oyoq yerga tegib " +
+        "turadi va qo'rquv yo'qoladi."
     },
     {
-      id: 'negative', lvl: 1, n: 'Negativ tortilish', en: 'Negative pull-up',
-      goal: '3 × 5 marta (har biri 3+ soniya)', need: ['aussie'],
-      base: [{ n: 'Avstraliya', v: '10 ta' }, { n: 'Osilib turish', v: '30 s' }],
-      yt: 'AGif4eaO1f8',
-      md: "**Nima beradi:** birinchi tortilishga eng tez olib boradigan mashq. Mushak tushish paytida ham (eksentrik) kuchayadi.\n\n" +
+      id: 'vihod-siloy', n: 'Kuch bilan chiqish', ru: 'ВЫХОД СИЛОЙ', lvl: 2,
+      goal: '1 toza takror (silkinishsiz)',
+      base: [{ n: 'Tortilish', v: '12 ta' }, { n: 'Brus', v: '15 ta' }, { n: 'Bolalar chiqishi', v: '5 ta' }],
+      yt: '3ZknAy2Zjuo',
+      md: "**Nima beradi:** turnikning eng mashhur elementi. Tortilish va brus " +
+        "BIR harakatda birlashadi.\n\n" +
         "## Bajarish\n" +
-        "1. Stul yoki sakrash yordamida **yuqori** holatga chiqing (iyak turnik ustida).\n" +
-        "2. Shu holatda bir soniya turing.\n" +
-        "3. **Juda sekin** tushing — kamida 3 soniya, imkoni bo'lsa 5.\n" +
-        "4. Pastda to'liq cho'zilib, keyin yana yuqoriga chiqing.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Tez tushish (butun foyda shu sekinlikda)\n" +
-        "- Pastda to'liq cho'zilmaslik\n" +
-        "- Charchaganda tashlab yuborish — bu jarohat yo'li\n\n" +
-        "> **Maslahat:** Haftada 3 marta. 5 ta × 5 soniya chiqsa — birinchi tortilishingiz tayyor."
-    },
-
-    {
-      id: 'pullup', lvl: 2, n: 'Klassik tortilish', en: 'Pull-up',
-      goal: '3 × 5 marta (toza)', need: ['negative'],
-      base: [{ n: 'Negativ', v: '5 × 3 s' }],
-      yt: 'CdtrfXK7bcg',
-      md: "**Nima beradi:** turnikning asosiy mashqi — keng orqa mushagi, bitseps, panja.\n\n" +
-        "## Bajarish\n" +
-        "1. To'liq osilgan holatdan boshlang (qo'l tekis).\n" +
-        "2. Kurakni pastga va orqaga torting — harakat **shundan** boshlanadi.\n" +
-        "3. Ko'krakni turnikga qarab torting, tirsakni yon-pastga yo'naltiring.\n" +
-        "4. Iyak turnikdan **oshsin**.\n" +
-        "5. Nazorat bilan to'liq pastga tushing.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Tebranib (kipping) ko'tarilish\n" +
-        "- Yarim amplituda — iyak yetmaydi yoki pastda cho'zilmaydi\n" +
-        "- Iyakni cho'zib \"aldash\"\n" +
-        "- Nafasni butunlay ushlab qolish\n\n" +
-        "> **Maslahat:** 5 ta toza tortilish 15 ta yarim tortilishdan qimmatliroq. Sifatni tezlikka almashtirmang."
-    },
-    {
-      id: 'chinup', lvl: 2, n: 'Teskari ushlash tortilish', en: 'Chin-up',
-      goal: '3 × 8 marta', need: ['pullup'],
-      base: [{ n: 'Tortilish', v: '3 ta' }],
-      yt: 'tB3X4TjTIes',
-      md: "**Nima beradi:** bitsepsga ko'proq yuk tushadi, shuning uchun klassikdan osonroq — takrorni oshirishga yaxshi.\n\n" +
-        "## Bajarish\n" +
-        "1. Turnikni **pastdan** ushlang (kaft o'zingizga qaragan), yelka kengligida.\n" +
-        "2. Kurakni pastga torting.\n" +
-        "3. Tirsakni tanaga yaqin tutib yuqoriga torting.\n" +
-        "4. Iyak turnikdan oshsin, sekin tushing.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Tirsakni yon tomonga ochib yuborish\n" +
-        "- Belni orqaga qattiq egish\n" +
-        "- Yelkani ko'tarib qolish\n\n" +
-        "> **Maslahat:** Klassik tortilish ko'paymay qolsa, bir necha hafta teskari ushlashga o'ting — umumiy kuch oshadi."
-    },
-    {
-      id: 'kneeraise', lvl: 2, n: 'Osilib tizza ko\'tarish', en: 'Hanging knee raise',
-      goal: '3 × 10 marta', need: ['hang'],
-      base: [{ n: 'Osilib turish', v: '30 s' }],
-      yt: 'p9hhX_Sx5v0',
-      md: "**Nima beradi:** pastki qorin va panja. Front lever va muscle-up uchun poydevor.\n\n" +
-        "## Bajarish\n" +
-        "1. Turnikda osiling, tebranishni to'xtating.\n" +
-        "2. Tizzani ko'krakka torting — **beldan emas, qorindan**.\n" +
-        "3. Yuqorida chanoqni biroz yuqoriga buring (qorin shunda ishlaydi).\n" +
-        "4. Sekin tushiring, tebranishga yo'l qo'ymang.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Tebranib inersiya bilan ko'tarish\n" +
-        "- Faqat sonni ishlatib qorinni qo'shmaslik\n" +
-        "- Pastga tashlab yuborish\n\n" +
-        "> **Maslahat:** Tebranishni to'xtatolmasangiz — bir oyoqni devorga tegizib turing yoki sherikdan chanog'ingizni ushlab turishini so'rang."
-    },
-
-    {
-      id: 'pullup10', lvl: 3, n: '10 ta tortilish', en: '10 clean pull-ups',
-      goal: 'Bir yondan 10 marta', need: ['pullup', 'chinup'],
-      base: [{ n: 'Tortilish', v: '5 ta' }, { n: 'Teskari ushlash', v: '8 ta' }],
-      yt: 'Hyrk8sSHTkk',
-      md: "**Nima beradi:** 10 ta — mahorat elementlariga (muscle-up, front lever) kirish chegarasi.\n\n" +
-        "## Qanday yetiladi\n" +
-        "1. **Piramida:** 1-2-3-4-3-2-1 takror, orasida 60 s dam.\n" +
-        "2. **Grease the groove:** kun davomida bir necha marta maksimalning yarmicha bajaring, hech qachon charchamaguncha emas.\n" +
-        "3. Haftada 3 marta, ketma-ket kun emas.\n" +
-        "4. Har hafta jami takrorni ~10% oshiring.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Har kuni maksimalgacha ishlash — o'sish to'xtaydi\n" +
-        "- Dam olishni qisqartirish (kuch uchun 2-3 daqiqa kerak)\n" +
-        "- Uyquni va ovqatni hisobga olmaslik\n\n" +
-        "> **Maslahat:** Kuch mashqda emas, DAM OLISHDA o'sadi. Haftada 3 kun yetarli."
-    },
-    {
-      id: 'legraise', lvl: 3, n: 'Osilib to\'g\'ri oyoq ko\'tarish', en: 'Hanging leg raise',
-      goal: '3 × 8 marta (oyoq tekis)', need: ['kneeraise'],
-      base: [{ n: 'Tizza ko\'tarish', v: '10 ta' }],
-      yt: 'EYe6dc_i4L0',
-      md: "**Nima beradi:** qorinning eng kuchli mashqlaridan; front lever uchun shart.\n\n" +
-        "## Bajarish\n" +
-        "1. Osiling, yelkani pastga torting.\n" +
-        "2. Oyoqni **tekis** holda gorizontalgacha ko'taring.\n" +
-        "3. Yuqorida chanoqni yuqoriga buring.\n" +
-        "4. Sekin tushiring — pastda tebranmang.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Tizzani bukib \"aldash\"\n" +
-        "- Tebranish hisobiga ko'tarish\n" +
-        "- Nafasni ushlash\n\n" +
-        "> **Maslahat:** Tekis oyoq og'ir kelsa oraliq bosqich: yarim bukilgan tizza bilan bajaring, asta-sekin ochib boring."
-    },
-    {
-      id: 'explosive', lvl: 3, n: 'Portlovchi tortilish', en: 'Explosive pull-up',
-      goal: '3 × 5 marta (ko\'krak turnikgacha)', need: ['pullup10'],
-      base: [{ n: 'Tortilish', v: '10 ta' }],
-      yt: 'XeErfmGSwfE',
-      md: "**Nima beradi:** muscle-up uchun kerak bo'lgan tezlik va balandlik.\n\n" +
-        "## Bajarish\n" +
-        "1. To'liq osilgan holatdan boshlang.\n" +
-        "2. **Maksimal tezlikda** yuqoriga torting.\n" +
-        "3. Maqsad — turnik ko'krakning pastki qismiga tegsin (iyak emas).\n" +
-        "4. Nazorat bilan tushing, keyingi takrorga tayyorlaning.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Charchagan holda bajarish — tezlik yo'qoladi, mashq ma'nosini yo'qotadi\n" +
-        "- Ko'p takror qilish (bu kuch emas, tezlik mashqi)\n" +
-        "- Oyoq bilan qattiq tepish\n\n" +
-        "> **Maslahat:** Har set 3-5 takrordan oshmasin va oralig'ida to'liq dam oling. Tezlik charchaganda o'rganilmaydi."
-    },
-
-    {
-      id: 'muscleup', lvl: 4, n: 'Muscle-up', en: 'Bar muscle-up',
-      goal: '1 toza takror', need: ['explosive'],
-      base: [{ n: 'Tortilish', v: '10 ta' }, { n: 'Brus', v: '10 ta' }, { n: 'Portlovchi', v: '5 ta' }],
-      yt: 'OB-AFDYNXAc',
-      md: "**Nima beradi:** turnikning eng mashhur elementi — tortilish va brus bir harakatda.\n\n" +
-        "## Bajarish\n" +
-        "1. Turnikni **ustidan mahkam** ushlang, bosh barmoq turnik ustida bo'lsa o'tish osonroq.\n" +
-        "2. Portlovchi tortilish qiling — ko'krak turnikgacha.\n" +
-        "3. Eng yuqori nuqtada tanani **oldinga** tashlang va bilakni turnik ustiga aylantiring.\n" +
+        "1. Turnikni MAHKAM ushlang (bosh barmoq ustida).\n" +
+        "2. Portlovchi tortilish qiling — turnik KO'KRAKNING pastigacha kelsin, iyakgacha emas.\n" +
+        "3. Eng yuqori nuqtada tanani oldinga tashlang va bilakni turnik ustiga AYLANTIRING.\n" +
         "4. Tirsakni to'g'irlab yuqoriga turing (brus qismi).\n" +
         "5. Nazorat bilan qaytib tushing.\n\n" +
         "## Tipik xatolar\n" +
         "- Yetarli balandlikka chiqmaslik — o'tish nuqtasi yetmaydi\n" +
-        "- O'tish paytida ikkilanish (tez bo'lishi kerak)\n" +
-        "- Faqat qo'l kuchi bilan urinish\n" +
-        "- Yelka isitilmagan holda urinish\n\n" +
-        "> **Maslahat:** Avval past turnikda oyoq yordami bilan o'tish harakatini o'rganing. Harakat yo'li o'rnashgach kuch qo'shiladi.\n\n" +
-        "> **Diqqat:** Yelka bo'g'imiga katta yuk tushadi — yaxshilab isining va og'riq sezsangiz to'xtang."
+        "- O'tish paytida ikkilanish (harakat TEZ bo'lishi kerak)\n" +
+        "- Faqat qo'l kuchiga tayanish\n\n" +
+        "> **Diqqat:** Yelka bo'g'imiga katta yuk tushadi. Yaxshilab isining va " +
+        "og'riq sezsangiz darhol to'xtang."
     },
     {
-      id: 'tuckfl', lvl: 4, n: 'Tuck front lever', en: 'Tuck front lever',
-      goal: '3 × 15 soniya', need: ['legraise', 'pullup10'],
-      base: [{ n: 'Tortilish', v: '10 ta' }, { n: 'Oyoq ko\'tarish', v: '8 ta' }],
-      yt: 'BwhZYpIdhro',
-      md: "**Nima beradi:** front leverga birinchi haqiqiy qadam. Orqa, qorin va yelka birga ishlaydi.\n\n" +
+      id: 'sklepka', n: 'Yozilib ko\'tarilish', ru: 'ПОДЪЁМ РАЗГИБОМ (СКЛЁПКА)', lvl: 2,
+      goal: '3 toza takror',
+      base: [{ n: 'Oyoq ko\'tarish', v: '10 ta' }, { n: 'Tortilish', v: '8 ta' }],
+      yt: 'u__tT8654Mg',
+      md: "**Nima beradi:** gimnastik element. Kuch emas, TEXNIKA va vaqt " +
+        "(timing) hal qiladi — shuning uchun kuchi kam bo'lsa ham o'rganish mumkin.\n\n" +
         "## Bajarish\n" +
-        "1. Turnikda osiling, qo'l tekis.\n" +
-        "2. Kurakni pastga va orqaga torting (**kurak depressiyasi** — eng muhim qism).\n" +
-        "3. Tizzani ko'krakka yig'ib, chanoqni yuqoriga aylantiring.\n" +
-        "4. Orqangiz yerga parallel bo'lsin, tizza ko'krakda.\n" +
-        "5. Nafasni ushlamasdan turing.\n\n" +
+        "1. Osilgan holatda oyoqni turnikga yaqin olib keling (deyarli tegizib).\n" +
+        "2. Chanoqni pastga tushirayotgandek qilib, oyoqni OLDINGA va YUQORIGA keskin yozing.\n" +
+        "3. Ayni o'sha lahzada qo'l bilan turnikni PASTGA bosing.\n" +
+        "4. Tana turnik ustiga chiqadi — upor holatida tugating.\n\n" +
         "## Tipik xatolar\n" +
-        "- Tirsakni bukish (bu boshqa mashq bo'lib qoladi)\n" +
-        "- Kurakni ishlatmaslik — orqa bo'shashib qoladi\n" +
-        "- Belni egib chanoqni tushirib qo'yish\n\n" +
-        "> **Maslahat:** Qo'l tekis qolishiga alohida e'tibor bering. Tirsak bukilsa yuk orqadan bitsepsga o'tadi."
+        "- Yozish va bosishni ALOHIDA qilish (ikkisi bir vaqtda bo'lishi shart)\n" +
+        "- Oyoqni yetarlicha yuqoriga olib bormaslik\n" +
+        "- Qo'lni bukib qolish — turnikni pastga bosish yo'qoladi\n\n" +
+        "> **Maslahat:** Bu elementda kuch emas, ANIQ LAHZA muhim. Sekin " +
+        "bajarib bo'lmaydi — bir zarb bilan qilinadi."
     },
     {
-      id: 'frontlever', lvl: 4, n: 'To\'liq front lever', en: 'Full front lever',
-      goal: '3 soniya (tana to\'liq gorizontal)', need: ['tuckfl'],
-      base: [{ n: 'Tuck front lever', v: '15 s' }, { n: 'Tortilish', v: '12 ta' }],
-      yt: '5g8-sj-8snc',
-      md: "**Nima beradi:** turnikdagi eng nufuzli statik elementlardan biri.\n\n" +
-        "## Bosqichlar (shu tartibda)\n" +
-        "1. **Tuck** — tizza ko'krakda (15 s)\n" +
-        "2. **Advanced tuck** — orqa gorizontal, tizza 90° (15 s)\n" +
-        "3. **Bir oyoq** — bittasi tekis, ikkinchisi bukilgan (10 s)\n" +
-        "4. **Straddle** — oyoq ochiq va tekis (10 s)\n" +
-        "5. **Full** — oyoq birga va tekis\n\n" +
+      id: 'kapitanskiy', n: 'Kapitan ko\'tarilishi', ru: 'КАПИТАНСКИЙ ПОДЪЁМ', lvl: 2,
+      goal: '3 takror',
+      base: [{ n: 'Tortilish', v: '10 ta' }, { n: 'Ag\'darilib ko\'tarilish', v: '3 ta' }],
+      yt: '_qu9VvYYKKY',
+      md: "**Nima beradi:** ag'darilib ko'tarilish bilan chiqishning oralig'idagi " +
+        "element. Bir qo'l tayanch, ikkinchisi aylantiruvchi bo'lib ishlaydi.\n\n" +
+        "## Bajarish\n" +
+        "1. Osiling, tortilishni boshlang.\n" +
+        "2. Tanani BIR tomonga biroz burang — o'sha tomondagi qo'l tayanch bo'ladi.\n" +
+        "3. Tayanch qo'lga og'irlikni berib, ikkinchi qo'lni turnik ustiga olib chiqing.\n" +
+        "4. Tanani aylantirib upor holatiga chiqing.\n\n" +
         "## Tipik xatolar\n" +
-        "- Bosqichni tashlab ketish — eng ko'p uchraydigan xato\n" +
-        "- Qo'lni bukish\n" +
-        "- Chanoqni tushirib yuborish (tana \"banan\" bo'ladi)\n\n" +
-        "> **Maslahat:** Bu bir necha OY lik ish. Har bosqichda 15 soniya barqaror ushlamaguncha keyingisiga o'tmang — shoshilish jarohatga olib keladi."
+        "- Ikkala qo'lga teng yuk berishga urinish (element yo'qoladi)\n" +
+        "- Tanani burmaslik\n" +
+        "- Tayanch qo'lni bukib qo'yish\n\n" +
+        "> **Maslahat:** Ikki tomonga ham o'rganing — bir tomonlama mashq " +
+        "yelkalarni nomutanosib rivojlantiradi."
+    },
+    {
+      id: 'basket-kip', n: 'Ikki oyoqlab ko\'tarilish', ru: 'ПОДЪЁМ ДВУМЯ (BASKET KIP)', lvl: 2,
+      goal: '3 takror',
+      base: [{ n: 'Yozilib ko\'tarilish', v: '3 ta' }, { n: 'Qorin', v: 'kuchli' }],
+      yt: '0__Yu5qnkv8',
+      md: "**Nima beradi:** silkinish energiyasini ko'tarilishga aylantirishni " +
+        "o'rgatadi. Gimnastikada asosiy ko'nikmalardan.\n\n" +
+        "## Bajarish\n" +
+        "1. Osilgan holda yengil silkinish (mah) hosil qiling.\n" +
+        "2. Oldinga silkinish oxirida oyoqni yig'ib, \"savat\" (basket) holatiga keling.\n" +
+        "3. Orqaga qaytishda oyoqni keskin yozing va turnikni pastga bosing.\n" +
+        "4. Tana turnik ustiga ko'tariladi.\n\n" +
+        "## Tipik xatolar\n" +
+        "- Silkinish juda kuchli — nazorat yo'qoladi\n" +
+        "- Lahzani o'tkazib yuborish (kech yozish)\n" +
+        "- Yelkani bo'sh qoldirish\n\n" +
+        "> **Maslahat:** Avval `СКЛЁПКА` ni o'rganing — bu element o'shaning " +
+        "silkinishli davomi."
+    },
+    {
+      id: 'oficerskiy', n: 'Ofitser chiqishi', ru: 'ОФИЦЕРСКИЙ ВЫХОД', lvl: 3,
+      goal: '3 takror (har ikki tomonga)',
+      base: [{ n: 'Kuch bilan chiqish', v: '3 ta' }, { n: 'Tortilish', v: '12 ta' }],
+      yt: '283MrPe5LxQ',
+      md: "**Nima beradi:** kuch bilan chiqishning nazoratli, \"chiroyli\" shakli — " +
+        "qo'llar navbat bilan, lekin SEKIN va toza o'tadi.\n\n" +
+        "## Bajarish\n" +
+        "1. Kuchli tortiling, ko'krakni turnikga yaqinlashtiring.\n" +
+        "2. Bir qo'lni turnik ustiga NAZORAT bilan chiqaring — silkinishsiz.\n" +
+        "3. Bir lahza shu holatda turing (aynan shu qism elementni ofitser qiladi).\n" +
+        "4. Ikkinchi qo'lni ham chiqarib, upor holatiga turing.\n\n" +
+        "## Tipik xatolar\n" +
+        "- Silkinish bilan bajarish — u holda bu `детский выход` bo'lib qoladi\n" +
+        "- Faqat bitta kuchli tomonga mashq qilish\n" +
+        "- Yelkani oldinga cho'zib yuborish\n\n" +
+        "> **Maslahat:** Farqi TEZLIKDA emas, NAZORATDA. Sekin bajarilsa ham " +
+        "toza bo'lishi kerak."
+    },
+    {
+      id: 'zamok', n: 'Orqaga silkinib ko\'tarilish', ru: 'ПОДЪЁМ МАХОМ НАЗАД (ЗАМОК)', lvl: 3,
+      goal: '3 takror',
+      base: [{ n: 'Ikki oyoqlab ko\'tarilish', v: '3 ta' }, { n: 'Upor', v: 'barqaror' }],
+      yt: 'GvJe3MVk6tY',
+      md: "**Nima beradi:** silkinishning ORQA nuqtasidan foydalanib ko'tarilish. " +
+        "\"Замок\" (qulf) deb atalishiga sabab — tana turnik atrofida qulflanadi.\n\n" +
+        "## Bajarish\n" +
+        "1. Osilib silkinishni boshlang.\n" +
+        "2. ORQAGA silkinishning eng yuqori nuqtasini kuting.\n" +
+        "3. O'sha lahzada turnikni pastga bosib, chanoqni turnikga yaqinlashtiring.\n" +
+        "4. Tana turnik ustiga chiqib, upor holatida qulflanadi.\n\n" +
+        "## Tipik xatolar\n" +
+        "- Oldinga silkinishda urinish (kuch teskari ishlaydi)\n" +
+        "- Chanoqni uzoq tutish\n" +
+        "- Panja ushlashini bo'shatib yuborish — tushib ketish xavfi\n\n" +
+        "> **Diqqat:** Bu elementda panja bo'shasa turnikdan uchib ketish mumkin. " +
+        "Past turnikda, yumshoq yerda o'rganing."
+    },
+    {
+      id: 'iz-pod', n: 'Turnik ostidan chiqish', ru: 'ВЫХОД ИЗ-ПОД ТУРНИКА', lvl: 3,
+      goal: '1 toza takror',
+      base: [{ n: 'Kuch bilan chiqish', v: '5 ta' }, { n: 'Yelka', v: 'harakatchan' }],
+      yt: 'ZTbaiTzMRJw',
+      md: "**Nima beradi:** g'ayrioddiy boshlang'ich holatdan chiqish — yelka " +
+        "harakatchanligini va fazoviy tuyg'uni rivojlantiradi.\n\n" +
+        "## Bajarish\n" +
+        "1. Turnikning ORQA tomonidan, teskari holatda osiling.\n" +
+        "2. Silkinish bilan tanani turnik ostidan oldinga olib chiqing.\n" +
+        "3. Ayni lahzada kuchli tortilib, qo'lni turnik ustiga aylantiring.\n" +
+        "4. Upor holatiga chiqing.\n\n" +
+        "## Tipik xatolar\n" +
+        "- Yelkani isitmasdan urinish — jarohat xavfi yuqori\n" +
+        "- Silkinishni kuch bilan almashtirishga urinish\n" +
+        "- Turnikni juda tor ushlash\n\n" +
+        "> **Diqqat:** Yelka bo'g'imi noqulay burchakda ishlaydi. Yelka " +
+        "harakatchanligi yetarli bo'lmasa bu elementga kirishmang."
+    },
+    {
+      id: 'cast-monkey', n: 'Upordan manki', ru: 'МАНКИ ИЗ УПОРА (CAST MONKEY)', lvl: 3,
+      goal: '1 toza takror',
+      base: [{ n: 'Upor', v: 'barqaror' }, { n: 'Kuch bilan chiqish', v: '5 ta' }],
+      yt: '6yzDG7AiM-4',
+      md: "**Nima beradi:** friston (freestyle) elementlariga kirish. Tana " +
+        "turnikdan butunlay uzilib, qaytadan ushlanadi.\n\n" +
+        "## Bajarish\n" +
+        "1. Upor holatida turing (qo'l to'g'ri, tana turnik ustida).\n" +
+        "2. Chanoqni orqaga uloqtirib (cast) tanani turnikdan uzoqlashtiring.\n" +
+        "3. Qaytish energiyasidan foydalanib turnikni qo'yib yuboring.\n" +
+        "4. Tana turnik atrofida aylanadi — qayta ushlab osilib qoling.\n\n" +
+        "## Tipik xatolar\n" +
+        "- Turnikni juda erta qo'yib yuborish\n" +
+        "- Cast (uloqtirish) kuchsiz — aylanishga energiya yetmaydi\n" +
+        "- Yumshoq yer tayyorlamaslik\n\n" +
+        "> **Diqqat:** Bu ro'yxatdagi ENG XAVFLI element — tana turnikdan " +
+        "uziladi. Faqat past turnikda, yumshoq yerda va imkoni bo'lsa " +
+        "sherik bilan o'rganing."
     }
   ];
 
@@ -258,21 +237,16 @@
   function ytThumb(id) { return 'https://img.youtube.com/vi/' + id + '/hqdefault.jpg'; }
   function ytLink(id) { return 'https://www.youtube.com/watch?v=' + id; }
 
-  /* Ko'nikma OCHIQmi — barcha talab qilinganlari o'zlashtirilgan bo'lsa. */
-  function unlocked(s) {
-    return (s.need || []).every(function (n) { return isDone(n); });
-  }
-
   /* =========================================================
-     VIEW: workout — yo'l xaritasi
+     VIEW: workout — elementlar ro'yxati (Sport uslubida)
      ========================================================= */
   App.view('workout', {
-    nav: 'sport',                     // Sport bo'limining ichki sahifasi
+    nav: 'sport',
     render: function (page) {
       var done = doneList().filter(function (id) { return !!skill(id); });
       var pct = Math.round((done.length / SKILLS.length) * 100);
 
-      var html =
+      page.innerHTML =
         '<div class="topbar" style="margin:-16px -15px 12px">' +
         '<button class="icon-btn ghost" data-act="go" data-arg=\'{"v":"sport"}\'>' +
         '<span data-icon="arrowLeft" data-icon-size="20"></span></button>' +
@@ -282,72 +256,41 @@
         done.length + ' / ' + SKILLS.length + '</span></div>' +
 
         '<div class="wk-intro">' +
-        '<b>Turnik mahorati — bosqichma-bosqich</b>' +
-        '<p>Osondan qiyinga. Har bir ko\'nikma o\'zidan oldingisini talab qiladi — ' +
-        'tartibni buzmang, aks holda jarohat xavfi ortadi.</p>' +
+        '<b>Turnikda bajariladigan elementlar</b>' +
+        '<p>Osondan qiyinga. Har bir elementda texnika, bazaviy kuch talabi va ' +
+        'video darslik bor.</p>' +
         '<div class="wk-prog"><i style="width:' + pct + '%"></i></div>' +
-        '</div>';
+        '</div>' +
 
-      LEVELS.forEach(function (L) {
-        var list = SKILLS.filter(function (s) { return s.lvl === L.n; });
-        var ldone = list.filter(function (s) { return isDone(s.id); }).length;
-        html += '<div class="wk-lvl" style="--wk-c:' + L.c + '">' +
-          '<div class="wk-lvl-h"><span class="wk-lvl-n">' + L.n + '</span>' +
-          '<div><b>' + App.esc(L.t) + '</b><span>' + App.esc(L.s) + '</span></div>' +
-          '<span class="wk-lvl-c">' + ldone + '/' + list.length + '</span></div>';
-
-        html += list.map(function (s) {
-          var d = isDone(s.id), open = unlocked(s);
-          var need = (s.need || []).filter(function (n) { return !isDone(n); })
-            .map(function (n) { var x = skill(n); return x ? x.n : n; });
-          return '<button class="wk-row' + (d ? ' done' : '') + (open ? '' : ' lock') + '"' +
-            ' data-act="go" data-arg=\'' + App.arg({ v: 'workout_skill', p: { id: s.id } }) + '\'>' +
-            '<span class="wk-th"><img src="' + ytThumb(s.yt) + '" alt="" loading="lazy">' +
-            (d ? '<i class="wk-tick" data-icon="check" data-icon-size="14"></i>' : '') +
-            (open ? '' : '<i class="wk-lockic" data-icon="lock" data-icon-size="15"></i>') +
-            '</span>' +
-            '<span class="wk-main">' +
-            '<span class="wk-n">' + App.esc(s.n) + '</span>' +
-            '<span class="wk-en">' + App.esc(s.en) + '</span>' +
-            '<span class="wk-goal">' + App.esc(open ? s.goal : ('Avval: ' + need.join(', '))) + '</span>' +
-            '</span>' +
-            '<span class="wk-chev" data-icon="arrowLeft" data-icon-size="16" style="transform:rotate(180deg)"></span>' +
-            '</button>';
+        SKILLS.map(function (s, i) {
+          var d = isDone(s.id), L = LVL[s.lvl] || LVL[1];
+          return '<div class="list-row">' +
+            '<span class="wk-th"><img src="' + ytThumb(s.yt) + '" alt="" loading="lazy"></span>' +
+            '<button class="li-main" style="background:none;border:none;text-align:left;padding:0" ' +
+            'data-act="go" data-arg=\'' + App.arg({ v: 'workout_skill', p: { id: s.id } }) + '\'>' +
+            '<div class="li-title">' + (i + 1) + '. ' + App.esc(s.n) + '</div>' +
+            '<div class="li-sub wk-ru">' + App.esc(s.ru) + '</div>' +
+            '<div class="li-sub"><span style="color:' + L.c + ';font-weight:700">' + L.n + '</span>' +
+            ' · ' + App.esc(s.goal) + '</div></button>' +
+            '<button class="icon-btn ghost sp-log' + (d ? ' done' : '') + '" data-act="wkToggle" ' +
+            'data-arg=\'' + App.arg({ id: s.id }) + '\' title="O\'zlashtirdim">' +
+            '<span data-icon="check" data-icon-size="17"></span></button>' +
+            '</div>';
         }).join('');
-        html += '</div>';
-      });
 
-      page.innerHTML = html;
       App.icons(page);
     }
   });
 
   /* =========================================================
-     VIEW: workout_skill — bitta ko'nikma
+     VIEW: workout_skill — bitta element
      ========================================================= */
   App.view('workout_skill', {
     nav: 'sport',
     render: function (page, params) {
       var s = skill(params.id);
       if (!s) { App.go('workout'); return; }
-      var d = isDone(s.id), open = unlocked(s);
-      var lvl = LEVELS.find(function (L) { return L.n === s.lvl; }) || LEVELS[0];
-
-      var lockNote = '';
-      if (!open) {
-        var need = (s.need || []).filter(function (n) { return !isDone(n); })
-          .map(function (n) { var x = skill(n); return x ? x.n : n; });
-        lockNote = '<div class="wk-locknote"><span data-icon="lock" data-icon-size="15"></span>' +
-          '<div>Bu ko\'nikma hali qulflangan.<br><b>Avval o\'zlashtiring:</b> ' +
-          App.esc(need.join(', ')) + '</div></div>';
-      }
-
-      var baseHtml = (s.base && s.base.length)
-        ? '<div class="list-label">Bazaviy kuch</div><div class="wk-base">' +
-          s.base.map(function (b) {
-            return '<span class="wk-chip"><b>' + App.esc(b.v) + '</b>' + App.esc(b.n) + '</span>';
-          }).join('') + '</div>'
-        : '';
+      var d = isDone(s.id), L = LVL[s.lvl] || LVL[1];
 
       page.innerHTML =
         '<div class="topbar" style="margin:-16px -15px 12px">' +
@@ -355,7 +298,8 @@
         '<span data-icon="arrowLeft" data-icon-size="20"></span></button>' +
         '<h1>' + App.esc(s.n) + '</h1></div>' +
 
-        '<div class="wk-badge" style="--wk-c:' + lvl.c + '">' + s.lvl + '-bosqich · ' + App.esc(lvl.t) + '</div>' +
+        '<div class="wk-badge" style="--wk-c:' + L.c + '">' + App.esc(L.n) + '</div>' +
+        '<div class="wk-ru-big">' + App.esc(s.ru) + '</div>' +
 
         /* Video — bosilgunicha faqat old ko'rinish, YouTube yuklanmaydi */
         '<div class="wk-video" id="wk-video" data-yt="' + s.yt + '">' +
@@ -366,12 +310,15 @@
         '<a class="wk-ytlink" href="' + ytLink(s.yt) + '" target="_blank" rel="noopener">' +
         'YouTube\'da ochish</a>' +
 
-        lockNote +
-
         '<div class="wk-goalbox"><span data-icon="trophy" data-icon-size="16"></span>' +
         '<div><span>Maqsad</span><b>' + App.esc(s.goal) + '</b></div></div>' +
 
-        baseHtml +
+        ((s.base && s.base.length)
+          ? '<div class="list-label">Bazaviy kuch</div><div class="wk-base">' +
+            s.base.map(function (b) {
+              return '<span class="wk-chip"><b>' + App.esc(b.v) + '</b>' + App.esc(b.n) + '</span>';
+            }).join('') + '</div>'
+          : '') +
 
         '<div class="list-label">Texnika</div>' +
         '<div class="md-content">' + App.md(s.md) + '</div>' +
@@ -384,8 +331,7 @@
     }
   });
 
-  /* Videoni bosilganda yuklaymiz — sahifa ochilishida YouTube so'ralmaydi
-     (tezlik va maxfiylik uchun). */
+  /* Videoni bosilganda yuklaymiz — sahifa ochilishida YouTube so'ralmaydi. */
   App.actions.wkPlay = function () {
     var box = App.el('wk-video'); if (!box) return;
     var id = box.getAttribute('data-yt');
@@ -395,8 +341,7 @@
     box.classList.add('playing');
   };
 
-  /* Sport bo'limidagi "Workout" plitkasi shu yerdan o'z holatini oladi
-     (sport.js chizadi — Workout alohida bo'lim emas, Sport ichida). */
+  /* Sport bo'limidagi "Workout" plitkasi shu yerdan holatini oladi. */
   window.Workout = {
     progress: function () {
       var d = doneList().filter(function (id) { return !!skill(id); });
@@ -410,14 +355,12 @@
     if (i >= 0) list.splice(i, 1); else list.push(a.id);
     saveDone(list);
 
-    /* O'zlashtirilgan ko'nikma Faoliyat jurnaliga ham tushsin —
-       Tarix va Statistikada ko'rinadi (sport.js bilan bir xil yo'l). */
     if (i < 0) {
       var s = skill(a.id);
       if (s) {
         App.call('log_activity', {
-          section: 'sport', object: s.n, amount: 1, unit: 'ko\'nikma',
-          meta: { kind: 'workout', level: s.lvl }
+          section: 'sport', object: s.n, amount: 1, unit: 'element',
+          meta: { kind: 'workout', ru: s.ru }
         }).catch(function () {});
       }
       App.toast('✅ O\'zlashtirildi!');
