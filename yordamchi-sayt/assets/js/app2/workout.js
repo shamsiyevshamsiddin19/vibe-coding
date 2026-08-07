@@ -30,206 +30,385 @@
     3: { n: 'Qiyin', c: 'var(--danger)' }
   };
 
-  /* `base` — elementga kirishdan oldin kerak bo'lgan kuch (chip bo'lib
-     ko'rinadi). `yt` — tekshirilgan YouTube darsligi. */
+  /* `base` — elementga kirishdan oldin kerak bo'lgan ANIQ ko'rsatkichlar.
+     Raqamlar to'qib chiqarilmagan — voraut manbalaridan olingan
+     (naukaturnika.ru, sportwiki.to, vashsport.com, gogym.fit,
+     krasota-zdorove.com, turnikom.ru). `yt` — tekshirilgan darslik. */
   var SKILLS = [
     {
       id: 'detskiy', n: 'Bolalar chiqishi', ru: 'ДЕТСКИЙ ВЫХОД', lvl: 1,
-      goal: '1 toza takror',
-      base: [{ n: 'Tortilish', v: '8 ta' }, { n: 'Brus', v: '8 ta' }],
+      goal: '3 takror',
+      base: [
+        { n: 'Tortilish', v: '8-10 ta' },
+        { n: 'Brus', v: '15 ta' },
+        { n: "Ko'krakkacha tortilish", v: '3 ta' }
+      ],
       yt: 'gdShAAess9g',
-      md: "**Nima beradi:** kuch bilan chiqishga (выход силой) birinchi qadam. " +
-        "Ikkala qo'l birdan emas, NAVBAT bilan turnik ustiga o'tadi — shuning uchun " +
-        "ancha yengil. Xalq orasida \"сплошные мучения\" deb ham ataladi, chunki " +
-        "texnikasi qo'pol ko'rinadi.\n\n" +
+      md: "**Ishlaydigan mushaklar:** keng orqa mushagi, bitseps, yelka oldi, triseps, panja.\n\n" +
+        "Kuch bilan chiqishga (`ВЫХОД СИЛОЙ`) birinchi qadam. Ikkala qo'l birdan " +
+        "emas, NAVBAT bilan turnik ustiga o'tadi — shuning uchun yengil. Xalq " +
+        "orasida \"сплошные мучения\" deb ataladi, chunki tashqaridan qo'pol ko'rinadi.\n\n" +
         "## Bajarish\n" +
-        "1. Turnikni ustidan, yelka kengligida ushlang. Bosh barmoq turnik ustida bo'lsa o'tish osonroq.\n" +
-        "2. Tanani biroz silkitib, kuchli tortiling — ko'krak turnikga yaqinlashsin.\n" +
-        "3. Eng yuqori nuqtada BIR qo'lni turnik ustiga chiqaring (tirsakni aylantiring).\n" +
-        "4. O'sha qo'lga tayanib, ikkinchi qo'lni ham chiqaring.\n" +
-        "5. Ikkala tirsakni to'g'irlab, upor holatiga turing.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Juda kam balandlikka chiqish — qo'l o'tishga joy topmaydi\n" +
-        "- Oyoq bilan haddan tashqari tepish (element umuman yo'qoladi)\n" +
-        "- Yelka isitilmagan holda urinish\n\n" +
-        "> **Maslahat:** Bu — o'rganish bosqichi, yakuniy maqsad emas. Harakat yo'li " +
-        "o'rnashgach `ВЫХОД СИЛОЙ` ga o'ting va navbat bilan emas, IKKALA qo'lni " +
-        "birga chiqarishga harakat qiling."
+        "**1. Ushlash.** Turnikni ustidan, yelka kengligida. Bosh barmoq turnik " +
+        "USTIDA bo'lsin (\"soxta ushlash\") — bilakni aylantirish osonlashadi.\n" +
+        "**2. Tortish.** Portlovchi tortilish: maqsad iyak emas, KO'KRAKNING " +
+        "pastki qismi turnikga yetishi.\n" +
+        "**3. O'tish.** Eng yuqori nuqtada bir tirsakni turnik ustiga aylantiring, " +
+        "tanani o'sha tomonga biroz burang.\n" +
+        "**4. Ikkinchi qo'l.** Birinchi qo'lga tayanib, ikkinchisini ham chiqaring.\n" +
+        "**5. Turish.** Ikkala tirsakni to'g'irlab upor holatiga keling.\n\n" +
+        "## Tayyorlov mashqlari\n" +
+        "1. **Baland tortilish** — turnik ko'krakka tegsin: 4 × 5\n" +
+        "2. **Rezina bilan chiqish** — turnikga rezina bog'lab, oyoqni ilmoqqa " +
+        "qo'ying: 4 × 3\n" +
+        "3. **Past turnikda oyoq yordami bilan** — harakat yo'lini o'rganish uchun: 4 × 5\n" +
+        "4. **Negativ chiqish** — yuqoridan sekin tushish: 3 × 3\n\n" +
+        "## Tipik xatolar va yechimi\n" +
+        "| Xato | Yechim |\n" +
+        "|---|---|\n" +
+        "| Balandlik yetmaydi | Avval \"ko'krakkacha tortilish\" ni 5 taga yetkazing |\n" +
+        "| Oyoq bilan qattiq tepish | Oyoqni bir joyda tuting, kuch qo'ldan chiqsin |\n" +
+        "| Bilak aylanmaydi | Bosh barmoqni turnik ustiga qo'ying |\n\n" +
+        "> **Maslahat:** Bu — o'rganish bosqichi, yakuniy maqsad emas. Harakat " +
+        "yo'li o'rnashgach `ВЫХОД СИЛОЙ` ga o'ting.\n\n" +
+        "> **Diqqat:** Yelkani 5-10 daqiqa isiting — aylanish paytida bo'g'imga " +
+        "keskin yuk tushadi."
     },
     {
-      id: 'perevorot', n: 'Ag\'darilib ko\'tarilish', ru: 'ПОДЪЁМ ПЕРЕВОРОТОМ', lvl: 1,
+      id: 'perevorot', n: "Ag'darilib ko'tarilish", ru: 'ПОДЪЁМ ПЕРЕВОРОТОМ', lvl: 1,
       goal: '3 × 3 takror',
-      base: [{ n: 'Tortilish', v: '5 ta' }, { n: 'Oyoq ko\'tarish', v: '8 ta' }],
+      base: [
+        { n: 'Tortilish', v: '10 ta' },
+        { n: "To'g'ri oyoq ko'tarish", v: '10 ta' },
+        { n: 'Uyoq (L-hang)', v: '10 s' }
+      ],
       yt: 'IsFtu8z9poU',
-      md: "**Nima beradi:** turnikning eng klassik elementi — maktab dasturidan. " +
-        "Qorin, orqa va panja birga ishlaydi; keyingi elementlarning ko'pi shu " +
-        "harakat tuyg'usiga tayanadi.\n\n" +
+      md: "**Ishlaydigan mushaklar:** qorin, keng orqa mushagi, son bukuvchilari, yelka, bitseps.\n\n" +
+        "Turnikning eng klassik elementi. Manbalarda muntazam mashq bilan " +
+        "**1-2 oyda** o'zlashtiriladi deb ko'rsatilgan.\n\n" +
         "## Bajarish\n" +
-        "1. Turnikda osiling, qo'l yelka kengligidan biroz kengroq.\n" +
-        "2. Bir vaqtda TORTILING va oyoqni yuqoriga — turnik OSHIB o'tadigan qilib — ko'taring.\n" +
-        "3. Chanoqni turnikga yaqin tuting: qanchalik yaqin bo'lsa, aylanish shuncha yengil.\n" +
-        "4. Oyoq turnikdan o'tgach tanani aylantiring va upor holatiga chiqing.\n" +
-        "5. Nazorat bilan orqaga qaytib osiling.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Oyoqni oldin ko'tarib, keyin tortilish (ikkisi BIRGA bo'lishi kerak)\n" +
-        "- Chanoqni turnikdan uzoq tutish — aylanishga kuch yetmaydi\n" +
-        "- Boshni orqaga tashlash\n\n" +
+        "**1. Osilish.** Qo'l yelka kengligidan biroz kengroq, tebranishsiz.\n" +
+        "**2. Bir vaqtda.** Tortilish VA oyoqni ko'tarish — ikkisi BIRGA. " +
+        "(Ikkinchi yo'l ham bor: avval oyoq, keyin tortilish. O'zingizga " +
+        "qulayini tanlang.)\n" +
+        "**3. Chanoq.** Chanoqni turnikga imkon qadar YAQIN tuting — bu eng " +
+        "muhim nuqta. Uzoq bo'lsa og'irlik pastga tortadi va aylanish to'xtaydi.\n" +
+        "**4. O'tkazish.** Oyoq turnikdan oshib o'tsin; bel turnik darajasiga " +
+        "kelganda tizzani KESKIN buking — bu aylanishni tezlashtiradi.\n" +
+        "**5. Yakun.** Tanani aylantirib, to'g'ri qo'lda upor holatiga chiqing.\n\n" +
+        "## Tayyorlov mashqlari (shu tartibda)\n" +
+        "1. **Tizzani ko'krakka tortish** — 4 set, holdan toyguncha. 20+ takror " +
+        "chiqsa keyingisiga o'ting.\n" +
+        "2. **Tizza ko'tarib, oyoqni yozish** — 4 set, holdan toyguncha. 20+ da o'ting.\n" +
+        "3. **Uyoq (oyoq gorizontal)** — 4 set. Asta-sekin balandroq ko'taring.\n" +
+        "4. **Oyoqni turnikga tegizish** — 10-20 takror chiqsa tayyorsiz.\n" +
+        "5. Tortilish kam bo'lsa: avstraliya tortilishi, negativ tortilish, rezina.\n\n" +
+        "## Tipik xatolar va yechimi\n" +
+        "| Xato | Yechim |\n" +
+        "|---|---|\n" +
+        "| Tana ag'darilmaydi | Bel turnik darajasida tizzani keskin buking |\n" +
+        "| Chanoq uzoqda | Oyoqni turnikdan OSHIRIB o'tkazing, oldiga emas |\n" +
+        "| Panja bo'shab ketadi | Bosh barmoq bilan mahkam o'rab ushlang |\n" +
+        "| Oyoq va tortilish alohida | Bir vaqtda: oyoq ko'tarilganda qo'l tortsin |\n\n" +
         "> **Maslahat:** Boshlashda past turnikdan foydalaning — oyoq yerga tegib " +
-        "turadi va qo'rquv yo'qoladi."
+        "turadi, qo'rquv yo'qoladi.\n\n" +
+        "> **Diqqat:** Ushlash kuchsiz bo'lsa ag'darilish paytida tushib ketish " +
+        "xavfi bor. Panja charchaganda urinmang."
     },
     {
       id: 'vihod-siloy', n: 'Kuch bilan chiqish', ru: 'ВЫХОД СИЛОЙ', lvl: 2,
       goal: '1 toza takror (silkinishsiz)',
-      base: [{ n: 'Tortilish', v: '12 ta' }, { n: 'Brus', v: '15 ta' }, { n: 'Bolalar chiqishi', v: '5 ta' }],
+      base: [
+        { n: 'Tortilish', v: '12-15 ta' },
+        { n: 'Brus', v: '20 ta' },
+        { n: "Ko'krakkacha tortilish", v: '5 ta' },
+        { n: 'Bolalar chiqishi', v: '3 ta' }
+      ],
       yt: '3ZknAy2Zjuo',
-      md: "**Nima beradi:** turnikning eng mashhur elementi. Tortilish va brus " +
-        "BIR harakatda birlashadi.\n\n" +
+      md: "**Ishlaydigan mushaklar:** keng orqa, bitseps, yelka, triseps, ko'krak, qorin.\n\n" +
+        "Turnikning eng mashhur elementi. Manbalarda **eng kam** talab: 8-10 ta " +
+        "to'liq amplitudali tortilish va 15-20 ta brus. **Qulay** daraja: 12-15 ta " +
+        "ko'krakkacha tortilish va 20+ brus.\n\n" +
+        "> Muhim: takror soni — boshlang'ich nuqta, KAFOLAT emas. 15-20 ta " +
+        "tortiladigan odamda ham chiqmasligi mumkin — sabab odatda texnikada.\n\n" +
         "## Bajarish\n" +
-        "1. Turnikni MAHKAM ushlang (bosh barmoq ustida).\n" +
-        "2. Portlovchi tortilish qiling — turnik KO'KRAKNING pastigacha kelsin, iyakgacha emas.\n" +
-        "3. Eng yuqori nuqtada tanani oldinga tashlang va bilakni turnik ustiga AYLANTIRING.\n" +
-        "4. Tirsakni to'g'irlab yuqoriga turing (brus qismi).\n" +
-        "5. Nazorat bilan qaytib tushing.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Yetarli balandlikka chiqmaslik — o'tish nuqtasi yetmaydi\n" +
-        "- O'tish paytida ikkilanish (harakat TEZ bo'lishi kerak)\n" +
-        "- Faqat qo'l kuchiga tayanish\n\n" +
-        "> **Diqqat:** Yelka bo'g'imiga katta yuk tushadi. Yaxshilab isining va " +
-        "og'riq sezsangiz darhol to'xtang."
+        "**1. Ushlash.** Yelka kengligida, bosh barmoq turnik ustida (\"soxta " +
+        "ushlash\") — bilak aylanishi shundan osonlashadi.\n" +
+        "**2. Tortish.** Oddiy tortilish emas: butun tanani turnikdan YUQORIGA " +
+        "va USTIGA olib chiqish kerak. Turnik ko'mrak suyagi (yoqa) darajasiga kelsin.\n" +
+        "**3. O'tish.** Eng qiyin qism. Tana turnik atrofida **S shaklidagi** yo'l " +
+        "bo'ylab harakatlanadi — to'g'ri chiziq bo'ylab EMAS. Ko'krak turnikdan " +
+        "o'tgach itarish boshlanadi.\n" +
+        "**4. Itarish.** Brusdagidek — tirsakni to'liq to'g'irlab yuqoriga turing.\n\n" +
+        "## Tayyorlov mashqlari\n" +
+        "1. **Baland tortilish** — turnik ko'krakka, keyin QORINGA tegsin: 4 × 3-5\n" +
+        "2. **Portlovchi tortilish** — maksimal tezlikda: 4 × 5\n" +
+        "3. **Plio tortilish** — yuqorida qo'lni turnikdan uzib qarsak: 3 × 3\n" +
+        "4. **Negativ chiqish** — upordan sekin tushish: 3 × 3\n" +
+        "5. **Rezina bilan chiqish** — texnikani mustahkamlash: 4 × 3\n" +
+        "6. **Osilib oyoq ko'tarish** — o'tishda kor kerak: 3 × 10\n\n" +
+        "## Tipik xatolar va yechimi\n" +
+        "| Xato | Yechim |\n" +
+        "|---|---|\n" +
+        "| Balandlik yetmaydi | Baland tortilishni qoringacha yetkazing |\n" +
+        "| To'g'ri chiziq bo'ylab tortish | S yo'li: avval o'zingizga, keyin ustiga |\n" +
+        "| O'tishda ikkilanish | Harakat TEZ bo'lsin, sekinlashtirsa kuch yo'qoladi |\n" +
+        "| Yuqorida turolmaslik | Brusni 20 taga yetkazing, triseps yetishmayapti |\n" +
+        "| Faqat qo'l bilan tortish | Kor va yelkani ham qo'shing |\n\n" +
+        "> **Diqqat:** Yelka bo'g'imiga katta yuk tushadi. Yelkada yoki tirsakda " +
+        "og'riq bo'lsa bu elementga umuman kirishmang — avval davolang."
     },
     {
-      id: 'sklepka', n: 'Yozilib ko\'tarilish', ru: 'ПОДЪЁМ РАЗГИБОМ (СКЛЁПКА)', lvl: 2,
+      id: 'sklepka', n: "Yozilib ko'tarilish", ru: 'ПОДЪЁМ РАЗГИБОМ (СКЛЁПКА)', lvl: 2,
       goal: '3 toza takror',
-      base: [{ n: 'Oyoq ko\'tarish', v: '10 ta' }, { n: 'Tortilish', v: '8 ta' }],
+      base: [
+        { n: 'Tortilish', v: '5-8 ta' },
+        { n: "Oyoqni turnikga tegizish", v: '10 ta' },
+        { n: 'Barqaror silkinish', v: 'kerak' }
+      ],
       yt: 'u__tT8654Mg',
-      md: "**Nima beradi:** gimnastik element. Kuch emas, TEXNIKA va vaqt " +
-        "(timing) hal qiladi — shuning uchun kuchi kam bo'lsa ham o'rganish mumkin.\n\n" +
+      md: "**Ishlaydigan mushaklar:** qorin, son bukuvchilari, keng orqa, yelka, panja.\n\n" +
+        "Gimnastik element. **Kuch emas, TEXNIKA hal qiladi** — manbalarda aniq " +
+        "yozilgan: 20 marta tortilish shart emas. Shuning uchun kuchi kam " +
+        "bo'lganlar ham o'rganishi mumkin.\n\n" +
         "## Bajarish\n" +
-        "1. Osilgan holatda oyoqni turnikga yaqin olib keling (deyarli tegizib).\n" +
-        "2. Chanoqni pastga tushirayotgandek qilib, oyoqni OLDINGA va YUQORIGA keskin yozing.\n" +
-        "3. Ayni o'sha lahzada qo'l bilan turnikni PASTGA bosing.\n" +
-        "4. Tana turnik ustiga chiqadi — upor holatida tugating.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Yozish va bosishni ALOHIDA qilish (ikkisi bir vaqtda bo'lishi shart)\n" +
-        "- Oyoqni yetarlicha yuqoriga olib bormaslik\n" +
-        "- Qo'lni bukib qolish — turnikni pastga bosish yo'qoladi\n\n" +
-        "> **Maslahat:** Bu elementda kuch emas, ANIQ LAHZA muhim. Sekin " +
-        "bajarib bo'lmaydi — bir zarb bilan qilinadi."
+        "**1. Silkinish.** Yengil mah hosil qiling. **Yelka BO'SH bo'lsin** — " +
+        "taranglashsa silkinish so'nadi.\n" +
+        "**2. Oldinga.** Oldinga silkinishda tik chiziqdan o'tayotib belni biroz buking.\n" +
+        "**3. O'lik nuqta.** Silkinishning eng oxirgi nuqtasini kuting — harakat " +
+        "bir lahza to'xtaydi.\n" +
+        "**4. Yozish.** O'sha lahzada oyoq UCHINI turnikga tortib, belni keskin " +
+        "yozing. Oyoqni ERTA olib kelmang — butun sir shunda.\n" +
+        "**5. Bosish.** Ayni paytda to'g'ri qo'l bilan turnikni PASTGA bosing. " +
+        "Inersiya sizni upor holatiga olib chiqadi.\n\n" +
+        "## Tayyorlov mashqlari\n" +
+        "1. **Toza silkinish** — yelka bo'sh, tana to'g'ri: 5 × 10 mah\n" +
+        "2. **Oyoqni turnikga tegizish** — silkinishsiz: 4 × 10\n" +
+        "3. **Past turnikda склёпка** — oyoq yerga tegib turadi: 5 × 5\n" +
+        "4. **Lyamka (tasma) bilan** — panja charchamaydi, ko'p takrorlash mumkin\n" +
+        "5. **Uporda turish** — 4 × 20 s\n\n" +
+        "## Tipik xatolar va yechimi\n" +
+        "| Xato | Yechim |\n" +
+        "|---|---|\n" +
+        "| Oyoqni erta olib kelish | O'lik nuqtani kuting, keyin yozing |\n" +
+        "| Qo'lni bukish | Qo'l TO'G'RI qolsin — bukilsa bosish yo'qoladi |\n" +
+        "| Chanoq turnikdan uzoq | Chanoqni turnikga tortib turing |\n" +
+        "| Yozish kuchsiz | Past turnikda oyoq yordami bilan mashq qiling |\n" +
+        "| Silkinish so'nadi | Yelkani bo'shating, tarang tutmang |\n\n" +
+        "> **Maslahat:** Sekin bajarib bo'lmaydi — bir zarb bilan qilinadi. " +
+        "Kuch emas, ANIQ LAHZA muhim.\n\n" +
+        "> **Diqqat:** Ko'p takrorlaganda panja bo'shab, turnikdan uchib ketish " +
+        "mumkin. Lyamka ishlating yoki yumshoq yerda mashq qiling."
     },
     {
-      id: 'kapitanskiy', n: 'Kapitan ko\'tarilishi', ru: 'КАПИТАНСКИЙ ПОДЪЁМ', lvl: 2,
-      goal: '3 takror',
-      base: [{ n: 'Tortilish', v: '10 ta' }, { n: 'Ag\'darilib ko\'tarilish', v: '3 ta' }],
+      id: 'kapitanskiy', n: "Kapitan ko'tarilishi", ru: 'КАПИТАНСКИЙ ПОДЪЁМ', lvl: 2,
+      goal: '3 takror (har ikki tomonga)',
+      base: [
+        { n: 'Tortilish', v: '10 ta' },
+        { n: 'Brus', v: '15 ta' },
+        { n: "Ag'darilib ko'tarilish", v: '3 ta' }
+      ],
       yt: '_qu9VvYYKKY',
-      md: "**Nima beradi:** ag'darilib ko'tarilish bilan chiqishning oralig'idagi " +
-        "element. Bir qo'l tayanch, ikkinchisi aylantiruvchi bo'lib ishlaydi.\n\n" +
+      md: "**Ishlaydigan mushaklar:** keng orqa, bitseps, yelka, qorin qiya mushaklari.\n\n" +
+        "Ag'darilib ko'tarilish bilan kuch bilan chiqish oralig'idagi element. " +
+        "Yuk ikkala qo'lga TENG tushmaydi: biri tayanch, ikkinchisi aylantiruvchi.\n\n" +
         "## Bajarish\n" +
-        "1. Osiling, tortilishni boshlang.\n" +
-        "2. Tanani BIR tomonga biroz burang — o'sha tomondagi qo'l tayanch bo'ladi.\n" +
-        "3. Tayanch qo'lga og'irlikni berib, ikkinchi qo'lni turnik ustiga olib chiqing.\n" +
-        "4. Tanani aylantirib upor holatiga chiqing.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Ikkala qo'lga teng yuk berishga urinish (element yo'qoladi)\n" +
-        "- Tanani burmaslik\n" +
-        "- Tayanch qo'lni bukib qo'yish\n\n" +
-        "> **Maslahat:** Ikki tomonga ham o'rganing — bir tomonlama mashq " +
-        "yelkalarni nomutanosib rivojlantiradi."
+        "**1. Osilish.** Yelka kengligida, tebranishsiz.\n" +
+        "**2. Tortish + burish.** Tortilayotib tanani BIR tomonga burang. " +
+        "O'sha tomondagi qo'l tayanch bo'ladi.\n" +
+        "**3. Tayanch.** Og'irlikni tayanch qo'lga bering, tirsagini turnik " +
+        "ustiga chiqaring.\n" +
+        "**4. Ikkinchi qo'l.** Erkin qo'lni turnik ustiga olib o'ting.\n" +
+        "**5. Yakun.** Tanani to'g'irlab upor holatiga chiqing.\n\n" +
+        "## Tayyorlov mashqlari\n" +
+        "1. **Bir qo'lga og'irlik berib tortilish** — tanani yon burib: 4 × 5 (har tomon)\n" +
+        "2. **Yarim chiqish** — bitta tirsakni turnik ustiga chiqarib ushlab turish: 4 × 5\n" +
+        "3. **Ag'darilib ko'tarilish** — 4 × 3\n" +
+        "4. **Uporda turish va tushish** — 4 × 20 s\n\n" +
+        "## Tipik xatolar va yechimi\n" +
+        "| Xato | Yechim |\n" +
+        "|---|---|\n" +
+        "| Ikkala qo'lga teng yuk | Tanani ANIQ bir tomonga burang |\n" +
+        "| Tayanch qo'l bukiladi | Tayanch qo'lni to'g'ri tuting |\n" +
+        "| Faqat kuchli tomonga mashq | Ikkala tomonga TENG mashq qiling |\n\n" +
+        "> **Maslahat:** Bir tomonlama mashq yelkalarni nomutanosib " +
+        "rivojlantiradi — har set'da tomonni almashtiring."
     },
     {
-      id: 'basket-kip', n: 'Ikki oyoqlab ko\'tarilish', ru: 'ПОДЪЁМ ДВУМЯ (BASKET KIP)', lvl: 2,
+      id: 'basket-kip', n: "Ikki oyoqlab ko'tarilish", ru: 'ПОДЪЁМ ДВУМЯ (BASKET KIP)', lvl: 2,
       goal: '3 takror',
-      base: [{ n: 'Yozilib ko\'tarilish', v: '3 ta' }, { n: 'Qorin', v: 'kuchli' }],
+      base: [
+        { n: 'Yozilib ko\'tarilish', v: '3 ta' },
+        { n: "Oyoqni turnikga tegizish", v: '15 ta' },
+        { n: 'Uporda turish', v: '20 s' }
+      ],
       yt: '0__Yu5qnkv8',
-      md: "**Nima beradi:** silkinish energiyasini ko'tarilishga aylantirishni " +
-        "o'rgatadi. Gimnastikada asosiy ko'nikmalardan.\n\n" +
+      md: "**Ishlaydigan mushaklar:** qorin, son bukuvchilari, keng orqa, yelka.\n\n" +
+        "Gimnastik \"kip\" oilasidan. Silkinish energiyasini ko'tarilishga " +
+        "aylantirishni o'rgatadi. `СКЛЁПКА` ning silkinishli, murakkabroq davomi.\n\n" +
         "## Bajarish\n" +
-        "1. Osilgan holda yengil silkinish (mah) hosil qiling.\n" +
-        "2. Oldinga silkinish oxirida oyoqni yig'ib, \"savat\" (basket) holatiga keling.\n" +
-        "3. Orqaga qaytishda oyoqni keskin yozing va turnikni pastga bosing.\n" +
-        "4. Tana turnik ustiga ko'tariladi.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Silkinish juda kuchli — nazorat yo'qoladi\n" +
-        "- Lahzani o'tkazib yuborish (kech yozish)\n" +
-        "- Yelkani bo'sh qoldirish\n\n" +
-        "> **Maslahat:** Avval `СКЛЁПКА` ni o'rganing — bu element o'shaning " +
-        "silkinishli davomi."
+        "**1. Mah.** Osilib yengil silkinish hosil qiling.\n" +
+        "**2. Savat.** Oldinga silkinish oxirida oyoqni yig'ib, tanani \"savat\" " +
+        "(basket) shakliga keltiring — chanoq turnikga yaqin, oyoq yuqorida.\n" +
+        "**3. Kutish.** O'lik nuqtani kuting.\n" +
+        "**4. Yozish.** Orqaga qaytishda oyoqni keskin OLDINGA va YUQORIGA yozing.\n" +
+        "**5. Bosish.** Ayni paytda turnikni pastga bosing — tana ustiga chiqadi.\n\n" +
+        "## Tayyorlov mashqlari\n" +
+        "1. **Savat holatida ushlab turish** — 4 × 10 s\n" +
+        "2. **Savatdan yozish** (upor holatiga chiqmasdan) — 4 × 8\n" +
+        "3. **Склёпка** — 4 × 3\n" +
+        "4. **Past turnikda to'liq harakat** — 5 × 3\n\n" +
+        "## Tipik xatolar va yechimi\n" +
+        "| Xato | Yechim |\n" +
+        "|---|---|\n" +
+        "| Silkinish juda kuchli | Kichik mahdan boshlang — nazorat muhimroq |\n" +
+        "| Kech yozish | O'lik nuqtada yozing, undan keyin emas |\n" +
+        "| Savat holati bo'sh | Chanoqni turnikga tortib, qorinni siqing |\n\n" +
+        "> **Maslahat:** Avval `СКЛЁПКА` ni o'zlashtiring — bu element o'shaning " +
+        "davomi va tayyorgarliksiz chiqmaydi."
     },
     {
       id: 'oficerskiy', n: 'Ofitser chiqishi', ru: 'ОФИЦЕРСКИЙ ВЫХОД', lvl: 3,
       goal: '3 takror (har ikki tomonga)',
-      base: [{ n: 'Kuch bilan chiqish', v: '3 ta' }, { n: 'Tortilish', v: '12 ta' }],
+      base: [
+        { n: 'Tortilish', v: '12-15 ta' },
+        { n: 'Brus', v: '20 ta' },
+        { n: 'Kuch bilan chiqish', v: '3 ta' }
+      ],
       yt: '283MrPe5LxQ',
-      md: "**Nima beradi:** kuch bilan chiqishning nazoratli, \"chiroyli\" shakli — " +
-        "qo'llar navbat bilan, lekin SEKIN va toza o'tadi.\n\n" +
+      md: "**Ishlaydigan mushaklar:** yelka, bilak, keng orqa, triseps, panja.\n\n" +
+        "\"Dembel chiqishi\" deb ham ataladi. Kuch bilan chiqishning bir qo'lli, " +
+        "NAZORATLI shakli — qo'llar navbat bilan, lekin sekin va toza o'tadi. " +
+        "Boshqa ko'plab chiqish turlariga asos bo'ladi.\n\n" +
         "## Bajarish\n" +
-        "1. Kuchli tortiling, ko'krakni turnikga yaqinlashtiring.\n" +
-        "2. Bir qo'lni turnik ustiga NAZORAT bilan chiqaring — silkinishsiz.\n" +
-        "3. Bir lahza shu holatda turing (aynan shu qism elementni ofitser qiladi).\n" +
-        "4. Ikkinchi qo'lni ham chiqarib, upor holatiga turing.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Silkinish bilan bajarish — u holda bu `детский выход` bo'lib qoladi\n" +
-        "- Faqat bitta kuchli tomonga mashq qilish\n" +
-        "- Yelkani oldinga cho'zib yuborish\n\n" +
-        "> **Maslahat:** Farqi TEZLIKDA emas, NAZORATDA. Sekin bajarilsa ham " +
-        "toza bo'lishi kerak."
+        "**1. Ushlash.** Ikkala qo'l ustidan yoki aralash (biri ustidan, biri " +
+        "pastdan) — aralash ushlash osonroq.\n" +
+        "**2. Tortish.** Baland tortiling, turnik ko'krakka yaqin kelsin.\n" +
+        "**3. Birinchi qo'l.** Bir tirsakni turnik USTIGA chiqaring — silkinishsiz, " +
+        "nazorat bilan.\n" +
+        "**4. Ushlab turish.** Bir lahza shu holatda turing. **Aynan shu qism " +
+        "elementni \"ofitser\" qiladi** — silkinib o'tilsa bu `детский выход`.\n" +
+        "**5. Ikkinchi qo'l.** Ikkinchi tirsakni ham chiqarib, upor holatiga turing.\n\n" +
+        "## Tayyorlov mashqlari\n" +
+        "1. **Bir qo'lda upor** (turnik ustida tirsak) ushlab turish: 4 × 10 s har tomon\n" +
+        "2. **Brusda oldinga siljib otjimaniya** — 4 × 10\n" +
+        "3. **Yerda orqa tayanch** (bilak kuchi uchun) — 4 × 20 s\n" +
+        "4. **Kuch bilan chiqish** — 4 × 2\n" +
+        "5. **Rezina bilan sekin chiqish** — nazoratni o'rgatadi: 4 × 3\n\n" +
+        "## Tipik xatolar va yechimi\n" +
+        "| Xato | Yechim |\n" +
+        "|---|---|\n" +
+        "| Silkinib bajarish | Sekinlating — farq TEZLIKDA emas, NAZORATDA |\n" +
+        "| Bir qo'lda kuch yetmaydi | \"Bir qo'lda upor\" ushlab turishni ko'paytiring |\n" +
+        "| Bilak og'riydi | Bilakni alohida isiting, aralash ushlashga o'ting |\n" +
+        "| Faqat bitta tomonga | Har set'da tomonni almashtiring |\n\n" +
+        "> **Diqqat:** Bilak va yelka bo'g'imiga katta yuk tushadi — isinmasdan " +
+        "urinmang."
     },
     {
-      id: 'zamok', n: 'Orqaga silkinib ko\'tarilish', ru: 'ПОДЪЁМ МАХОМ НАЗАД (ЗАМОК)', lvl: 3,
+      id: 'zamok', n: "Orqaga silkinib ko'tarilish", ru: 'ПОДЪЁМ МАХОМ НАЗАД (ЗАМОК)', lvl: 3,
       goal: '3 takror',
-      base: [{ n: 'Ikki oyoqlab ko\'tarilish', v: '3 ta' }, { n: 'Upor', v: 'barqaror' }],
+      base: [
+        { n: "Ikki oyoqlab ko'tarilish", v: '3 ta' },
+        { n: 'Uporda turish', v: '30 s' },
+        { n: 'Barqaror silkinish', v: 'kerak' }
+      ],
       yt: 'GvJe3MVk6tY',
-      md: "**Nima beradi:** silkinishning ORQA nuqtasidan foydalanib ko'tarilish. " +
-        "\"Замок\" (qulf) deb atalishiga sabab — tana turnik atrofida qulflanadi.\n\n" +
+      md: "**Ishlaydigan mushaklar:** yelka, keng orqa, kor, panja.\n\n" +
+        "Silkinishning ORQA nuqtasidan foydalanib ko'tarilish. Manbalarda " +
+        "\"qo'lni bukmasdan, tana inersiyasi bilan bajariladigan itarish\" deb " +
+        "ta'riflanadi — ya'ni tortilish YO'Q.\n\n" +
         "## Bajarish\n" +
-        "1. Osilib silkinishni boshlang.\n" +
-        "2. ORQAGA silkinishning eng yuqori nuqtasini kuting.\n" +
-        "3. O'sha lahzada turnikni pastga bosib, chanoqni turnikga yaqinlashtiring.\n" +
-        "4. Tana turnik ustiga chiqib, upor holatida qulflanadi.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Oldinga silkinishda urinish (kuch teskari ishlaydi)\n" +
-        "- Chanoqni uzoq tutish\n" +
-        "- Panja ushlashini bo'shatib yuborish — tushib ketish xavfi\n\n" +
-        "> **Diqqat:** Bu elementda panja bo'shasa turnikdan uchib ketish mumkin. " +
-        "Past turnikda, yumshoq yerda o'rganing."
+        "**1. Silkinish.** Osilib bir tekis mah hosil qiling.\n" +
+        "**2. Orqaga.** ORQAGA silkinishning eng yuqori nuqtasini kuting. " +
+        "(Oldinga silkinishda urinsangiz kuch teskari ishlaydi.)\n" +
+        "**3. Bosish.** O'sha lahzada to'g'ri qo'l bilan turnikni pastga bosing " +
+        "va chanoqni turnikga yaqinlashtiring.\n" +
+        "**4. Qulflash.** Tana turnik ustiga chiqadi va upor holatida \"qulflanadi\" " +
+        "— nomi shundan.\n\n" +
+        "## Tayyorlov mashqlari\n" +
+        "1. **Past turnikda oyoq yordami bilan** — harakat yo'lini o'rganish: 5 × 5\n" +
+        "2. **Uporda turish va sekin tushish** — 4 × 20 s\n" +
+        "3. **Orqaga mah nazorati** — faqat silkinish, ko'tarilishsiz: 5 × 10\n" +
+        "4. **Turnikni pastga bosish** (to'g'ri qo'lda) — 4 × 8\n\n" +
+        "## Tipik xatolar va yechimi\n" +
+        "| Xato | Yechim |\n" +
+        "|---|---|\n" +
+        "| Oldinga silkinishda urinish | Faqat ORQA nuqtada bajaring |\n" +
+        "| Qo'lni bukish | Qo'l to'g'ri — bu tortilish emas, itarish |\n" +
+        "| Chanoq uzoqda | Chanoqni turnikga tortib turing |\n\n" +
+        "> **Diqqat:** Panja bo'shasa turnikdan uchib ketish mumkin. Past " +
+        "turnikda, yumshoq yerda o'rganing."
     },
     {
       id: 'iz-pod', n: 'Turnik ostidan chiqish', ru: 'ВЫХОД ИЗ-ПОД ТУРНИКА', lvl: 3,
       goal: '1 toza takror',
-      base: [{ n: 'Kuch bilan chiqish', v: '5 ta' }, { n: 'Yelka', v: 'harakatchan' }],
+      base: [
+        { n: 'Kuch bilan chiqish', v: '5 ta' },
+        { n: 'Yelka harakatchanligi', v: "to'liq" },
+        { n: 'Brus', v: '20 ta' }
+      ],
       yt: 'ZTbaiTzMRJw',
-      md: "**Nima beradi:** g'ayrioddiy boshlang'ich holatdan chiqish — yelka " +
-        "harakatchanligini va fazoviy tuyg'uni rivojlantiradi.\n\n" +
+      md: "**Ishlaydigan mushaklar:** yelka (to'liq aylana), keng orqa, kor, panja.\n\n" +
+        "G'ayrioddiy boshlang'ich holatdan chiqish. Yelka harakatchanligini va " +
+        "fazoviy tuyg'uni rivojlantiradi.\n\n" +
         "## Bajarish\n" +
-        "1. Turnikning ORQA tomonidan, teskari holatda osiling.\n" +
-        "2. Silkinish bilan tanani turnik ostidan oldinga olib chiqing.\n" +
-        "3. Ayni lahzada kuchli tortilib, qo'lni turnik ustiga aylantiring.\n" +
-        "4. Upor holatiga chiqing.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Yelkani isitmasdan urinish — jarohat xavfi yuqori\n" +
-        "- Silkinishni kuch bilan almashtirishga urinish\n" +
-        "- Turnikni juda tor ushlash\n\n" +
+        "**1. Boshlang'ich.** Turnikning ORQA tomonidan, tana turnik ostida " +
+        "qoladigan qilib osiling.\n" +
+        "**2. Mah.** Silkinish bilan tanani turnik ostidan OLDINGA olib chiqing.\n" +
+        "**3. Tortish.** Ayni lahzada kuchli tortiling — turnik ko'krakka kelsin.\n" +
+        "**4. Aylantirish.** Bilakni turnik ustiga aylantiring.\n" +
+        "**5. Itarish.** Tirsakni to'g'irlab upor holatiga chiqing.\n\n" +
+        "## Tayyorlov mashqlari\n" +
+        "1. **Yelka aylanmasi** (tayoq/rezina bilan) — har mashg'ulotdan oldin: 3 × 10\n" +
+        "2. **Past turnikda ostidan chiqish** — oyoq yordami bilan: 5 × 3\n" +
+        "3. **Kuch bilan chiqish** — 4 × 3\n" +
+        "4. **Orqa tayanchda cho'zilish** — yelka ochilishi uchun: 3 × 30 s\n\n" +
+        "## Tipik xatolar va yechimi\n" +
+        "| Xato | Yechim |\n" +
+        "|---|---|\n" +
+        "| Yelka yetishmaydi | Avval harakatchanlik ustida ishlang, elementga shoshilmang |\n" +
+        "| Silkinishni kuch bilan almashtirish | Mah kerak — faqat kuch bilan chiqmaydi |\n" +
+        "| Turnikni tor ushlash | Kengroq ushlang, yelkaga joy bo'lsin |\n\n" +
         "> **Diqqat:** Yelka bo'g'imi noqulay burchakda ishlaydi. Yelka " +
-        "harakatchanligi yetarli bo'lmasa bu elementga kirishmang."
+        "harakatchanligi yetarli bo'lmasa bu elementga KIRISHMANG — " +
+        "bo'g'im shikastlanishi mumkin."
     },
     {
       id: 'cast-monkey', n: 'Upordan manki', ru: 'МАНКИ ИЗ УПОРА (CAST MONKEY)', lvl: 3,
       goal: '1 toza takror',
-      base: [{ n: 'Upor', v: 'barqaror' }, { n: 'Kuch bilan chiqish', v: '5 ta' }],
+      base: [
+        { n: 'Uporda turish', v: '30 s' },
+        { n: 'Kuch bilan chiqish', v: '5 ta' },
+        { n: "Ag'darilib ko'tarilish", v: '5 ta' }
+      ],
       yt: '6yzDG7AiM-4',
-      md: "**Nima beradi:** friston (freestyle) elementlariga kirish. Tana " +
-        "turnikdan butunlay uzilib, qaytadan ushlanadi.\n\n" +
+      md: "**Ishlaydigan mushaklar:** yelka, kor, panja, butun tana muvofiqligi.\n\n" +
+        "Friston (freestyle) elementlariga kirish. Tana turnikdan BUTUNLAY " +
+        "uziladi va qaytadan ushlanadi — shuning uchun ro'yxatdagi eng xavfli " +
+        "element.\n\n" +
         "## Bajarish\n" +
-        "1. Upor holatida turing (qo'l to'g'ri, tana turnik ustida).\n" +
-        "2. Chanoqni orqaga uloqtirib (cast) tanani turnikdan uzoqlashtiring.\n" +
-        "3. Qaytish energiyasidan foydalanib turnikni qo'yib yuboring.\n" +
-        "4. Tana turnik atrofida aylanadi — qayta ushlab osilib qoling.\n\n" +
-        "## Tipik xatolar\n" +
-        "- Turnikni juda erta qo'yib yuborish\n" +
-        "- Cast (uloqtirish) kuchsiz — aylanishga energiya yetmaydi\n" +
-        "- Yumshoq yer tayyorlamaslik\n\n" +
-        "> **Diqqat:** Bu ro'yxatdagi ENG XAVFLI element — tana turnikdan " +
-        "uziladi. Faqat past turnikda, yumshoq yerda va imkoni bo'lsa " +
-        "sherik bilan o'rganing."
+        "**1. Upor.** To'g'ri qo'lda barqaror upor holatida turing.\n" +
+        "**2. Cast.** Chanoqni orqaga uloqtirib tanani turnikdan uzoqlashtiring — " +
+        "bu harakat kuchli bo'lishi kerak, aylanish energiyasi shundan keladi.\n" +
+        "**3. Qaytish.** Tana qaytib kelayotganda inersiyani his qiling.\n" +
+        "**4. Qo'yib yuborish.** Aniq lahzada turnikni qo'yib yuboring.\n" +
+        "**5. Qayta ushlash.** Tana turnik atrofida aylanadi — ushlab osilib qoling.\n\n" +
+        "## Tayyorlov mashqlari\n" +
+        "1. **Uporda cast** (qo'yib yubormasdan) — 5 × 8\n" +
+        "2. **Past turnikda to'liq harakat** — oyoq yerga yetadigan balandlikda: 5 × 3\n" +
+        "3. **Qo'yib yuborib qayta ushlash** (osilgan holatda, kichik) — 4 × 5\n" +
+        "4. **Uporda turish** — 4 × 30 s\n\n" +
+        "## Tipik xatolar va yechimi\n" +
+        "| Xato | Yechim |\n" +
+        "|---|---|\n" +
+        "| Erta qo'yib yuborish | Cast eng yuqori nuqtaga chiqsin, keyin qo'ying |\n" +
+        "| Cast kuchsiz | Chanoqni kuchliroq uloqtiring |\n" +
+        "| Qayta ushlashda adashish | Past turnikda ko'p takrorlang |\n\n" +
+        "> **Diqqat:** RO'YXATDAGI ENG XAVFLI ELEMENT. Tana turnikdan uziladi — " +
+        "noto'g'ri tushish jiddiy jarohatga olib keladi. Faqat past turnikda, " +
+        "yumshoq yerda (mat yoki qum) va iloji bo'lsa SHERIK bilan o'rganing. " +
+        "Charchagan holatda urinmang."
     }
   ];
 
