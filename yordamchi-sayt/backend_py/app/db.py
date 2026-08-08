@@ -88,12 +88,25 @@ class tx:
 # --- Schema init (bir martalik) ---------------------------------------------
 
 def _split_statements(sql: str) -> list[str]:
+    """`;` bo'yicha ajratadi. Izohlar OLDIN olib tashlanadi.
+
+    Nega shunday: ilgari avval `;` bo'yicha bo'linib, keyin izoh qatorlari
+    filtrlanardi. Agar izoh ichida `;` bo'lsa (o'zbekcha matnda tabiiy),
+    izoh qatori o'rtasidan kesilib, ikkinchi bo'lagi endi `--` bilan
+    boshlanmasdi va SQL deb bajarilardi. Natijada butun schema init
+    sintaksis xatosi bilan yiqilardi — ya'ni ALTER'lar qo'llanmay qolardi.
+    """
+    lines = []
+    for ln in sql.splitlines():
+        s = ln.strip()
+        if s.startswith("--"):
+            continue                       # butun qator izoh
+        lines.append(ln)
+    clean = "\n".join(lines)
+
     out: list[str] = []
-    for raw in sql.split(";"):
-        # `--` qatorli izohlarni chiqarib tashlab, haqiqiy SQL borligini tekshiramiz
-        # (faqat izohdan iborat bo'lak bajarilmaydi).
-        code = "\n".join(ln for ln in raw.splitlines() if not ln.strip().startswith("--"))
-        if code.strip():
+    for raw in clean.split(";"):
+        if raw.strip():
             out.append(raw.strip())
     return out
 

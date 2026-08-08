@@ -85,7 +85,11 @@ def _build_data(ctx: dict) -> dict[str, list]:
     rows = db.fetch_all(
         "SELECT id, category, name, description, weight, increase_amount, set_count, rep_count, "
         "progress_type, progress_mode, start_date, start_time, end_time, updated_at "
-        "FROM sport_exercises WHERE owner_type = :ot AND owner_key = :ok AND is_deleted = 0 ORDER BY id ASC",
+        # `sort_order` — qo'lda belgilangan tartib (kichigi yuqorida).
+        # Standart 0 bo'lgani uchun belgilanmagan mashqlar avvalgidek
+        # `id` bo'yicha, ya'ni qo'shilish tartibida chiqadi.
+        "FROM sport_exercises WHERE owner_type = :ot AND owner_key = :ok AND is_deleted = 0 "
+        "ORDER BY sort_order ASC, id ASC",
         {"ot": ctx["owner_type"], "ok": ctx["owner_key"]},
     )
     if not rows:

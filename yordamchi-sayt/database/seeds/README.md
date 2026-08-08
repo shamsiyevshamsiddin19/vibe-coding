@@ -28,6 +28,15 @@ nusxa qo'shmaydi, faqat yetishmayotganini qo'shadi.
 | `press_exercises.py` | "Press / Qorin" kategoriyasiga 12 ta mashq (tavsif, set/takror) |
 | `press_rolik.py` | "Rolik (ab wheel)" mashqi + rasm va video |
 | `press_media.py` | 12 ta press mashqiga YouTube darsligi va old ko'rinish rasmi |
+| `squat_bodyweight.py` | Prisedaniye (squat) — shtangadan O'Z VAZNI bilan takrorga o'tkazish |
+
+## Eslatma — mashq NOMINI o'zgartirmang
+
+`squat_bodyweight.py` mashq turini o'zgartiradi, lekin **nomiga tegmaydi**.
+Sabab: `activity_log` yozuvlari va Boostday↔Sport bog'lanishi NOM bo'yicha
+ishlaydi (`backend_py/app/handlers/sport.py::_today_boost_done`). Nom
+o'zgarsa bajarilgan kunlar tarixi uzilib qoladi va Telegramda belgilangan
+vazifa saytdagi mashq bilan mos kelmay qo'yadi.
 
 ## Eslatma — video ID lari
 

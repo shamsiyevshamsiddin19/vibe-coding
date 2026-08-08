@@ -421,6 +421,12 @@ ALTER TABLE sport_exercises ADD COLUMN IF NOT EXISTS progress_mode VARCHAR(16) N
 
 ALTER TABLE sport_exercises ADD COLUMN IF NOT EXISTS start_date DATE DEFAULT NULL;
 
+-- Ro'yxatdagi tartib. Ilgari mashqlar faqat `id` bo'yicha chiqardi, ya'ni
+-- yangi qo'shilgani DOIM eng pastga tushardi va tartibni o'zgartirib
+-- bo'lmasdi. Kichik qiymat — yuqorida. Standart 0, shuning uchun mavjud
+-- mashqlar tartibi o'zgarmaydi; tepaga chiqarish uchun manfiy qiymat.
+ALTER TABLE sport_exercises ADD COLUMN IF NOT EXISTS sort_order INT NOT NULL DEFAULT 0;
+
 -- Faoliyat jurnali: barcha bo'limlarda qilingan ishning yagona yozuvi (Tarix/Grafik/Heatmap
 -- bo'limlari shunga tayanadi). Har qator — bitta voqea (test yakunlandi, mashq belgilandi,
 -- mavzu o'qildi va h.k.), UI'da kun/bo'lim bo'yicha guruhlanadi va yig'iladi.
