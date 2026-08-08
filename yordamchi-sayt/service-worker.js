@@ -12,7 +12,7 @@
  *     (`CACHEABLE_POST`). YOZISH so'rovlari HECH QACHON keshlanmaydi —
  *     offline'da ular xato beradi va ilova o'z navbatiga qo'yadi.
  */
-const VERSION = '20260807new7';
+const VERSION = '20260808new1';
 const SHELL_CACHE = 'yordamchi-shell-' + VERSION;
 const DATA_CACHE = 'yordamchi-data-' + VERSION;
 

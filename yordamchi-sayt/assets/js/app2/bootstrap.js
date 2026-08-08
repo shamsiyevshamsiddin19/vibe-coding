@@ -163,35 +163,28 @@
     if (list[i]) App.go(list[i]);
   }
 
-  /* ---------- Surib almashtirish uchun ALOHIDA tartib ----------
-     Bosh sahifa — MARKAZ. Fikr shunday: ba'zi bo'limlar bosh sahifadan
-     O'NGDA, ba'zilari CHAPDA turadi:
-         <- Arxiv <- Kun hisobi <- [BOSH] -> Maqsad -> Statistika ->
-     Ro'yxat AYLANMA: bosh sahifada turib ikkala tomonga ham surish
-     mumkin. Ilgari bosh sahifa ro'yxatning boshida edi va `goIndex`
-     chetga qisib qo'yardi — shuning uchun chapga surish umuman
-     ishlamasdi.
-     `settings` ataylab chiqarilgan: tasodifan surib Sozlamalarga
-     tushib qolmaslik uchun (u yon panel va "Yana" dan ochiladi). */
-  var SWIPE_LEFT = ['arxiv', 'kun'];
+  /* ---------- Surib almashtirish: QAT'IY BESH BO'LIMLI YO'L ----------
+     Faqat shu yo'lda ishlaydi va chetidan CHIQMAYDI:
 
-  function swipeList() {
-    var vis = navList();
-    var has = function (v) { return vis.indexOf(v) >= 0; };
-    var left = SWIPE_LEFT.filter(has);
-    var right = vis.filter(function (v) {
-      return v !== 'home' && v !== 'settings' && left.indexOf(v) < 0;
-    });
-    // Chapdagilar ro'yxat OXIRIGA teskari tartibda qo'yiladi, shunda
-    // bosh sahifadan orqaga surilganda birinchi bo'lib `left[0]` chiqadi.
-    return ['home'].concat(right, left.slice().reverse());
-  }
+         Kun hisobi <- Arxiv <- [BOSH SAHIFA] -> Maqsad -> Statistika
 
-  /* Aylanma o'tish — chetga yetganda ikkinchi uchidan davom etadi. */
-  function goWrap(list, i) {
-    if (!list.length) return;
-    var n = ((i % list.length) + list.length) % list.length;
-    if (list[n]) App.go(list[n]);
+     Ikki qoida:
+       1) Ro'yxatdan TASHQARIDAGI bo'limda (Sport, Boostday, Learn...)
+          surish umuman ishlamaydi — o'sha bo'limlarning o'z gorizontal
+          elementlari bor va tasodifiy o'tib ketish bezovta qilardi.
+       2) Aylanma EMAS: `Statistika` dan o'ngga yoki `Kun hisobi` dan
+          chapga surilsa hech qayerga o'tmaydi.
+
+     Ro'yxat `navList()` dan MUSTAQIL: bu ataylab qisqa, tez-tez ochiladigan
+     bo'limlar yo'li — yon paneldagi to'liq tartib bilan aralashtirilmaydi. */
+  var SWIPE_PATH = ['kun', 'arxiv', 'home', 'goals', 'stats'];
+
+  /* Joriy bo'lim shu yo'lning qaysi o'rnida (-1 = yo'lda yo'q). */
+  function swipeIndex() {
+    var active = document.querySelector('.botnav a.active, .side-link.active');
+    var v = active ? active.getAttribute('data-nav') : null;
+    if (!v || v === '__more__') v = App.currentView && App.currentView();
+    return SWIPE_PATH.indexOf(v);
   }
 
   /* ---------- 1) Pastki paneldagi g'ildirak ---------- */
@@ -288,7 +281,7 @@
     if (!page || page._swipeBound) return;
     page._swipeBound = true;
 
-    var sx = 0, sy = 0, on = false, list = null;
+    var sx = 0, sy = 0, on = false;
 
     /* Gorizontal siljiydigan yoki matn tanlanadigan joylarda ishlamasin —
        aks holda heatmap lentasi, chiplar va inputlar buzilardi. */
@@ -308,8 +301,10 @@
 
     page.addEventListener('touchstart', function (e) {
       if (e.touches.length !== 1 || blocked(e.target)) { on = false; return; }
+      // Yo'ldan tashqaridagi bo'limda umuman kuzatmaymiz
+      if (swipeIndex() < 0) { on = false; return; }
       sx = e.touches[0].clientX; sy = e.touches[0].clientY;
-      on = true; list = swipeList();
+      on = true;
     }, { passive: true });
 
     page.addEventListener('touchend', function (e) {
@@ -319,10 +314,14 @@
       var dx = t.clientX - sx, dy = t.clientY - sy;
       // Aniq gorizontal harakat bo'lsagina: uzunligi yetarli va burchagi tor
       if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.6) return;
-      var i = currentIndex(list);
-      // Barmoq chapga -> o'ngdagi bo'lim keladi (Maqsad, Statistika...)
-      // Barmoq o'ngga -> chapdagi bo'lim keladi (Arxiv, Kun hisobi...)
-      goWrap(list, dx < 0 ? i + 1 : i - 1);
+
+      var i = swipeIndex();
+      if (i < 0) return;
+      // Barmoq chapga -> o'ngdagi bo'lim (Maqsad, Statistika)
+      // Barmoq o'ngga -> chapdagi bo'lim (Arxiv, Kun hisobi)
+      var j = dx < 0 ? i + 1 : i - 1;
+      if (j < 0 || j >= SWIPE_PATH.length) return;   // chetdan chiqmaydi
+      App.go(SWIPE_PATH[j]);
     }, { passive: true });
   }
 
