@@ -37,14 +37,17 @@ def _clean_lang(value) -> str:
 
 
 def split_folder(raw: str) -> tuple[str, str]:
-    """"Zamonlar/Present Simple" -> ("Zamonlar", "Present Simple").
+    """"Asosiy/Zamonlar/Present Simple" -> ("Asosiy/Zamonlar", "Present Simple").
 
     Ajratish FAQAT shu yerda (mavzu qo'shish/nomini o'zgartirishda) bajariladi
     va natija alohida ustunlarga yoziladi. Shuning uchun nomning ichidagi "/"
     (masalan "идти / ходить") keyinchalik papka deb talqin qilinmaydi.
+
+    OXIRGI "/" bo'yicha ajratiladi (birinchi emas) — shunda ichma-ich papka
+    yo'li ("A/B/Mavzu nomi") to'g'ri bo'linadi: folder="A/B", name="Mavzu nomi".
     """
     name = (raw or "").strip()
-    i = name.find("/")
+    i = name.rfind("/")
     if i < 0:
         return "", name
     folder = name[:i].strip()

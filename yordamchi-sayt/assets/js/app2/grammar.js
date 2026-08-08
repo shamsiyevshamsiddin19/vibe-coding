@@ -32,23 +32,50 @@
       '</div>';
   }
 
-  /* ---------- Papkalar ----------
+  /* ---------- Papkalar (ichma-ich) ----------
      Foydalanuvchi "Zamonlar/Present Simple" deb yozsa, backend uni ajratib,
      papkani ALOHIDA `folder` ustuniga yozadi. Frontend nomni o'zi bo'lmaydi —
      chunki mavzu nomining ichida ham "/" bo'lishi mumkin
-     ("идти / ходить", "Этот/эта/это/эти") va bo'lish ularni buzardi. */
+     ("идти / ходить", "Этот/эта/это/эти") va bo'lish ularni buzardi.
 
-  /* Ro'yxatni papkalarga ajratadi: {folders: [{name, items}], root: [...]} */
-  function groupTopics(topics) {
-    var order = [], map = {}, root = [];
+     `folder` TO'LIQ YO'L: "Grammatika/Zamonlar". vocab.js dagi bilan bir xil
+     naqsh — pathParent/lastSeg/childSeg orqali istalgan chuqurlikda navigatsiya. */
+  function pathParent(p) {
+    var s = String(p || ''); var i = s.lastIndexOf('/');
+    return i < 0 ? '' : s.slice(0, i);
+  }
+  function lastSeg(p) {
+    var s = String(p || ''); var i = s.lastIndexOf('/');
+    return i < 0 ? s : s.slice(i + 1);
+  }
+  /* `base` ichidagi BEVOSITA keyingi bo'lak. base='' bo'lsa — ildizdagi 1-bo'lak. */
+  function childSeg(base, path) {
+    var p = String(path || '');
+    if (base) {
+      if (p !== base && p.indexOf(base + '/') !== 0) return null;
+      p = p.slice(base.length + 1);
+    }
+    if (!p) return null;
+    var i = p.indexOf('/');
+    return i < 0 ? p : p.slice(0, i);
+  }
+
+  /* Joriy papka (`cur`) ichidagi bevosita ichki papkalar + bevosita mavzular. */
+  function groupTopics(topics, cur) {
+    var direct = [], subOrder = [], subCount = {};
     topics.forEach(function (t) {
       var f = (t.folder || '').trim();
-      var item = { id: t.id, name: t.name, folder: f };
-      if (!f) { root.push(item); return; }
-      if (!map[f]) { map[f] = []; order.push(f); }
-      map[f].push(item);
+      if (f === cur) { direct.push({ id: t.id, name: t.name, folder: f }); return; }
+      var child = childSeg(cur, f);
+      if (!child) return;
+      var path = cur ? cur + '/' + child : child;
+      if (!subCount[path]) { subCount[path] = 0; subOrder.push(path); }
+      subCount[path]++;
     });
-    return { folders: order.map(function (f) { return { name: f, items: map[f] }; }), root: root };
+    return {
+      folders: subOrder.map(function (p) { return { path: p, name: lastSeg(p), count: subCount[p] }; }),
+      root: direct
+    };
   }
 
   function topicRow(t, lang) {
@@ -65,50 +92,41 @@
     render: function (page, params) {
       var lang = normLang(params.lang);
       var folder = params.folder || '';
+      var parent = pathParent(folder);
       var backView = folder ? 'grammar' : getBackView(lang);
-      var backParams = folder ? { lang: lang } : null;
+      var backParams = folder ? (parent ? { lang: lang, folder: parent } : { lang: lang }) : null;
       // Papka ichida bo'lsak, yangi mavzu o'sha papkaga qo'shiladi
       var plusBtn = '<button class="icon-btn ghost" data-act="topicAdd" data-arg=\'' +
         App.arg({ lang: lang, folder: folder }) + '\' style="margin-left:auto"><span data-icon="plus" data-icon-size="20"></span></button>';
-      page.innerHTML = topbar(folder || getLangLabel(lang), backView, backParams, plusBtn) +
+      page.innerHTML = topbar(folder ? lastSeg(folder) : getLangLabel(lang), backView, backParams, plusBtn) +
         '<div id="topic-list"><div class="load-wrap"><div class="spinner"></div></div></div>';
       App.icons(page);
 
       App.call('get_topics', null, { query: 'lang=' + lang }).then(function (j) {
         var box = App.el('topic-list'); if (!box) return;
         var topics = j.topics || [];
-        var g = groupTopics(topics);
+        var g = groupTopics(topics, folder);
 
-        // --- Papka ichi ---
-        if (folder) {
-          var f = g.folders.filter(function (x) { return x.name === folder; })[0];
-          var items = f ? f.items : [];
-          if (!items.length) {
-            box.innerHTML = App.empty({ icon: 'book', title: 'Bo\'sh papka', text: 'Tepadagi + tugma bilan mavzu qo\'shing.' });
-            App.icons(box); return;
-          }
-          box.innerHTML = items.map(function (t) { return topicRow(t, lang); }).join('');
+        if (!g.folders.length && !g.root.length) {
+          box.innerHTML = folder
+            ? App.empty({ icon: 'book', title: 'Bo\'sh papka', text: 'Tepadagi + tugma bilan mavzu qo\'shing.' })
+            : App.empty({ icon: 'book', title: 'Mavzu yo\'q', text: 'Tepadagi + tugma bilan qo\'shing. Papka uchun: "Zamonlar/Present Simple".' });
           App.icons(box); return;
         }
 
-        // --- Ildiz: papkalar + papkasiz mavzular ---
-        if (!topics.length) {
-          box.innerHTML = App.empty({ icon: 'book', title: 'Mavzu yo\'q', text: 'Tepadagi + tugma bilan qo\'shing. Papka uchun: "Zamonlar/Present Simple".' });
-          App.icons(box); return;
-        }
         var html = '';
         if (g.folders.length) {
           html += g.folders.map(function (f) {
             return '<button class="list-row" data-act="go" data-arg=\'' +
-              App.arg({ v: 'grammar', p: { lang: lang, folder: f.name } }) + '\'>' +
+              App.arg({ v: 'grammar', p: { lang: lang, folder: f.path } }) + '\'>' +
               '<span class="li-ic" style="background:var(--accent-soft);color:var(--accent)" data-icon="archive" data-icon-size="15"></span>' +
               '<div class="li-main"><div class="li-title">' + App.esc(f.name) + '</div>' +
-              '<div class="li-sub">' + f.items.length + ' ta mavzu</div></div>' +
+              '<div class="li-sub">' + f.count + ' ta mavzu</div></div>' +
               '<span class="li-chev" data-icon="arrowLeft" data-icon-size="16" style="transform:rotate(180deg)"></span></button>';
           }).join('');
         }
         if (g.root.length) {
-          if (g.folders.length) html += '<div class="list-label">Papkasiz</div>';
+          if (g.folders.length) html += '<div class="list-label">' + (folder ? 'Mavzular' : 'Papkasiz') + '</div>';
           html += g.root.map(function (t) { return topicRow(t, lang); }).join('');
         }
         box.innerHTML = html;
