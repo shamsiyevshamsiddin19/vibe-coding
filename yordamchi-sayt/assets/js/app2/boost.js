@@ -1390,11 +1390,16 @@
      bir nechta mavzuga ega bo'lishi mumkin (checkbox), lekin har mavzu
      faqat BITTA kanalga tegishli bo'ladi — boshqa kanalda belgilansa,
      eskisidan avtomatik olib tashlanadi (bot tomonida). */
+  /* ⚠️ Yangi mavzu qo'shilsa — bot tomonidagi `webapp.py::CHANNEL_TOPICS`
+     ro'yxatiga ham QO'SHISH SHART. U qat'iy whitelist: ro'yxatda yo'q mavzu
+     JIMGINA tashlab yuboriladi va kanalga tayinlanmaydi (bir marta shu
+     tarzda "dasturlash" saqlanmay qolgan edi). */
   var TOPICS = [
     ['sport', '🏋 Sport'],
     ['english', '🇬🇧 Ingliz tili'],
     ['russian', '🇷🇺 Rus tili'],
-    ['dasturlash', '💻 Dasturlash']
+    ['dasturlash', '💻 Dasturlash'],
+    ['kun', '🗓 Kun rejasi']
   ];
   function topicLabel(t) {
     var f = TOPICS.find(function (x) { return x[0] === (t || ''); });
@@ -1673,17 +1678,44 @@
   }
 
   function planTaskList(p) {
-    var groups = (p.task_groups && p.task_groups.length)
-      ? p.task_groups
-      : (Array.isArray(p.tasks) ? [{ name: '', tasks: p.tasks }] : []);
-    var out = [], idx = 0;
-    groups.forEach(function (g) {
-      (g.tasks || []).forEach(function (t) {
-        if ((t.text || '').trim()) out.push({ index: idx, text: t.text, status: +t.status || 0, group: g.name || '' });
-        idx++;
-      });
+    var out = [];
+    planGroupList(p).forEach(function (g) {
+      g.tasks.forEach(function (t) { out.push(t); });
     });
     return out;
+  }
+
+  /* Rejani BO'LIMLAR ko'rinishida qaytaradi — har bo'lim o'z VAQTI bilan.
+     Vaqt endi bo'lim darajasida (`task_groups[].time`), vazifa matnida emas:
+     amalda bitta bo'limdagi ishlar bitta oraliqda bajariladi. Bo'limda vaqt
+     bo'lmasa rejaning umumiy `time` i olinadi.
+     Vazifa `index` lari BUTUN reja bo'yicha uzluksiz — `toggle_task` shu
+     indeksni kutadi (bo'lim chegarasi indekslashga ta'sir qilmaydi). */
+  function planGroupList(p) {
+    var groups = (p.task_groups && p.task_groups.length)
+      ? p.task_groups
+      : (Array.isArray(p.tasks) ? [{ name: '', time: '', tasks: p.tasks }] : []);
+    var out = [], idx = 0;
+    groups.forEach(function (g) {
+      var tasks = [];
+      (g.tasks || []).forEach(function (t) {
+        if ((t.text || '').trim()) {
+          tasks.push({ index: idx, text: t.text, status: +t.status || 0, group: g.name || '' });
+        }
+        idx++;
+      });
+      if (tasks.length) {
+        out.push({ name: g.name || '', time: (g.time || '').trim(), tasks: tasks });
+      }
+    });
+    return out;
+  }
+
+  /* "08:00 - 09:30" yoki "08:00" -> {start,end}. Mos kelmasa null. */
+  function splitTimeRange(s) {
+    var m = String(s || '').trim().match(/^(\d{1,2}:\d{2})(?:\s*[-–—]\s*(\d{1,2}:\d{2}))?$/);
+    if (!m) return null;
+    return { start: m[1], end: m[2] || '' };
   }
 
   window.BoostDay = {
@@ -1704,6 +1736,9 @@
           time: p.time || '', title: (p.preview || p.channel_name || tinfo(p.plan_type).n),
           channelName: p.channel_name || '', typeName: tinfo(p.plan_type).n, emoji: tinfo(p.plan_type).e, color: tinfo(p.plan_type).c,
           tasks: tasks, total: tasks.length, done: done,
+          /* Bo'limlar o'z vaqti bilan — Kun hisobi vaqt chizig'i shulardan
+             foydalanadi (har bo'lim alohida satr bo'lib chiqadi). */
+          groups: planGroupList(p),
           preview: p.preview || ''
         });
       }
@@ -1871,6 +1906,104 @@
             week_mode: (existing && existing.week_mode) || 'everyday',
             items: (existing && existing.items) ? (typeof existing.items === 'string' ? existing.items : JSON.stringify(existing.items)) : JSON.stringify([{ type: 'text', text: planTitle }]),
             tasks: tasksPayload
+          });
+        });
+      });
+    },
+
+    /* Bitta KUNNING to'liq rejasini (bo'limlar + har bo'lim vaqti bilan)
+       o'sha sanaga `todo` reja qilib yozadi. Kun hisobidagi .md import shuni
+       chaqiradi — haftalik reja 7 marta (har kun uchun) chaqiriladi.
+
+       `mode`:
+         'replace' — o'sha kundagi mavjud reja BUTUNLAY almashtiriladi
+         'merge'   — mavjud bo'limlarga qo'shiladi (nomi bir xil bo'lim
+                     topilsa uning ichiga, aks holda yangi bo'lim)
+       Vazifa holati (`status`) merge'da SAQLANADI: allaqachon belgilangan
+       ish qayta import qilinganda "bajarilmagan"ga qaytmasin. */
+    pushDayPlan: function (topic, dateStr, planTitle, groups, opts) {
+      opts = opts || {};
+      var mode = opts.mode === 'merge' ? 'merge' : 'replace';
+      return call('channels').then(function (j) {
+        var chans = j.channels || [];
+        var chan = chans.find(function (c) { return topicsOf(c).indexOf(topic) >= 0; });
+        /* Mavzu hech qaysi kanalga tayinlanmagan bo'lsa-yu, kanal BITTA
+           bo'lsa — o'shanga yozamiz. Tanlash noaniqligi yo'q, foydalanuvchini
+           faqat mavzu tayinlash uchun to'xtatib qo'yish ortiqcha. */
+        if (!chan && chans.length === 1) chan = chans[0];
+        if (!chan) {
+          return Promise.reject(new Error(topicLabel(topic) + ' uchun kanal tayinlanmagan. Avval Boostday > Kanallar\'da tayinlang.'));
+        }
+        return call('list').then(function (list) {
+          var existing = (list.todos || []).find(function (p) {
+            return p.plan_type === 'todo' && p.date === dateStr && p.channel_id === chan.channel_id;
+          });
+
+          var finalGroups;
+          if (mode === 'merge' && existing) {
+            finalGroups = (existing.task_groups && existing.task_groups.length)
+              ? JSON.parse(JSON.stringify(existing.task_groups))
+              : [{ name: '', time: '', tasks: (existing.tasks || []).slice() }];
+            groups.forEach(function (ng) {
+              var name = (ng.name || '').trim();
+              var g = finalGroups.find(function (x) { return (x.name || '').trim() === name; });
+              if (!g) {
+                g = { name: name, time: ng.time || '', tasks: [] };
+                var emptyIdx = finalGroups.findIndex(function (x) {
+                  return !(x.name || '').trim() && !(x.time || '').trim() && !(x.tasks || []).length;
+                });
+                if (emptyIdx >= 0) finalGroups[emptyIdx] = g; else finalGroups.push(g);
+              }
+              if (ng.time) g.time = ng.time;
+              var have = {};
+              (g.tasks || []).forEach(function (t) { have[App.taskKey(t.text)] = true; });
+              (ng.tasks || []).forEach(function (t) {
+                var k = App.taskKey(t.text);
+                if (!k || have[k]) return;
+                g.tasks.push({ text: t.text, status: 0 });
+                have[k] = true;
+              });
+            });
+          } else {
+            /* Almashtirishda ham BUGUNGI belgilangan ishlar yo'qolmasin:
+               eski rejadagi bir xil nomli vazifaning holati ko'chiriladi. */
+            var prevStatus = {};
+            if (existing) {
+              var prev = (existing.task_groups && existing.task_groups.length)
+                ? existing.task_groups
+                : [{ tasks: existing.tasks || [] }];
+              prev.forEach(function (g) {
+                (g.tasks || []).forEach(function (t) {
+                  if (+t.status === 1) prevStatus[App.taskKey(t.text)] = 1;
+                });
+              });
+            }
+            finalGroups = groups.map(function (g) {
+              return {
+                name: (g.name || '').trim(),
+                time: (g.time || '').trim(),
+                tasks: (g.tasks || []).map(function (t) {
+                  return { text: t.text, status: prevStatus[App.taskKey(t.text)] ? 1 : 0 };
+                })
+              };
+            });
+          }
+          if (!finalGroups.length) finalGroups = [{ name: '', time: '', tasks: [] }];
+
+          /* Reja vaqti — eng erta bo'lim vaqti (Boostday xabari shu vaqtda
+             yuboriladi). Bo'lim vaqtlari bo'lmasa eskisi/standart qoladi. */
+          var starts = finalGroups
+            .map(function (g) { var r = splitTimeRange(g.time); return r ? r.start : ''; })
+            .filter(Boolean).sort();
+          var planTime = starts[0] || (existing && existing.time) || opts.time || '08:00';
+
+          var isSingleUnnamed = flatOk(finalGroups);
+          return call('save', {
+            id: existing ? existing.id : 0,
+            plan_type: 'todo', channel_id: chan.channel_id, channel_name: chan.channel_name,
+            time: planTime, date: dateStr, start_date: '', end_date: '', week_mode: 'everyday',
+            items: JSON.stringify([{ type: 'text', text: planTitle }]),
+            tasks: isSingleUnnamed ? JSON.stringify(finalGroups[0].tasks) : JSON.stringify({ groups: finalGroups })
           });
         });
       });

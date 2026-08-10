@@ -113,7 +113,9 @@ def list_channels(owner_id: int = 0) -> list:
 # ruxsat etilgan mavzular. Frontend'dagi TOPICS (assets/js/app2/boost.js) bilan
 # AYNAN bir xil bo'lishi shart — aks holda saytda belgilangan mavzu shu yerda
 # jimgina olib tashlanadi ("Saqlandi" chiqadi, lekin hech narsa yozilmaydi).
-CHANNEL_TOPICS = {"sport", "english", "russian", "dasturlash"}
+# ⚠️ Saytdagi `assets/js/app2/boost.js::TOPICS` bilan BIR XIL bo'lishi shart —
+# bu qat'iy whitelist, ro'yxatda yo'q mavzu jimgina tashlab yuboriladi.
+CHANNEL_TOPICS = {"sport", "english", "russian", "dasturlash", "kun"}
 
 
 def _clean_topics(raw: str) -> str:

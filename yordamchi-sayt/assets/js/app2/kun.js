@@ -352,33 +352,60 @@
     });
   }
 
+  /* Boostday rejalarini vaqt chizig'iga aylantiradi.
+
+     VAQT BO'LIM DARAJASIDA (`task_groups[].time`) — vazifa matnida emas.
+     Shuning uchun har BO'LIM alohida satr bo'lib chiqadi, ichida o'z
+     vazifalari bilan. Vaqti yo'q bo'limlar rejaning umumiy vaqtiga
+     yig'iladi (bitta "reja" satri) — aks holda ular vaqt chizig'idan
+     butunlay tushib qolardi. */
   function boostItems(dateStr) {
     if (!window.BoostDay) return [];
     var d = parseKey(dateStr); if (!d) return [];
     var out = [];
     BoostDay.dayItems(dateStr, d.getDay()).forEach(function (b) {
       if (b.planType === 'challenge') return;
-      var tasksWithoutTime = [];
-      var planHasTimeTasks = false;
-      
-      (b.tasks || []).forEach(function(t) {
-        var m = (t.text || '').match(/^(\d{2}:\d{2})(?:\s*-\s*(\d{2}:\d{2}))?\s*\|\s*(.*)/);
-        if (m) {
-          planHasTimeTasks = true;
-          out.push({
-            src: 'boost_task', planId: b.planId, taskIndex: t.index,
-            start: m[1], end: m[2] || '',
-            title: m[3].trim(), room: b.title, color: b.color, emoji: '⚡',
-            kindName: 'Vazifa', done: t.status === 1
-          });
-        } else {
-          tasksWithoutTime.push(t);
-        }
-      });
-      
+      var groups = b.groups || [];
+      var untimed = [];
 
+      groups.forEach(function (g) {
+        var r = splitRange(g.time);
+        if (!r) { untimed.push(g); return; }
+        var done = g.tasks.filter(function (t) { return t.status === 1; }).length;
+        out.push({
+          src: 'boost_group', planId: b.planId, groupName: g.name,
+          start: r.start, end: r.end,
+          title: g.name || b.title, room: b.channelName || b.title,
+          color: b.color, emoji: '⚡', kindName: 'Reja bo\'limi',
+          tasks: g.tasks, total: g.tasks.length, doneCount: done,
+          done: done === g.tasks.length && g.tasks.length > 0
+        });
+      });
+
+      /* Vaqtsiz bo'limlar — rejaning o'z vaqti bilan bitta satr */
+      if (untimed.length) {
+        var tasks = [];
+        untimed.forEach(function (g) { tasks = tasks.concat(g.tasks); });
+        var pr = splitRange(b.time);
+        var doneN = tasks.filter(function (t) { return t.status === 1; }).length;
+        out.push({
+          src: 'boost', planId: b.planId,
+          start: pr ? pr.start : '', end: pr ? pr.end : '',
+          title: b.title, channelName: b.channelName, color: b.color,
+          emoji: b.emoji || '⚡', kindName: b.typeName,
+          tasks: tasks, total: tasks.length, doneCount: doneN
+        });
+      }
     });
     return out;
+  }
+
+  /* "08:00 - 09:30" | "08:00-09:30" | "08:00" -> {start,end}; aks holda null */
+  function splitRange(s) {
+    var m = String(s || '').trim().match(/^(\d{1,2}:\d{2})(?:\s*[-–—]\s*(\d{1,2}:\d{2}))?$/);
+    if (!m) return null;
+    var pad = function (x) { return x.length === 4 ? '0' + x : x; };
+    return { start: pad(m[1]), end: m[2] ? pad(m[2]) : '' };
   }
 
   function sortItems(list) {
@@ -480,13 +507,6 @@
     var d = parseKey(SEL_DATE) || new Date();
     App.go('kun', { date: dkey(addDays(d, parseInt(a.n, 10))) });
   };
-  App.actions.kunToggleBoostTask = function (a) {
-    if (!window.BoostDay) return;
-    BoostDay.toggle(a.id, a.index).then(function () {
-      App.reload();
-    }).catch(function (e) { App.toast(e.message); });
-  };
-
   /* ---------- Kun xulosasi ---------- */
   function renderSummary(items, isToday) {
     var box = App.el('kun-sum'); if (!box) return;
@@ -629,26 +649,28 @@
       ? App.esc(it.start) + '<br><span style="opacity:.65">' + App.esc(it.end || '') + '</span>'
       : '<span style="opacity:.55">—</span>';
 
+    var isBoost = it.src === 'boost' || it.src === 'boost_group';
+
     var sub = [];
-    if (it.src === 'boost' && it.channelName) sub.push(it.channelName);
+    if (isBoost && (it.channelName || it.room)) sub.push(it.channelName || it.room);
     else if (it.room) sub.push(it.room);
-    if (it.src === 'boost' && it.total) sub.push(it.doneCount + '/' + it.total + ' vazifa');
+    if (isBoost && it.total) sub.push(it.doneCount + '/' + it.total + ' vazifa');
     if (it.repeatNote) sub.push(it.repeatNote);
     if (st === 'live') sub.push('hozir');
 
+    /* Bo'lim satrining o'ziga xos kaliti — bitta rejada bir nechta bo'lim
+       bo'lishi mumkin, shuning uchun faqat planId yetmaydi. */
+    var openKey = it.src === 'boost_group' ? (it.planId + '|' + it.groupName) : String(it.planId);
+
     var act, arg;
-    if (it.src === 'boost') { act = 'kunOpenPlan'; arg = App.arg({ id: it.planId }); }
+    if (isBoost) { act = 'kunOpenPlan'; arg = App.arg({ key: openKey }); }
     else if (it.src === 'event') { act = 'kunEditEvent'; arg = App.arg({ date: it.date, i: it.idx }); }
-    else if (it.src === 'boost_task') { act = 'kunToggleBoostTask'; arg = App.arg({ id: it.planId, index: it.taskIndex }); }
     else { act = 'kunEdit'; arg = App.arg({ d: it.day, i: it.idx }); }
 
     var tickBtn = '';
     if (it.src === 'event') {
       tickBtn = '<button class="kun-tick' + (it.done ? ' on' : '') + '" data-act="kunToggleEvent" data-arg=\'' +
         App.arg({ date: it.date, i: it.idx }) + '\' aria-label="Bajarildi">✓</button>';
-    } else if (it.src === 'boost_task') {
-      tickBtn = '<button class="kun-tick' + (it.done ? ' on' : '') + '" data-act="kunToggleBoostTask" data-arg=\'' +
-        arg + '\' aria-label="Bajarildi">✓</button>';
     }
 
     var body =
@@ -661,8 +683,8 @@
       tickBtn +
       '</div>';
 
-    // Boostday rejasi ochilgan bo'lsa — vazifalari shu yerda belgilanadi
-    if (it.src === 'boost' && OPEN_PLAN === it.planId && (it.tasks || []).length) {
+    // Boostday bo'limi/rejasi ochilgan bo'lsa — vazifalari shu yerda belgilanadi
+    if (isBoost && OPEN_PLAN === openKey && (it.tasks || []).length) {
       body += '<div class="kun-tasks">' + it.tasks.map(function (t) {
         return '<button class="kun-task' + (t.status === 1 ? ' on' : '') + '" data-act="kunToggleTask" data-arg=\'' +
           App.arg({ id: it.planId, index: t.index }) + '\'>' +
@@ -684,8 +706,8 @@
 
   /* ---------- Vaqt chizig'idagi amallar ---------- */
   App.actions.kunOpenPlan = function (a) {
-    var id = parseInt(a.id, 10);
-    OPEN_PLAN = (OPEN_PLAN === id) ? null : id;
+    var key = String(a.key);
+    OPEN_PLAN = (OPEN_PLAN === key) ? null : key;
     renderDay();
   };
   App.actions.kunToggleTask = function (a) {
@@ -947,7 +969,9 @@
     // sanaga o'xshash bo'lak uchrashi mumkin, shuning uchun "|" bo'lsa yoki
     // qator uzun bo'lsa — bu sarlavha emas.
     if (d && !isNaN(d.getTime()) && String(line).indexOf('|') < 0 && s.length <= 40) {
-      return { day: d.getDay(), weekType: weekType, dated: true };
+      /* `date` — haftalik jadval uchun kerak emas (u faqat `day` ni oladi),
+         lekin haftalik REJA importi aynan sanaga yozadi. */
+      return { day: d.getDay(), weekType: weekType, dated: true, date: d };
     }
 
     // Kun nomi (birinchi so'z yetarli)
@@ -1022,10 +1046,20 @@
     var out = {}, cur = null, curWT = '', stats = { days: {}, total: 0, dated: 0, skipped: 0 };
     var colorOf = {}, ci = 0;
 
+    /* `###` dan boshlanadigan bo'lak — REJA bo'limi (parsePlanMd o'qiydi),
+       dars emas. Uni o'tkazib yubormasak, "### 07:00 - 07:40 | Ertalabki
+       rejim" xonasi "###" bo'lgan dars bo'lib jadvalga tushib qolardi. */
+    var inPlanGroup = false;
+
     lines.forEach(function (raw) {
       var line = raw.trim();
       if (!line) return;
       if (/^```/.test(line)) return;
+
+      var lvl = (line.match(/^(#{1,6})\s/) || [, ''])[1].length;
+      if (lvl >= 3) { inPlanGroup = true; return; }
+      if (lvl && lvl <= 2) inPlanGroup = false;
+      if (inPlanGroup) return;
 
       var hdr = parseDayHeader(line);
       // Sarlavha faqat vaqt YO'Q qatorlarda (aks holda dars qatorini yeb qo'yadi).
@@ -1058,24 +1092,155 @@
   }
   App.parseScheduleMd = parseScheduleMd;   // sinov/boshqa modullar uchun
 
-  /* ---------- Import oynasi ---------- */
+  /* =========================================================
+     HAFTALIK REJA (.md) — BO'LIMLI format
+
+     Boostday'da vaqt endi BO'LIMGA qo'yiladi (vazifaga emas), shuning uchun
+     .md ham shu tuzilishda:
+
+       ## Dushanba                 <- kun (hafta kuni yoki 12.08.2026)
+       ### 08:00-09:00 | Ertalab   <- bo'lim: vaqt | nom  (tartibi ixtiyoriy)
+       - Yuzni yuvish              <- vazifa
+       - Nonushta
+
+     Bitta faylda butun hafta bo'lishi mumkin. Hafta kuni bilan yozilgan
+     sarlavha JORIY hafta (dushanbadan boshlanadigan) sanasiga bog'lanadi.
+     ========================================================= */
+
+  /* "08:00-09:00 | Nom" | "Nom | 08:00-09:00" | "08:00 Nom" -> {time, name} */
+  function parseGroupHeader(line) {
+    var s = String(line).replace(/^#{1,6}\s*/, '').replace(/^\*\*(.*)\*\*$/, '$1').trim();
+    if (!s) return null;
+    var time = '', name = s;
+
+    var rng = s.match(/(\d{1,2}[:.]\d{2})\s*[-–—]\s*(\d{1,2}[:.]\d{2})/);
+    if (rng) {
+      time = normTime(rng[1]) + ' - ' + normTime(rng[2]);
+      name = s.replace(rng[0], '');
+    } else {
+      var one = s.match(/(\d{1,2}[:.]\d{2})/);
+      if (one) { time = normTime(one[1]); name = s.replace(one[0], ''); }
+    }
+    name = name.replace(/\|/g, ' ').replace(/\s+/g, ' ').replace(/^[-–—·:]+|[-–—·:]+$/g, '').trim();
+    if (!time && !name) return null;
+    return { time: time, name: name };
+  }
+
+  function parsePlanMd(text) {
+    var lines = String(text || '').replace(/\r/g, '').split('\n');
+    var days = [], cur = null, curGroup = null;
+    var stats = { days: 0, groups: 0, tasks: 0 };
+
+    /* Joriy haftaning dushanbasi — hafta kuni nomi shu haftaga bog'lanadi */
+    var t = new Date(); t.setHours(0, 0, 0, 0);
+    var monday = addDays(t, -(((t.getDay() + 6) % 7)));
+
+    /* Bitta sana faylda IKKI xil sarlavha bilan uchrashi mumkin
+       ("## Chorshanba" va "## 12.08.2026" — bir kun). Bunda yangi kun
+       ochmasdan mavjudiga davom etamiz, aks holda o'sha sanaga ikki marta
+       yozilib, "almashtirish" rejimida birinchisi yo'qolib ketardi. */
+    function pushDay(dow, dateObj, label) {
+      var d = dateObj || addDays(monday, (dow + 6) % 7);
+      var key = dkey(d);
+      var same = days.filter(function (x) { return x.date === key; })[0];
+      if (same) { cur = same; curGroup = null; return; }
+      cur = { dow: dow, date: key, label: label, groups: [] };
+      days.push(cur);
+      curGroup = null;
+    }
+
+    lines.forEach(function (raw) {
+      var line = raw.trim();
+      if (!line || /^```/.test(line)) return;
+
+      var hLevel = (line.match(/^(#{1,6})\s/) || [, ''])[1].length;
+
+      /* ### (yoki undan chuqurroq) — BO'LIM sarlavhasi */
+      if (hLevel >= 3 && cur) {
+        var g = parseGroupHeader(line);
+        if (g) { curGroup = { name: g.name, time: g.time, tasks: [] }; cur.groups.push(curGroup); stats.groups++; }
+        return;
+      }
+
+      /* ## yoki # — KUN sarlavhasi */
+      if (hLevel && hLevel <= 2) {
+        var hdr = parseDayHeader(line);
+        if (hdr) { pushDay(hdr.day, hdr.date || null, line.replace(/^#{1,6}\s*/, '').trim()); return; }
+        return;
+      }
+
+      /* Sarlavhasiz kun nomi ham qabul qilinadi ("Dushanba:") */
+      if (!/^[-*+]\s/.test(line) && !cur) {
+        var h2 = parseDayHeader(line);
+        if (h2) { pushDay(h2.day, h2.date || null, line.trim()); return; }
+      }
+
+      if (!cur) return;
+
+      /* DARS qatori bo'lsa — bu reja emas, jadval (parseScheduleMd o'qiydi).
+         Belgisi: bo'lim ochilmagan va qatorda vaqt oralig'i + "|" bor
+         (`- 08:30-10:00 | A-408 | Matematika`). Aks holda reja vazifasi
+         dars bo'lib, dars esa vazifa bo'lib ikki joyga tushib ketardi. */
+      if (!curGroup && /\d{1,2}[:.]\d{2}/.test(line) && line.indexOf('|') >= 0) return;
+
+      /* Vazifa qatori */
+      var task = line.replace(/^[-*+]\s+/, '').replace(/^\d+[.)]\s+/, '').trim();
+      task = task.replace(/^\[[ xX]\]\s*/, '');           // - [ ] belgisi
+      if (!task) return;
+      if (!curGroup) {
+        /* Bo'limsiz vazifa — nomsiz, vaqtsiz bo'limga tushadi */
+        curGroup = { name: '', time: '', tasks: [] };
+        cur.groups.push(curGroup); stats.groups++;
+      }
+      curGroup.tasks.push({ text: task });
+      stats.tasks++;
+    });
+
+    /* Bo'sh bo'limlarni tashlaymiz (sarlavha yozilib, vazifa yozilmagan) */
+    days.forEach(function (d) {
+      d.groups = d.groups.filter(function (g) { return g.tasks.length; });
+    });
+    days = days.filter(function (d) { return d.groups.length; });
+    stats.days = days.length;
+    stats.groups = days.reduce(function (n, d) { return n + d.groups.length; }, 0);
+
+    return { days: days, stats: stats };
+  }
+  App.parsePlanMd = parsePlanMd;   // sinov uchun
+
+  /* ---------- Import oynasi ----------
+     Ikki xil .md qabul qilinadi va TUR AVTOMATIK aniqlanadi:
+       · REJA   — `### 08:00-09:00 | Bo'lim` + vazifalar (Boostdayga yoziladi)
+       · JADVAL — `- 08:30-10:00 | Xona | Fan` (haftalik takrorlanuvchi dars)
+     Ikkalasi bitta faylda aralash bo'lsa, ikkalasi ham qo'llanadi. */
   App.actions.kunImport = function () {
     var html =
       '<input type="file" id="k-file" hidden accept=".md,.markdown,.txt,text/markdown,text/plain">' +
       '<button class="btn sec" id="k-pick" style="margin-bottom:4px">' +
       '<span data-icon="upload" data-icon-size="16"></span>.md fayl tanlash</button>' +
-      '<p style="font-size:12.5px;color:var(--hint);margin:0 0 10px">Yoki matnni pastga qo\'ying</p>' +
-      '<label class="field" style="margin-bottom:12px"><span>Jadval matni (Markdown)</span>' +
+      '<p id="k-finfo" style="font-size:12.5px;color:var(--hint);margin:0 0 10px">Yoki matnni pastga qo\'ying</p>' +
+      '<label class="field" style="margin-bottom:12px"><span>Reja / jadval matni (Markdown)</span>' +
       '<textarea class="textarea" id="k-text" rows="14" style="font-family:monospace;font-size:13px;line-height:1.5"' +
-      ' placeholder="## Dushanba\n- 08:30-10:00 | A-408 | Matematika\n- 10:00-11:30 | E-215 | Fizika\n\n## Seshanba\n- 09:00-10:30 | A-101 | Ingliz tili"></textarea></label>' +
+      ' placeholder="## Dushanba&#10;### 07:00 - 07:30 | Ertalabki rejim&#10;- Yuzni yuvish&#10;- Nonushta&#10;&#10;### 18:00 - 19:30 | Sport&#10;- Tortilish&#10;- Press"></textarea></label>' +
 
-      '<p style="font-size:12.5px;color:var(--hint);line-height:1.5;margin:0 0 18px">' +
-      'Kun sarlavhasi: <code>## Dushanba</code>, <code>## Juma (1-hafta)</code> yoki sana <code>## 01.09.2026</code>.<br>' +
-      'Dars: <code>08:30-10:00 | Xona | Fan</code> — xona yozilmasa ham bo\'ladi. Faylda nechta kun bo\'lsa, hammasi o\'qiladi.<br>' +
-      '<i style="display:inline-block;margin-top:6px;color:var(--accent)">Eslatma: Jadvalni AI (Sun\'iy Intelekt) yordamida avtomatik yozdirib olishingiz ham mumkin! ' +
-      '<a href="Jadval_AI_Qollanma.md" download style="color:var(--accent);text-decoration:underline;font-weight:600">Qo\'llanmani yuklab olish</a></i>' +
+      '<p style="font-size:12.5px;color:var(--hint);line-height:1.55;margin:0 0 16px">' +
+      '<b>Kun rejasi:</b> <code>## Dushanba</code> yoki <code>## 12.08.2026</code>, ' +
+      'bo\'lim <code>### 08:00 - 09:00 | Nom</code>, ostida <code>- vazifa</code>. ' +
+      'Vaqt BO\'LIMGA qo\'yiladi.<br>' +
+      '<b>Dars jadvali:</b> <code>- 08:30-10:00 | Xona | Fan</code>.<br>' +
+      '<i style="display:inline-block;margin-top:6px;color:var(--accent)">Rejani AI ga yozdirib olsangiz ham bo\'ladi — ' +
+      '<a href="Jadval_AI_Qollanma.md" download style="color:var(--accent);text-decoration:underline;font-weight:600">qo\'llanmani yuklab oling</a></i>' +
       '</p>' +
-      '<label class="field"><span>Qanday qo\'shilsin?</span>' +
+
+      '<label class="field"><span>Reja qanday yozilsin?</span>' +
+      '<select class="select" id="k-pmode">' +
+      '<option value="replace">O\'sha kunlardagi rejani almashtirish</option>' +
+      '<option value="merge">Mavjud rejaga qo\'shish</option>' +
+      '</select></label>' +
+      '<label class="field" style="display:flex;align-items:center;gap:8px;flex-direction:row;margin-bottom:6px">' +
+      '<input type="checkbox" id="k-sport" checked style="width:auto">' +
+      '<span style="margin:0">Sport mashqlarini "Mening mashqlarim"ga ulash</span></label>' +
+      '<label class="field"><span>Dars jadvali qanday qo\'shilsin?</span>' +
       '<select class="select" id="k-mode">' +
       '<option value="merge">Mavjud jadvalga qo\'shish</option>' +
       '<option value="replace">Faylda bor kunlarni almashtirish</option>' +
@@ -1089,6 +1254,17 @@
     var fileEl = sh.querySelector('#k-file');
     var info = sh.querySelector('#k-finfo');
     sh.querySelector('#k-pick').onclick = function () { fileEl.click(); };
+
+    function describe(text, prefix) {
+      var p = parsePlanMd(text), s = parseScheduleMd(text);
+      var bits = [];
+      if (p.stats.tasks) bits.push('<b>' + p.stats.tasks + '</b> ta vazifa (' + p.stats.groups + ' bo\'lim, ' + p.stats.days + ' kun)');
+      if (s.stats.total) bits.push('<b>' + s.stats.total + '</b> ta dars');
+      info.innerHTML = bits.length ? '✅ ' + prefix + bits.join(' · ') : '⚠️ ' + prefix + 'hech narsa topilmadi — formatni tekshiring';
+      info.style.color = bits.length ? 'var(--success)' : 'var(--danger)';
+      return { plan: p, sched: s };
+    }
+
     fileEl.onchange = function () {
       var f = fileEl.files && fileEl.files[0];
       if (!f) return;
@@ -1096,45 +1272,101 @@
       var fr = new FileReader();
       fr.onload = function () {
         sh.querySelector('#k-text').value = String(fr.result || '');
-        var r = parseScheduleMd(fr.result);
-        info.innerHTML = r.stats.total
-          ? '✅ ' + App.esc(f.name) + ' — <b>' + r.stats.total + '</b> ta dars, <b>' +
-            Object.keys(r.stats.days).length + '</b> ta kun topildi'
-          : '⚠️ ' + App.esc(f.name) + ' — dars topilmadi, formatni tekshiring';
-        info.style.color = r.stats.total ? 'var(--success)' : 'var(--danger)';
+        describe(fr.result, App.esc(f.name) + ' — ');
       };
       fr.onerror = function () { info.textContent = 'Faylni o\'qib bo\'lmadi'; };
       fr.readAsText(f);
     };
+    sh.querySelector('#k-text').oninput = function () { describe(this.value, ''); };
 
     sh.querySelector('#k-import').onclick = function () {
-      var r = parseScheduleMd(sh.querySelector('#k-text').value);
-      if (!r.stats.total) return App.toast('Dars topilmadi — formatni tekshiring');
-      var mode = sh.querySelector('#k-mode').value;
+      var text = sh.querySelector('#k-text').value;
+      var plan = parsePlanMd(text), sched = parseScheduleMd(text);
+      if (!plan.stats.tasks && !sched.stats.total) {
+        return App.toast('Hech narsa topilmadi — formatni tekshiring');
+      }
+      var planMode = sh.querySelector('#k-pmode').value;
+      var schedMode = sh.querySelector('#k-mode').value;
+      var linkSport = sh.querySelector('#k-sport').checked;
 
-      var parts = [];
-      Object.keys(r.stats.days).sort().forEach(function (d) {
-        parts.push(DAY_FULL[d] + ': ' + r.stats.days[d]);
-      });
-      var msg = r.stats.total + ' ta dars topildi\n\n' + parts.join('\n') +
-        (r.stats.skipped ? '\n\n' + r.stats.skipped + ' ta qator o\'qilmadi' : '') +
-        (r.stats.dated ? '\n\nEslatma: sanalar hafta kuniga joylandi (jadval haftalik takrorlanadi)' : '');
-
-      App.confirm(msg, function () {
-        ensureLoaded();
-        if (mode === 'wipe') SCHEDULE = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
-        Object.keys(r.schedule).forEach(function (d) {
-          if (!SCHEDULE[d] || mode === 'replace' || mode === 'wipe') SCHEDULE[d] = [];
-          SCHEDULE[d] = SCHEDULE[d].concat(r.schedule[d]);
+      var msg = [];
+      if (plan.stats.tasks) {
+        msg.push(plan.stats.tasks + ' ta vazifa Boostdayga yoziladi:');
+        plan.days.forEach(function (d) {
+          var n = d.groups.reduce(function (a, g) { return a + g.tasks.length; }, 0);
+          msg.push('  ' + DAY_FULL[d.dow] + ' (' + d.date + '): ' + n + ' ta');
         });
-        saveSchedule();
+      }
+      if (sched.stats.total) {
+        if (msg.length) msg.push('');
+        msg.push(sched.stats.total + ' ta dars haftalik jadvalga qo\'shiladi');
+      }
+
+      App.confirm(msg.join('\n'), function () {
         App.closeSheet();
-        App.toast('✅ ' + r.stats.total + ' ta dars qo\'shildi');
-        var first = parseInt(Object.keys(r.stats.days)[0], 10), t = new Date();
-        App.go('kun', { date: dkey(addDays(t, (first - t.getDay() + 7) % 7)) });
+        runImport(plan, sched, planMode, schedMode, linkSport);
       }, { yes: 'Qo\'shish', title: 'Tasdiqlang' });
     };
   };
+
+  /* Importni bajaradi: jadval (mahalliy) + reja (Boostday) + sport ulash */
+  function runImport(plan, sched, planMode, schedMode, linkSport) {
+    /* 1) Dars jadvali — mahalliy, darhol */
+    if (sched.stats.total) {
+      ensureLoaded();
+      if (schedMode === 'wipe') SCHEDULE = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+      Object.keys(sched.schedule).forEach(function (d) {
+        if (!SCHEDULE[d] || schedMode === 'replace' || schedMode === 'wipe') SCHEDULE[d] = [];
+        SCHEDULE[d] = SCHEDULE[d].concat(sched.schedule[d]);
+      });
+      saveSchedule();
+    }
+
+    if (!plan.stats.tasks) {
+      App.toast('✅ ' + sched.stats.total + ' ta dars qo\'shildi');
+      App.reload();
+      return;
+    }
+    if (!window.BoostPush || !BoostPush.pushDayPlan) {
+      App.toast('⚠️ Boostday moduli yuklanmagan');
+      return;
+    }
+
+    /* 2) Sport mashqlarini "Mening mashqlarim"ga ulash (nom bo'yicha) */
+    var linked = 0;
+    if (linkSport && window.SportBridge && SportBridge.addToMineByName) {
+      var names = [];
+      plan.days.forEach(function (d) {
+        d.groups.forEach(function (g) { g.tasks.forEach(function (t) { names.push(t.text); }); });
+      });
+      linked = SportBridge.addToMineByName(names);
+    }
+
+    /* 3) Har kun uchun Boostdayga yozamiz — KETMA-KET (parallel emas):
+       hammasi bitta `todo` bazasiga yozadi, bir vaqtda yuborilsa oxirgisi
+       oldingilarini bosib ketishi mumkin. */
+    App.toast('Boostdayga yozilmoqda...');
+    var okDays = 0, failed = null;
+    var chain = Promise.resolve();
+    plan.days.forEach(function (d) {
+      chain = chain.then(function () {
+        if (failed) return;
+        return BoostPush.pushDayPlan('kun', d.date, DAY_FULL[d.dow] + ' — kun rejasi', d.groups, { mode: planMode })
+          .then(function () { okDays++; })
+          .catch(function (e) { failed = e; });
+      });
+    });
+
+    chain.then(function () {
+      if (failed) { App.toast('⚠️ ' + failed.message); return; }
+      var parts = [okDays + ' kunlik reja Boostdayga yozildi'];
+      if (sched.stats.total) parts.push(sched.stats.total + ' ta dars jadvalga');
+      if (linked) parts.push(linked + ' ta sport mashqi ulandi');
+      App.toast('✅ ' + parts.join(' · '));
+      var boot = window.BoostDay ? BoostDay.ensureLoaded(true) : Promise.resolve();
+      boot.then(function () { App.go('kun', { date: plan.days[0].date }); });
+    });
+  }
 
   /* Tashqi modullar uchun (bosh sahifa "Bugungi reja" bloki).
      Jadval kun.js ichida yopiq bo'lgani uchun kichik API ochamiz — home.js

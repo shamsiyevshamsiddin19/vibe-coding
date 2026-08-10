@@ -994,6 +994,27 @@
       if (!!want === !!isNow) return isNow;
       return toggleExercise(cat, id, true, true);   // silent + boostga qaytarma sinxron yo'q
     },
+    /* Nomlar ro'yxatidan mos mashqlarni "Mening mashqlarim"ga qo'shadi.
+       Kun rejasi .md importi shuni chaqiradi: rejadagi vazifa nomi haqiqiy
+       mashq nomi bilan mos kelsa, mashq avtomatik shaxsiy ro'yxatga tushadi
+       (Boostdayda belgilangani Sportda ham ✓ bo'lib ko'rinishi shu orqali).
+       Qaytaradi: YANGI qo'shilganlar soni. */
+    addToMineByName: function (names) {
+      if (!S.data || !names || !names.length) return 0;
+      var byKey = {};
+      CATS.forEach(function (c) {
+        (S.data[c.id] || []).forEach(function (e) { byKey[App.taskKey(e.name)] = e; });
+      });
+      var ids = mineIds(), have = {}, added = 0;
+      ids.forEach(function (id) { have[String(id)] = 1; });
+      names.forEach(function (n) {
+        var e = byKey[App.taskKey(n)];
+        if (!e || have[String(e.id)]) return;
+        ids.push(String(e.id)); have[String(e.id)] = 1; added++;
+      });
+      if (added) setMine(ids);
+      return added;
+    },
     hideToday: function (id) {
       var h = hiddenIds();
       if (h.indexOf(String(id)) < 0) { h.push(String(id)); saveHidden(h); }
