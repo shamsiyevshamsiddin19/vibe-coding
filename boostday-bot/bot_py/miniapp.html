@@ -630,9 +630,18 @@ function normTimeRange(raw){
   if (!s) return "";
   const m = s.match(/^(\d{1,2})[:.\s]?(\d{2})\s*(?:[-–—]\s*(\d{1,2})[:.\s]?(\d{2}))?$/);
   if (!m) return "";
-  const p = (h,mi) => String(Math.min(23,+h)).padStart(2,"0")+":"+String(Math.min(59,+mi)).padStart(2,"0");
+  /* Chegaradan chiqqan qiymat QISILMAYDI, rad etiladi — aks holda
+     `25:99 - 30:00` qisilib teskari `23:59 - 23:00` bo'lib qolardi. */
+  const p = (h,mi) => {
+    h = +h; mi = +mi;
+    if (h > 23 || mi > 59) return null;
+    return String(h).padStart(2,"0")+":"+String(mi).padStart(2,"0");
+  };
   const a = p(m[1],m[2]);
-  return m[3] ? a+" - "+p(m[3],m[4]) : a;
+  if (!a) return "";
+  if (!m[3]) return a;
+  const b = p(m[3],m[4]);
+  return b ? a+" - "+b : "";
 }
 function openSheet(){ el("sheetBack").classList.add("show"); el("sheet").classList.add("show"); if(tg&&tg.BackButton) tg.BackButton.show(); }
 function closeSheet(){ el("sheetBack").classList.remove("show"); el("sheet").classList.remove("show"); if(tg&&tg.BackButton) tg.BackButton.hide(); }

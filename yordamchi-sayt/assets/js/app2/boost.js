@@ -812,16 +812,22 @@
     var box = App.el('bo-tasks'); if (!box) return;
     var groups = page._groups;
     box.innerHTML = groups.map(function (g, gi) {
+      /* Vaqt oralig'i BO'LIMGA tegishli (vazifaga emas): amalda bir
+         bo'limdagi ishlar bitta oraliqda bajariladi, shuning uchun uni
+         har bir vazifaga alohida yozish ortiqcha edi. */
+      var gTime = (g.time || '').trim();
       return '<div class="bo-group" data-g="' + gi + '">' +
         '<div class="flex" style="gap:8px;margin-bottom:8px">' +
         '<input class="input bo-gname" data-g="' + gi + '" value="' + App.esc(g.name || '') +
         '" placeholder="Bo\'lim nomi (ixtiyoriy)" style="flex:1;font-weight:700">' +
+        '<button class="icon-btn ghost bo-gtime" data-g="' + gi + '" title="Bo\'lim vaqti" ' +
+        'style="width:34px;height:34px;color:' + (gTime ? 'var(--accent)' : 'var(--hint)') + '">' +
+        '<span data-icon="clock" data-icon-size="15"></span></button>' +
         '<button class="icon-btn ghost bo-gdel" data-g="' + gi + '" style="width:34px;height:34px;color:var(--danger)">' +
         '<span data-icon="trash" data-icon-size="15"></span></button></div>' +
+        (gTime ? '<div class="bo-gtime-lb" data-g="' + gi + '">' + App.esc(gTime) + '</div>' : '') +
         (g.tasks || []).map(function (t, ti2) {
           var doneCls = +t.status === 1 ? ' done' : '';
-          var hasTime = (t.text || '').match(/^\d{2}:\d{2}/);
-          var timeColor = hasTime ? 'var(--accent)' : 'var(--hint)';
           return '<div class="bo-task' + doneCls + '" draggable="true" data-g="' + gi + '" data-t="' + ti2 + '">' +
             '<button class="icon-btn ghost bo-tdrag" style="width:24px;height:30px;color:var(--hint);cursor:grab;padding:0">' +
             '<span data-icon="menu" data-icon-size="14"></span></button>' +
@@ -829,8 +835,6 @@
             (+t.status === 1 ? '✓' : '') + '</button>' +
             '<input class="input bo-ttext" data-g="' + gi + '" data-t="' + ti2 + '" value="' + App.esc(t.text || '') + '">' +
             (t.duration ? '<span style="font-size:11px;color:var(--hint);white-space:nowrap;padding:0 4px">' + t.duration + ' daq</span>' : '') +
-            '<button class="icon-btn ghost bo-ttime" data-g="' + gi + '" data-t="' + ti2 + '" style="width:30px;height:30px;color:' + timeColor + '">' +
-            '<span data-icon="clock" data-icon-size="14"></span></button>' +
             '<button class="icon-btn ghost bo-tdel" data-g="' + gi + '" data-t="' + ti2 + '" style="width:30px;height:30px">' +
             '<span data-icon="x" data-icon-size="14"></span></button></div>';
         }).join('') +
@@ -859,9 +863,9 @@
         drawTasks(page);
       };
     });
-    box.querySelectorAll('.bo-ttime').forEach(function (b) {
+    box.querySelectorAll('.bo-gtime').forEach(function (b) {
       b.onclick = function () {
-        boSmartTime(groups, +b.getAttribute('data-g'), +b.getAttribute('data-t'), function() { drawTasks(page); });
+        boGroupTime(groups, +b.getAttribute('data-g'), function () { drawTasks(page); });
       };
     });
     box.querySelectorAll('.bo-tadd').forEach(function (b) {
@@ -915,51 +919,71 @@
     };
   }
 
-  function boSmartTime(groups, gi, ti, callback) {
-    var t = groups[gi].tasks[ti];
-    var txt = t.text || '';
-    var m = txt.match(/^(\d{2}:\d{2}(?:\s*-\s*\d{2}:\d{2})?)\s*\|\s*(.*)/);
-    var def = '', pure = txt;
-    if (m) {
-      def = m[1];
-      pure = m[2];
-    } else {
+  /* Vaqt oralig'ini bir ko'rinishga keltiradi: "8:0-8.30" -> "08:00 - 08:30".
+     Tushunarsiz bo'lsa bo'sh qaytaradi (vaqt ixtiyoriy — majburlamaymiz).
+     AYNI qoida mini app'da ham bor (miniapp.html::normTimeRange). */
+  function normTimeRange(raw) {
+    var s = String(raw == null ? '' : raw).trim();
+    if (!s) return '';
+    var m = s.match(/^(\d{1,2})[:.\s]?(\d{2})\s*(?:[-–—]\s*(\d{1,2})[:.\s]?(\d{2}))?$/);
+    if (!m) return '';
+    /* Chegaradan chiqqan qiymat QISILMAYDI, rad etiladi: `25:99 - 30:00`
+       ni qisib `23:59 - 23:00` qilish teskari oraliq yasardi. */
+    function p(h, mi) {
+      h = +h; mi = +mi;
+      if (h > 23 || mi > 59) return null;
+      return ('0' + h).slice(-2) + ':' + ('0' + mi).slice(-2);
+    }
+    var a = p(m[1], m[2]);
+    if (!a) return '';
+    if (!m[3]) return a;
+    var b = p(m[3], m[4]);
+    return b ? a + ' - ' + b : '';
+  }
+
+  /* BO'LIM vaqtini tahrirlash. Ilgari vaqt har bir vazifa MATNI ichida
+     prefiks bo'lib turardi (`08:00 - 08:30 | Vazifa`); endi bo'limning
+     o'z maydonida — bir bo'limdagi ishlar baribir bitta oraliqda
+     bajariladi.
+     Yangi bo'limga standart qiymat: oldingi bo'lim tugagan vaqtdan
+     boshlab, o'sha uzunlikda (qo'lda yozishni kamaytiradi). */
+  function boGroupTime(groups, gi, callback) {
+    var def = (groups[gi].time || '').trim();
+
+    if (!def) {
       var prevStart = null, prevEnd = null;
-      for (var ig = gi; ig >= 0; ig--) {
-        var g = groups[ig];
-        var startT = (ig === gi) ? ti - 1 : (g.tasks ? g.tasks.length - 1 : -1);
-        for (var it = startT; it >= 0; it--) {
-          var pt = g.tasks[it].text || '';
-          var pm = pt.match(/^(\d{2}:\d{2})(?:\s*-\s*(\d{2}:\d{2}))?\s*\|/);
-          if (pm) {
-            prevStart = pm[1];
-            prevEnd = pm[2] || pm[1];
-            break;
-          }
-        }
-        if (prevEnd) break;
+      for (var ig = gi - 1; ig >= 0; ig--) {
+        var pm = (groups[ig].time || '').match(/^(\d{2}:\d{2})(?:\s*-\s*(\d{2}:\d{2}))?$/);
+        if (pm) { prevStart = pm[1]; prevEnd = pm[2] || pm[1]; break; }
       }
-      var dur = 15;
+      var dur = 30;
       if (prevStart && prevEnd && prevStart !== prevEnd) {
         var ps = prevStart.split(':'), pe = prevEnd.split(':');
-        var d1 = new Date(); d1.setHours(+ps[0]||0, +ps[1]||0, 0, 0);
-        var d2 = new Date(); d2.setHours(+pe[0]||0, +pe[1]||0, 0, 0);
+        var d1 = new Date(); d1.setHours(+ps[0] || 0, +ps[1] || 0, 0, 0);
+        var d2 = new Date(); d2.setHours(+pe[0] || 0, +pe[1] || 0, 0, 0);
         var diff = Math.round((d2 - d1) / 60000);
-        if (diff > 0 && diff <= 300) dur = diff;
+        if (diff > 0 && diff <= 600) dur = diff;
       }
       if (prevEnd) {
-        var p = prevEnd.split(':');
-        var d = new Date(); d.setHours(+p[0] || 0, (+p[1] || 0) + 1, 0, 0);
+        var p2 = prevEnd.split(':');
+        var d = new Date(); d.setHours(+p2[0] || 0, +p2[1] || 0, 0, 0);
         var nStart = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
         d.setMinutes(d.getMinutes() + dur);
         var nEnd = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
         def = nStart + ' - ' + nEnd;
       }
     }
-    App.prompt({ title: 'Vaqtni kiriting', label: 'Masalan: 08:00 - 08:30 (bo\'sh qoldirilsa o\'chiriladi)', value: def }, function (val) {
-      val = (val || '').trim();
-      if (!val) { t.text = pure; }
-      else { t.text = val + ' | ' + pure; }
+
+    var title = (groups[gi].name || '').trim();
+    App.prompt({
+      title: title ? title + ' — vaqti' : 'Bo\'lim vaqti',
+      label: 'Masalan: 08:00 - 08:30 (bo\'sh qoldirilsa o\'chiriladi)',
+      value: def,
+      /* `allowEmpty` SHART: usiz `App.prompt` bo'sh qiymatni rad etib
+         "Bo'sh bo'lmasin" deydi, ya'ni vaqtni O'CHIRIB bo'lmasdi. */
+      allowEmpty: true
+    }, function (val) {
+      groups[gi].time = normTimeRange(val);
       callback();
     });
   }
@@ -1041,14 +1065,27 @@
     return out;
   }
 
+  /* Vazifalarni YASSI ro'yxat sifatida yuborish mumkinmi?
+     Faqat bitta bo'lim bo'lsa VA uning na nomi, na VAQTI bo'lsa —
+     aks holda bo'lim vaqti saqlashda jimgina yo'qolib ketardi
+     (bot ham aynan shu shartni ishlatadi: helpers.py::encode_task_groups). */
+  function flatOk(groups) {
+    if (groups.length !== 1) return false;
+    var g = groups[0];
+    return !(g.name || '').trim() && !(g.time || '').trim();
+  }
+
   function savePlan(page) {
     var p = page._plan;
     var groups = page._groups.map(function (g) {
-      return { name: g.name || '', tasks: (g.tasks || []).filter(function (t) { return (t.text || '').trim(); }) };
+      return {
+        name: g.name || '', time: g.time || '',
+        tasks: (g.tasks || []).filter(function (t) { return (t.text || '').trim(); })
+      };
     }).filter(function (g) { return g.tasks.length || g.name; });
 
     var doneNow = newlyDoneTasks(page);
-    var isSingleUnnamed = groups.length === 1 && !groups[0].name;
+    var isSingleUnnamed = flatOk(groups);
     var tasksPayload = isSingleUnnamed ? JSON.stringify(groups[0].tasks) : JSON.stringify({ groups: groups });
 
     var btn = App.el('bo-save'); btn.disabled = true; btn.textContent = 'Saqlanmoqda...';
@@ -1129,21 +1166,22 @@
       function drawNewGroups() {
         var box = sh.querySelector('#bn-groups-box'); if (!box) return;
         box.innerHTML = NEW_GROUPS.map(function (g, gi) {
+          var gTime = (g.time || '').trim();
           return '<div class="bo-group" data-g="' + gi + '">' +
             '<div class="flex" style="gap:8px;margin-bottom:8px">' +
             '<input class="input bn-gname" data-g="' + gi + '" value="' + App.esc(g.name || '') +
             '" placeholder="Bo\'lim nomi (ixtiyoriy)" style="flex:1;font-weight:700">' +
+            '<button type="button" class="icon-btn ghost bn-gtime" data-g="' + gi + '" title="Bo\'lim vaqti" ' +
+            'style="width:34px;height:34px;color:' + (gTime ? 'var(--accent)' : 'var(--hint)') + '">' +
+            '<span data-icon="clock" data-icon-size="15"></span></button>' +
             '<button type="button" class="icon-btn ghost bn-gdel" data-g="' + gi + '" style="width:34px;height:34px;color:var(--danger)">' +
             '<span data-icon="trash" data-icon-size="15"></span></button></div>' +
+            (gTime ? '<div class="bo-gtime-lb" data-g="' + gi + '">' + App.esc(gTime) + '</div>' : '') +
             (g.tasks || []).map(function (t, ti2) {
-              var hasTime = (t.text || '').match(/^\d{2}:\d{2}/);
-              var timeColor = hasTime ? 'var(--accent)' : 'var(--hint)';
               return '<div class="bo-task" draggable="true" data-g="' + gi + '" data-t="' + ti2 + '">' +
                 '<button type="button" class="icon-btn ghost bn-tdrag" style="width:24px;height:30px;color:var(--hint);cursor:grab;padding:0">' +
                 '<span data-icon="menu" data-icon-size="14"></span></button>' +
                 '<input class="input bn-ttext" data-g="' + gi + '" data-t="' + ti2 + '" value="' + App.esc(t.text || '') + '">' +
-                '<button type="button" class="icon-btn ghost bn-ttime" data-g="' + gi + '" data-t="' + ti2 + '" style="width:30px;height:30px;color:' + timeColor + '">' +
-                '<span data-icon="clock" data-icon-size="14"></span></button>' +
                 '<button type="button" class="icon-btn ghost bn-tdel" data-g="' + gi + '" data-t="' + ti2 + '" style="width:30px;height:30px">' +
                 '<span data-icon="x" data-icon-size="14"></span></button></div>';
             }).join('') +
@@ -1162,9 +1200,9 @@
             drawNewGroups();
           };
         });
-        box.querySelectorAll('.bn-ttime').forEach(function (b) {
+        box.querySelectorAll('.bn-gtime').forEach(function (b) {
           b.onclick = function () {
-            boSmartTime(NEW_GROUPS, +b.getAttribute('data-g'), +b.getAttribute('data-t'), function() { drawNewGroups(); });
+            boGroupTime(NEW_GROUPS, +b.getAttribute('data-g'), function () { drawNewGroups(); });
           };
         });
         box.querySelectorAll('.bn-tadd').forEach(function (b) {
@@ -1324,10 +1362,13 @@
           payload.tasks = JSON.stringify([{ name: '', tasks: tasks }]);
         } else if (isTasks) {
           var grp = NEW_GROUPS.map(function (g) {
-            return { name: g.name || '', tasks: (g.tasks || []).filter(function (tk) { return (tk.text || '').trim(); }) };
+            return {
+              name: g.name || '', time: g.time || '',
+              tasks: (g.tasks || []).filter(function (tk) { return (tk.text || '').trim(); })
+            };
           }).filter(function (g) { return g.tasks.length || g.name; });
           if (!grp.length) { App.toast('Kamida bitta vazifa yozing'); return; }
-          var isSingleUnnamed = grp.length === 1 && !grp[0].name;
+          var isSingleUnnamed = flatOk(grp);
           payload.tasks = isSingleUnnamed ? JSON.stringify(grp[0].tasks) : JSON.stringify({ groups: grp });
         } else {
           var txt = sh.querySelector('#bn-text').value.trim();
@@ -1822,7 +1863,7 @@
           items.forEach(function (it) {
             if (!existingTexts[it.text]) { g.tasks.push({ text: it.text, status: 0 }); existingTexts[it.text] = true; }
           });
-          var isSingleUnnamed = groups.length === 1 && !groups[0].name;
+          var isSingleUnnamed = flatOk(groups);
           var tasksPayload = isSingleUnnamed ? JSON.stringify(groups[0].tasks) : JSON.stringify({ groups: groups });
           return call('save', {
             id: planId, plan_type: planType, channel_id: chan.channel_id, channel_name: chan.channel_name,

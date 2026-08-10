@@ -1096,6 +1096,14 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
 .bo-hero-t{ font-size:17px; font-weight:800; }
 .bo-hero-s{ font-size:12.5px; color:var(--hint); margin-top:4px; }
 .bo-group{ background:var(--card); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px; margin-bottom:10px; }
+/* Bo'lim VAQTI — nom ostidagi kichik yorliq (vazifaga emas, butun bo'limga) */
+.bo-gtime-lb{
+  display:inline-flex; align-items:center; gap:5px; margin:0 0 9px;
+  padding:3px 9px; border-radius:99px;
+  background:color-mix(in srgb, var(--accent) 13%, transparent);
+  color:var(--accent); font-family:var(--mono); font-size:11.5px; font-weight:700;
+}
+.bo-gtime-lb::before{ content:'🕒'; font-size:10px; }
 .bo-task{ display:flex; align-items:center; gap:8px; margin-bottom:7px; }
 .bo-task.done .bo-ttext{ text-decoration:line-through; color:var(--hint); }
 .bo-check{ width:26px; height:26px; flex-shrink:0; border-radius:8px; border:1px solid var(--border);
