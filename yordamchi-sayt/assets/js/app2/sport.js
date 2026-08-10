@@ -769,13 +769,46 @@
     nav: 'sport',
     render: function (page) {
       page.innerHTML = topbar('Mening mashqlarim', 'sport', {},
-        '<button class="icon-btn ghost" data-act="mineEdit" style="margin-left:auto" aria-label="Tanlash">' +
+        '<button class="icon-btn ghost" data-act="mineDownload" style="margin-left:auto" aria-label=".md yuklab olish">' +
+        '<span data-icon="download" data-icon-size="18"></span></button>' +
+        '<button class="icon-btn ghost" data-act="mineEdit" aria-label="Tanlash">' +
         '<span data-icon="edit" data-icon-size="18"></span></button>') +
         '<div id="mine-body"><div class="load-wrap"><div class="spinner"></div></div></div>';
       App.icons(page);
       loadAll().then(function () { paintMine(); });
     }
   });
+
+  /* .md fayl qilib yuklab olish — mashq nomi, kategoriyasi, bugungi
+     maqsad (og'irlik/takror/vaqt/masofa), set soni, oshish qadami, boshlanish/
+     tugash vaqti va (bo'lsa) tavsifi bilan. Kategoriya bo'yicha guruhlangan. */
+  function mineToMd() {
+    var list = mineList();
+    var byCat = {};
+    list.forEach(function (x) { (byCat[x.cat] = byCat[x.cat] || []).push(x); });
+    var lines = ['# Mening mashqlarim', ''];
+    CATS.forEach(function (c) {
+      var items = byCat[c.id];
+      if (!items || !items.length) return;
+      lines.push('## ' + c.n, '');
+      items.forEach(function (x) {
+        var e = x.ex;
+        lines.push('### ' + e.name);
+        var info = [exerciseSub(e)];
+        if (e.start_time && e.end_time) info.push('🕒 ' + e.start_time + ' - ' + e.end_time);
+        lines.push(info.filter(Boolean).join(' · '));
+        if (e.desc && e.desc.trim()) lines.push('', e.desc.trim());
+        lines.push('');
+      });
+    });
+    return lines.join('\n');
+  }
+  App.actions.mineDownload = function () {
+    loadAll().then(function () {
+      if (!mineList().length) { App.toast('⚠️ Hali mashq tanlanmagan'); return; }
+      App.download('Mening mashqlarim.md', mineToMd());
+    });
+  };
 
   function paintMine() {
     var box = App.el('mine-body'); if (!box) return;
@@ -871,48 +904,8 @@
       };
     }
 
-    /* .md/.txt fayldan tanlash — har qatorda bitta mashq NOMI (bullet/raqam/
-       "#" bo'lsa avtomatik olib tashlanadi). Nom katalogdagi (barcha 17
-       kategoriya) mashq nomi bilan mos kelsa — belgilanadi. Mos kelmaganlari
-       ro'yxat oxirida "topilmadi" sifatida ko'rsatiladi (o'chirilmaydi —
-       mavjud tanlov saqlanadi, faqat qo'shiladi). */
-    function normName(s) { return String(s || '').trim().toLowerCase(); }
-    function importMineMd(text) {
-      var byName = {};
-      CATS.forEach(function (c) {
-        (S.data[c.id] || []).forEach(function (e) { byName[normName(e.name)] = e; });
-      });
-      var added = 0, missed = [];
-      String(text || '').split('\n').forEach(function (line) {
-        var s = line.replace(/^#+\s*/, '').replace(/^\s*[-*•]\s+/, '').replace(/^\s*\d+[).]\s*/, '').trim();
-        if (!s) return;
-        var e = byName[normName(s)];
-        if (e) { if (!sel[String(e.id)]) added++; sel[String(e.id)] = 1; }
-        else missed.push(s);
-      });
-      draw();
-      var msg = added ? ('✅ ' + added + ' ta mashq qo\'shildi') : '⚠️ Mos mashq topilmadi';
-      if (missed.length) {
-        msg += ' · ' + missed.length + ' ta topilmadi: ' + missed.slice(0, 3).join(', ') + (missed.length > 3 ? '…' : '');
-      }
-      App.toast(msg);
-    }
-
-    SHEET = App.sheet(
-      '<input type="file" id="mine-md-file" hidden accept=".md,.txt,text/markdown,text/plain">' +
-      '<button class="btn sec" id="mine-md-btn" style="margin-bottom:12px;width:100%">' +
-      '<span data-icon="upload" data-icon-size="16"></span>.md/.txt fayldan yuklash</button>' +
-      '<p class="muted" style="font-size:12px;margin:-6px 0 12px">Har qatorda bitta mashq nomi — katalogdagi nom bilan mos kelsa belgilanadi.</p>' +
-      '<div id="mine-pick"><div class="load-wrap"><div class="spinner"></div></div></div>',
-      { title: 'Mashq tanlash' });
-    SHEET.querySelector('#mine-md-btn').onclick = function () { SHEET.querySelector('#mine-md-file').click(); };
-    SHEET.querySelector('#mine-md-file').onchange = function (e) {
-      var f = e.target.files[0]; if (!f) return;
-      var reader = new FileReader();
-      reader.onload = function () { importMineMd(reader.result); };
-      reader.readAsText(f);
-      e.target.value = '';
-    };
+    SHEET = App.sheet('<div id="mine-pick"><div class="load-wrap"><div class="spinner"></div></div></div>',
+                      { title: 'Mashq tanlash' });
     loadAll().then(draw);
   };
 
