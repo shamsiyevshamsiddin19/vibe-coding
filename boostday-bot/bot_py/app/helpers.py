@@ -272,17 +272,22 @@ def decode_task_groups(raw) -> list:
     except (ValueError, TypeError):
         return [{"name": "", "tasks": []}]
     if isinstance(v, list):
-        return [{"name": "", "tasks": v}]
+        return [{"name": "", "time": "", "tasks": v}]
     if isinstance(v, dict) and isinstance(v.get("groups"), list):
         out = []
         for g in v["groups"]:
             if isinstance(g, dict):
                 out.append({
                     "name": str(g.get("name") or ""),
+                    # Vaqt oralig'i BUTUN BO'LIMGA tegishli ("08:00 - 08:30").
+                    # Ilgari u har bir vazifa MATNI ichida prefiks bo'lib
+                    # turardi; endi bo'lim darajasida, chunki amalda bir
+                    # bo'limdagi ishlar bitta oraliqda bajariladi.
+                    "time": str(g.get("time") or ""),
                     "tasks": g["tasks"] if isinstance(g.get("tasks"), list) else [],
                 })
-        return out or [{"name": "", "tasks": []}]
-    return [{"name": "", "tasks": []}]
+        return out or [{"name": "", "time": "", "tasks": []}]
+    return [{"name": "", "time": "", "tasks": []}]
 
 
 def flatten_task_groups(groups: list) -> list:
@@ -293,9 +298,20 @@ def flatten_task_groups(groups: list) -> list:
 
 
 def encode_task_groups(groups: list) -> str:
-    is_grouped = len(groups) > 1 or (len(groups) == 1 and (groups[0].get("name") or "").strip() != "")
+    # Bo'lim VAQTI ham guruhli shaklni talab qiladi: yassi ro'yxatda
+    # saqlansa vaqt yo'qolib ketardi (nomsiz bitta bo'limga vaqt
+    # qo'yilgan holat aynan shunday edi).
+    def has_meta(g):
+        return (str(g.get("name") or "").strip() != ""
+                or str(g.get("time") or "").strip() != "")
+
+    is_grouped = len(groups) > 1 or (len(groups) == 1 and has_meta(groups[0]))
     if is_grouped:
-        clean = [{"name": str(g.get("name") or ""), "tasks": g.get("tasks") or []} for g in groups]
+        clean = [{
+            "name": str(g.get("name") or ""),
+            "time": str(g.get("time") or ""),
+            "tasks": g.get("tasks") or [],
+        } for g in groups]
         return json.dumps({"groups": clean}, ensure_ascii=False)
     return json.dumps(flatten_task_groups(groups), ensure_ascii=False)
 
@@ -308,7 +324,14 @@ def build_todo_text(groups: list, title: str = "🗓 TO-DO") -> str:
 
     lines = [f"<b>{title}</b>", f"📊 Progress: <b>{completed}/{total}</b> | <b>{percent}%</b>", ""]
 
-    show_headers = len(groups) > 1 or (len(groups) == 1 and (groups[0].get("name") or "").strip() != "")
+    # Bo'lim sarlavhasi vaqt tufayli ham kerak bo'lishi mumkin (nomsiz,
+    # lekin vaqti bor bo'lim — vaqt ko'rinmay qolmasin).
+    show_headers = len(groups) > 1 or (
+        len(groups) == 1 and (
+            (groups[0].get("name") or "").strip() != ""
+            or (groups[0].get("time") or "").strip() != ""
+        )
+    )
     counter = 0
     for gi, g in enumerate(groups):
         g_tasks = g.get("tasks") or []
@@ -317,8 +340,10 @@ def build_todo_text(groups: list, title: str = "🗓 TO-DO") -> str:
         if show_headers:
             g_completed = sum(1 for t in g_tasks if int(t.get("status", 0) or 0) == 1)
             g_name = (g.get("name") or "").strip()
+            g_time = (g.get("time") or "").strip()
             header = f"{gi + 1}-bo'lim" + (f": {escape_html(g_name)}" if g_name else "")
-            lines.append(f"<b>{header}</b> ({g_completed}/{len(g_tasks)})")
+            time_part = f" 🕒 {escape_html(g_time)}" if g_time else ""
+            lines.append(f"<b>{header}</b>{time_part} ({g_completed}/{len(g_tasks)})")
         for task in g_tasks:
             counter += 1
             status = int(task.get("status", 0) or 0)

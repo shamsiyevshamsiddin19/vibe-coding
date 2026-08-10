@@ -149,6 +149,8 @@
   .tg-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
   .tg-num{font-size:12px;font-weight:700;color:var(--hint);white-space:nowrap}
   .tg-name{flex:1}
+  /* Bo'lim VAQTI — nom ostida, butun kenglikda (vazifa emas, BO'LIM uchun) */
+  .tg-time{width:100%;margin-bottom:8px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
   .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
     z-index:80;background:var(--text);color:var(--bg);padding:10px 18px;border-radius:999px;font-size:13.5px;font-weight:600;
     opacity:0;transition:.25s;pointer-events:none;max-width:90vw;text-align:center}
@@ -575,9 +577,11 @@ function addGroupCard(group, planType){
       <input type="text" class="tg-name" placeholder="Bo'lim nomi (ixtiyoriy)" />
       <button type="button" class="icon-btn tg-rem" style="width:28px;height:28px;font-size:12px">✕</button>
     </div>
+    <input type="text" class="tg-time" placeholder="Vaqt oralig'i, masalan 08:00 - 08:30 (ixtiyoriy)" />
     <textarea class="tg-tasks" rows="5" placeholder="Har qatorda bittadan vazifa"></textarea>
   `;
   div.querySelector(".tg-name").value = (group && group.name) || "";
+  div.querySelector(".tg-time").value = (group && group.time) || "";
   const lines = ((group && group.tasks) || []).map(t =>
     planType === "super_todo" ? `${t.text} | ${t.duration||""}` : t.text);
   div.querySelector(".tg-tasks").value = lines.join("\n");
@@ -599,6 +603,7 @@ function collectTasksGrouped(t){
   const groups = [];
   for (const card of cards) {
     const name = card.querySelector(".tg-name").value.trim();
+    const time = normTimeRange(card.querySelector(".tg-time").value);
     const lines = card.querySelector(".tg-tasks").value.split("\n").map(l=>l.trim()).filter(Boolean);
     let tasks;
     if (t === "super_todo") {
@@ -612,9 +617,22 @@ function collectTasksGrouped(t){
     } else {
       tasks = lines.map(text => ({text, status:0}));
     }
-    if (tasks.length) groups.push({name, tasks});
+    if (tasks.length) groups.push({name, time, tasks});
   }
   return { groups };
+}
+
+/* Vaqt oralig'ini bir ko'rinishga keltiradi: "8:0-8.30" -> "08:00 - 08:30".
+   Bo'sh yoki tushunarsiz bo'lsa bo'sh qaytaradi (majburlamaymiz —
+   vaqt ixtiyoriy). Sayt tomonida ham AYNI qoida ishlatiladi. */
+function normTimeRange(raw){
+  const s = String(raw||"").trim();
+  if (!s) return "";
+  const m = s.match(/^(\d{1,2})[:.\s]?(\d{2})\s*(?:[-–—]\s*(\d{1,2})[:.\s]?(\d{2}))?$/);
+  if (!m) return "";
+  const p = (h,mi) => String(Math.min(23,+h)).padStart(2,"0")+":"+String(Math.min(59,+mi)).padStart(2,"0");
+  const a = p(m[1],m[2]);
+  return m[3] ? a+" - "+p(m[3],m[4]) : a;
 }
 function openSheet(){ el("sheetBack").classList.add("show"); el("sheet").classList.add("show"); if(tg&&tg.BackButton) tg.BackButton.show(); }
 function closeSheet(){ el("sheetBack").classList.remove("show"); el("sheet").classList.remove("show"); if(tg&&tg.BackButton) tg.BackButton.hide(); }
@@ -659,8 +677,11 @@ async function submitForm(ev){
   if(["todo","super_todo","daily_todo"].includes(t)){
     const r=collectTasksGrouped(t); if(r.err){ toast("⚠️ "+r.err); return; }
     if(!r.groups.length){ toast("Kamida bitta vazifa"); return; }
-    const isSingleUnnamed = r.groups.length===1 && !r.groups[0].name;
-    payload.tasks = isSingleUnnamed ? JSON.stringify(r.groups[0].tasks) : JSON.stringify({groups:r.groups});
+    /* Yassi ro'yxatga faqat nomi HAM, vaqti HAM bo'lmagan yagona bo'lim
+       tushadi — aks holda bo'lim vaqti saqlashda yo'qolib ketardi. */
+    const g0 = r.groups[0];
+    const isSingleUnnamed = r.groups.length===1 && !g0.name && !g0.time;
+    payload.tasks = isSingleUnnamed ? JSON.stringify(g0.tasks) : JSON.stringify({groups:r.groups});
   } else {
     const items=collectItems(); if(!items.length){ toast("Matn yoki media kiriting"); return; }
     payload.items=JSON.stringify(items);
