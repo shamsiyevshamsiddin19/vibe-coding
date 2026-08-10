@@ -226,6 +226,21 @@ CREATE TABLE IF NOT EXISTS dictionary_mistake_snapshots (
 
 CREATE INDEX IF NOT EXISTS idx_dict_mistake_snap ON dictionary_mistake_snapshots (owner_type, owner_key, lang, created_at DESC);
 
+-- Testlardagi xato savollarning versiya tarixi (lug'atdagi bilan bir xil g'oya).
+-- Savolning MATNI ham nusxaga yoziladi: savol keyinroq tahrirlansa yoki
+-- o'chirilsa, eski versiya baribir o'sha paytdagi holatni ko'rsatadi.
+CREATE TABLE IF NOT EXISTS quiz_wrong_snapshots (
+    id BIGSERIAL PRIMARY KEY,
+    owner_type VARCHAR(32) NOT NULL,
+    owner_key VARCHAR(191) NOT NULL,
+    base_full_name VARCHAR(255) NOT NULL,
+    question_count INT NOT NULL DEFAULT 0,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_quiz_wrong_snap ON quiz_wrong_snapshots (owner_type, owner_key, base_full_name, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS language_topics (
     id BIGSERIAL PRIMARY KEY,
     owner_type VARCHAR(32) NOT NULL,

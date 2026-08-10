@@ -12,10 +12,10 @@
   };
 
   /* ---------- Yordamchi: sarlavha qatori ---------- */
-  function topbar(title, backView, backParams) {
+  function topbar(title, backView, backParams, rightHtml) {
     return '<div class="topbar" style="margin:-16px -15px 12px">' +
       '<button class="icon-btn ghost" data-act="go" data-arg=\'' + App.arg({ v: backView, p: backParams || {} }) + '\'><span data-icon="arrowLeft" data-icon-size="20"></span></button>' +
-      '<h1>' + App.esc(title) + '</h1></div>';
+      '<h1>' + App.esc(title) + '</h1>' + (rightHtml || '') + '</div>';
   }
 
   /* ---------- Matn/LaTeX render (MathJax mavjud bo'lsa) ---------- */
@@ -506,7 +506,10 @@
     nav: 'fanlar',
     render: function (page, params) {
       var full = params.db || '';
-      page.innerHTML = topbar(full.split('__')[1] || full, 'fanlar_subject', { subject: subjectOf(full) }) +
+      var rightHtml =
+        '<button class="icon-btn ghost" data-act="qwVersions" data-arg=\'' + App.arg({ db: full }) + '\' ' +
+        'aria-label="Xatolar versiyalari" title="Xatolar versiyalari"><span data-icon="clock" data-icon-size="18"></span></button>';
+      page.innerHTML = topbar(full.split('__')[1] || full, 'fanlar_subject', { subject: subjectOf(full) }, rightHtml) +
         '<div class="stat-strip" id="qd-stats"></div>' +
         '<div class="btn-row" style="flex-direction:column;gap:10px">' +
         '<button class="btn" data-act="playQuiz" data-arg=\'{"mode":"all"}\'>Bittalab ishlash</button>' +
@@ -534,8 +537,12 @@
         }
         var wb = App.el('qd-wrong-btn');
         if (wb && wrongCount) {
-          wb.innerHTML = '<button class="btn" style="background:var(--danger);width:100%" data-act="playQuiz" data-arg=\'{"mode":"wrong"}\'>' +
-            '<span data-icon="alert" data-icon-size="16"></span>Xatolar ustida ishlash (' + wrongCount + ')</button>';
+          wb.innerHTML = '<div style="display:flex;gap:8px">' +
+            '<button class="btn" style="background:var(--danger);flex:1" data-act="playQuiz" data-arg=\'{"mode":"wrong"}\'>' +
+            '<span data-icon="alert" data-icon-size="16"></span>Xatolar ustida ishlash (' + wrongCount + ')</button>' +
+            '<button class="btn sec" style="flex:0 0 auto;padding:0 14px" data-act="qwDownload" data-arg=\'' +
+            App.arg({ db: full }) + '\' title=".md yuklab olish va versiya saqlash">' +
+            '<span data-icon="download" data-icon-size="16"></span></button></div>';
           App.icons(wb);
         }
       });
@@ -1003,5 +1010,155 @@
       Q.data.flags = flags;
       if (btn) { btn.classList.toggle('saved', willSave); btn.textContent = willSave ? 'Saqlangan' : 'Saqlash'; }
     }).catch(function (e) { App.toast('⚠️ ' + e.message); });
+  };
+
+  /* =========================================================
+     XATO SAVOLLAR — .md yuklab olish + versiya tarixi
+
+     Lug'atdagi ("Xatolar ustida ishlash") bilan bir xil g'oya: har
+     "yuklab olish" bir versiya bo'lib saqlanadi. Versiya O'ZGARMAS —
+     savol keyinroq "o'zlashtirildi" deb xatolardan chiqarilsa yoki
+     umuman tahrirlansa ham, eski versiyada o'sha paytdagi holicha
+     qoladi (savol matni va variantlari nusxaga yozilgan).
+     ========================================================= */
+  function qwBaseLabel(full) { return String(full || '').split('__')[1] || full || 'Test'; }
+
+  function wrongToMd(questions, dbFull, whenLabel) {
+    var lines = ['# Xato savollar — ' + qwBaseLabel(dbFull), '',
+      '_' + whenLabel + ' · ' + questions.length + ' ta savol_', ''];
+    questions.forEach(function (q, i) {
+      lines.push('### ' + (i + 1) + '. ' + String(q.text || '').trim());
+      if (q.wrong_count > 1) lines.push('*' + q.wrong_count + ' marta xato qilingan*');
+      lines.push('');
+      var opts = q.options || {};
+      Object.keys(opts).forEach(function (k) {
+        var mark = (k === q.correct) ? ' ✅' : '';
+        lines.push('- **' + k + ')** ' + opts[k] + mark);
+      });
+      if (q.explanation && String(q.explanation).trim()) {
+        lines.push('', '> ' + String(q.explanation).trim());
+      }
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+
+  function qwDateLabel() {
+    var d = new Date();
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  function fmtSnapDate(iso) {
+    var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    if (!m) return iso || '';
+    var mon = ['yan', 'fev', 'mar', 'apr', 'may', 'iyn', 'iyl', 'avg', 'sen', 'okt', 'noy', 'dek'];
+    return (+m[3]) + '-' + mon[(+m[2]) - 1] + ', ' + m[4] + ':' + m[5];
+  }
+
+  /* Yuklab olish: joriy xato savollar .md bo'lib beriladi VA versiya saqlanadi */
+  App.actions.qwDownload = function (a) {
+    var full = a.db;
+    App.call('save_wrong_snapshot', {}, { query: 'db=' + encodeURIComponent(full) })
+      .then(function (saved) {
+        /* Faylni nusxaning O'ZIDAN yasaymiz — shunda .md va saqlangan
+           versiya bir xil bo'ladi (oradagi o'zgarish farq tug'dirmasin). */
+        return App.call('get_wrong_snapshot', null, { query: 'id=' + encodeURIComponent(saved.id) });
+      })
+      .then(function (j) {
+        var label = qwDateLabel();
+        App.download('Xato savollar — ' + qwBaseLabel(full) + ' (' + label + ').md',
+          wrongToMd(j.questions || [], full, label));
+        App.toast('✅ Yuklandi va versiya sifatida saqlandi');
+      })
+      .catch(function (e) { App.toast('⚠️ ' + e.message); });
+  };
+
+  App.actions.qwVersions = function (a) {
+    var full = a.db;
+    var SHEET = App.sheet('<div id="qw-ver-body"><div class="load-wrap"><div class="spinner"></div></div></div>',
+      { title: 'Xatolar versiyalari' });
+
+    function draw() {
+      App.call('list_wrong_snapshots', null, { query: 'db=' + encodeURIComponent(full) }).then(function (j) {
+        var body = SHEET.querySelector('#qw-ver-body'); if (!body) return;
+        var snaps = j.snapshots || [];
+        if (!snaps.length) {
+          body.innerHTML = App.empty({
+            icon: 'clock', title: 'Versiya yo\'q',
+            text: 'Xato savollarni birinchi marta yuklab olganingizda shu yerda versiya paydo bo\'ladi.'
+          });
+          App.icons(body); return;
+        }
+        body.innerHTML = snaps.map(function (v) {
+          return '<div class="list-row">' +
+            '<button class="li-main" style="background:none;border:none;text-align:left;padding:0" ' +
+            'data-act="qwVersionOpen" data-arg=\'' + App.arg({ db: full, id: v.id }) + '\'>' +
+            '<div class="li-title">' + fmtSnapDate(v.created_at) + '</div>' +
+            '<div class="li-sub">' + v.question_count + ' ta savol</div></button>' +
+            '<button class="icon-btn ghost" style="width:32px;height:32px;color:var(--danger)" ' +
+            'data-act="qwVersionDelete" data-arg=\'' + App.arg({ id: v.id }) + '\' title="O\'chirish">' +
+            '<span data-icon="trash" data-icon-size="15"></span></button></div>';
+        }).join('');
+        App.icons(body);
+      }).catch(function (e) {
+        var body = SHEET.querySelector('#qw-ver-body');
+        if (body) body.innerHTML = App.empty({ icon: 'alert', title: 'Xatolik', text: e.message });
+      });
+    }
+    draw();
+    SHEET._qwVerRedraw = draw;
+  };
+
+  App.actions.qwVersionDelete = function (a) {
+    App.confirm('Bu versiya butunlay o\'chiriladi.', function () {
+      App.call('delete_wrong_snapshot', { id: a.id }).then(function () {
+        App.toast('✅ O\'chirildi');
+        if (App._sheet && App._sheet.sh._qwVerRedraw) App._sheet.sh._qwVerRedraw();
+      }).catch(function (e) { App.toast('⚠️ ' + e.message); });
+    }, { danger: true, yes: 'O\'chirish' });
+  };
+
+  App.actions.qwVersionOpen = function (a) {
+    var full = a.db;
+    var SHEET = App.sheet('<div id="qw-vo-body"><div class="load-wrap"><div class="spinner"></div></div></div>',
+      { title: 'Versiya' });
+    App.call('get_wrong_snapshot', null, { query: 'id=' + encodeURIComponent(a.id) }).then(function (j) {
+      var body = SHEET.querySelector('#qw-vo-body'); if (!body) return;
+      var qs = j.questions || [], dateLabel = fmtSnapDate(j.created_at);
+      body.innerHTML =
+        '<p class="muted" style="font-size:13px;margin:-6px 0 12px">' + dateLabel + ' · ' + qs.length + ' ta savol</p>' +
+        '<button class="btn" id="qw-vo-play" style="margin-bottom:8px">' +
+        '<span data-icon="play" data-icon-size="16"></span>Shu savollar bilan ishlash</button>' +
+        '<button class="btn sec" id="qw-vo-dl" style="margin-bottom:16px">' +
+        '<span data-icon="download" data-icon-size="16"></span>.md qilib yuklab olish</button>' +
+        qs.map(function (q, i) {
+          return '<div class="list-row"><div class="li-main">' +
+            '<div class="li-title" style="font-size:13.5px">' + (i + 1) + '. ' + App.esc(String(q.text || '').slice(0, 90)) + '</div>' +
+            '<div class="li-sub">To\'g\'ri javob: ' + App.esc(q.correct || '') +
+            (q.wrong_count > 1 ? ' · ' + q.wrong_count + ' marta xato' : '') + '</div></div></div>';
+        }).join('');
+      App.icons(body);
+
+      body.querySelector('#qw-vo-play').onclick = function () {
+        if (!qs.length) { App.toast('Savol yo\'q'); return; }
+        App.closeSheet();
+        /* Nusxadagi savollar bilan oddiy sessiya. `src='wrong'` — to'g'ri
+           javob berilganda savol xatolar ro'yxatidan chiqadi (mark/clear
+           chaqiruvlari savol ID si bo'yicha ishlaydi, ular o'zgarmagan).
+           `Q.db` ni aniq qo'yamiz: versiya boshqa sahifadan ochilgan
+           bo'lsa u hali o'rnatilmagan bo'lishi mumkin. */
+        Q.db = full;
+        Q.session = { correct: 0, wrong: 0, total: qs.length, startedAt: Date.now(), mode: 'wrong' };
+        Q.quiz = { active: qs.map(shuffleOptions), index: 0, score: 0, answered: false, src: 'wrong' };
+        App.go('quiz_play', { db: full });
+      };
+      body.querySelector('#qw-vo-dl').onclick = function () {
+        App.download('Xato savollar — ' + qwBaseLabel(full) + ' (' + dateLabel + ').md',
+          wrongToMd(qs, full, dateLabel));
+      };
+    }).catch(function (e) {
+      var body = SHEET.querySelector('#qw-vo-body');
+      if (body) body.innerHTML = App.empty({ icon: 'alert', title: 'Xatolik', text: e.message });
+    });
   };
 })();

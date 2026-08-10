@@ -120,6 +120,12 @@ def _dispatch_query_action(request: Request, action: str, body: dict, q):
         "delete_question": lambda: quiz.delete_question(request, body, db_name),
         "mark_wrong": lambda: quiz.mark_wrong(request, body, db_name),
         "clear_wrong": lambda: quiz.clear_wrong(request, body, db_name),
+        "save_wrong_snapshot": lambda: quiz.save_wrong_snapshot(request, body, db_name),
+        "list_wrong_snapshots": lambda: quiz.list_wrong_snapshots(request, body, db_name),
+        "get_wrong_snapshot": lambda: quiz.get_wrong_snapshot(
+            request, body, int(q.get("id") or 0) if str(q.get("id") or "").isdigit() else 0
+        ),
+        "delete_wrong_snapshot": lambda: quiz.delete_wrong_snapshot(request, body),
         "save_quiz_result": lambda: quiz.save_quiz_result(request, body),
         "get_quiz_results": lambda: quiz.get_quiz_results(request, body, db_name),
         "add_goal_folder": lambda: goals.add_goal_folder(request, body),

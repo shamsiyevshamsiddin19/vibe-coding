@@ -376,6 +376,97 @@ def clear_wrong(request: Request, body: dict, db_name: str):
     return success()
 
 
+# --- Xato savollarning versiya tarixi (lug'atdagi bilan bir xil g'oya) ---
+
+def save_wrong_snapshot(request: Request, body: dict, db_name: str):
+    """Joriy xato savollarni bir versiya qilib saqlaydi.
+
+    Savol MATNI va variantlari ham nusxaga yoziladi — savol keyinroq
+    tahrirlansa yoki o'chirilsa ham eski versiya o'sha paytdagi holatni
+    ko'rsataveradi (lug'atdagi snapshot bilan bir xil qoida).
+    """
+    base = _require_base(db_name)
+    ctx = owner_context(request)
+    rows = db.fetch_all(
+        "SELECT qq.id, qq.question_text, qq.options_json, qq.correct_answer, qq.explanation, qp.wrong_count "
+        "FROM quiz_progress qp JOIN quiz_questions qq ON qq.id = qp.question_id "
+        "WHERE qp.base_id = :b AND qp.owner_type = :ot AND qp.owner_key = :ok AND qp.wrong_count > 0 "
+        "ORDER BY qp.wrong_count DESC, qq.id",
+        {"b": base["id"], "ot": ctx["owner_type"], "ok": ctx["owner_key"]},
+    )
+    if not rows:
+        raise ApiError("Xato savol yo'q — saqlash uchun hech narsa yo'q.")
+
+    items = []
+    for r in rows:
+        try:
+            options = json.loads(r["options_json"] or "null")
+        except (ValueError, TypeError):
+            options = None
+        items.append({
+            "id": int(r["id"]),
+            "text": r["question_text"],
+            "options": options if isinstance(options, (dict, list)) else {},
+            "correct": r["correct_answer"],
+            "explanation": r["explanation"] or "",
+            "wrong_count": int(r["wrong_count"] or 0),
+        })
+
+    new_id = db.execute_returning_id(
+        "INSERT INTO quiz_wrong_snapshots (owner_type, owner_key, base_full_name, question_count, content) "
+        "VALUES (:ot, :ok, :f, :n, :c)",
+        {"ot": ctx["owner_type"], "ok": ctx["owner_key"], "f": base["full_name"],
+         "n": len(items), "c": json.dumps(items, ensure_ascii=False)},
+    )
+    return success({"id": new_id, "question_count": len(items)})
+
+
+def list_wrong_snapshots(request: Request, body: dict, db_name: str):
+    base = _require_base(db_name)
+    ctx = owner_context(request)
+    rows = db.fetch_all(
+        "SELECT id, question_count, created_at FROM quiz_wrong_snapshots "
+        "WHERE owner_type = :ot AND owner_key = :ok AND base_full_name = :f ORDER BY created_at DESC",
+        {"ot": ctx["owner_type"], "ok": ctx["owner_key"], "f": base["full_name"]},
+    )
+    return success({"snapshots": [
+        {"id": int(r["id"]), "question_count": int(r["question_count"]), "created_at": str(r["created_at"])}
+        for r in rows
+    ]})
+
+
+def get_wrong_snapshot(request: Request, body: dict, snapshot_id: int):
+    ctx = owner_context(request)
+    row = db.fetch_one(
+        "SELECT id, base_full_name, question_count, content, created_at FROM quiz_wrong_snapshots "
+        "WHERE id = :id AND owner_type = :ot AND owner_key = :ok",
+        {"id": snapshot_id, "ot": ctx["owner_type"], "ok": ctx["owner_key"]},
+    )
+    if not row:
+        raise ApiError("Versiya topilmadi.", 404)
+    try:
+        questions = json.loads(row["content"])
+    except (ValueError, TypeError):
+        questions = []
+    return success({
+        "id": int(row["id"]), "db": row["base_full_name"],
+        "question_count": int(row["question_count"]),
+        "created_at": str(row["created_at"]), "questions": questions,
+    })
+
+
+def delete_wrong_snapshot(request: Request, body: dict):
+    snapshot_id = to_int(body.get("id"))
+    if snapshot_id <= 0:
+        raise ApiError("Versiya ID kelmadi.", 422)
+    ctx = owner_context(request)
+    db.execute(
+        "DELETE FROM quiz_wrong_snapshots WHERE id = :id AND owner_type = :ot AND owner_key = :ok",
+        {"id": snapshot_id, "ot": ctx["owner_type"], "ok": ctx["owner_key"]},
+    )
+    return success()
+
+
 def save_quiz_result(request: Request, body: dict):
     """Yakunlangan test sessiyasini tarixga yozadi."""
     base_full = s(body.get("db"))

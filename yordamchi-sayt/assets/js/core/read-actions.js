@@ -31,6 +31,8 @@
     'list_mistake_snapshots',
     'get_mistake_snapshot',
     'get_quiz_results',
+    'list_wrong_snapshots',
+    'get_wrong_snapshot',
     'get_structure',
     'get_topic',
     'get_topics',
