@@ -210,6 +210,22 @@ ALTER TABLE dictionary_mistakes ADD COLUMN IF NOT EXISTS lang VARCHAR(16) NOT NU
 
 CREATE INDEX IF NOT EXISTS idx_dictionary_mistakes_owner ON dictionary_mistakes (owner_type, owner_key, category);
 
+-- Xatolar (dictionary_mistakes) ro'yxatining GitHub'dagi kabi versiya tarixi.
+-- Har "yuklab olish" bosilganda joriy ro'yxat shu yerga bir nusxa qilib
+-- yoziladi (o'chirilib ketmaydi) — foydalanuvchi istalgan eski versiyani
+-- qayta ochib, o'sha so'zlar bilan yana mashq qila oladi.
+CREATE TABLE IF NOT EXISTS dictionary_mistake_snapshots (
+    id BIGSERIAL PRIMARY KEY,
+    owner_type VARCHAR(32) NOT NULL,
+    owner_key VARCHAR(191) NOT NULL,
+    lang VARCHAR(16) NOT NULL,
+    word_count INT NOT NULL DEFAULT 0,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_dict_mistake_snap ON dictionary_mistake_snapshots (owner_type, owner_key, lang, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS language_topics (
     id BIGSERIAL PRIMARY KEY,
     owner_type VARCHAR(32) NOT NULL,

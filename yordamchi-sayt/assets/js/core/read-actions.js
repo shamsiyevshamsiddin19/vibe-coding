@@ -28,6 +28,8 @@
     'get_data',
     'get_dict_data',
     'get_mistakes',
+    'list_mistake_snapshots',
+    'get_mistake_snapshot',
     'get_quiz_results',
     'get_structure',
     'get_topic',

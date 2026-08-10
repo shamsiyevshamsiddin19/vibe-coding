@@ -10,7 +10,7 @@ from sqlalchemy import text
 from .. import db
 from ..errors import ApiError, success
 from ..owner import global_context, owner_context
-from .common import s
+from .common import s, to_int
 
 
 ALLOWED_DICT_LANGS = {"english", "russian"}
@@ -192,6 +192,74 @@ def remove_mistake(request: Request, body: dict):
         "DELETE FROM dictionary_mistakes WHERE owner_type = :ot AND owner_key = :ok AND lang = :l "
         "AND category = :c AND word_ru = :ru",
         {"ot": ctx["owner_type"], "ok": ctx["owner_key"], "l": lang, "c": category, "ru": ru},
+    )
+    return success()
+
+
+# --- Xatolar versiya tarixi (GitHub'dagi kabi — har "yuklab olish" bir versiya) ---
+
+def save_mistake_snapshot(request: Request, body: dict):
+    lang = _clean_dict_lang(body.get("lang"))
+    ctx = owner_context(request)
+    rows = db.fetch_all(
+        "SELECT category, word_ru, word_uz FROM dictionary_mistakes "
+        "WHERE owner_type = :ot AND owner_key = :ok AND lang = :l ORDER BY updated_at DESC",
+        {"ot": ctx["owner_type"], "ok": ctx["owner_key"], "l": lang},
+    )
+    if not rows:
+        raise ApiError("Xato so'z yo'q — saqlash uchun hech narsa yo'q.")
+    content = json.dumps(
+        [{"ru": r["word_ru"], "uz": r["word_uz"], "cat": r["category"]} for r in rows],
+        ensure_ascii=False,
+    )
+    new_id = db.execute_returning_id(
+        "INSERT INTO dictionary_mistake_snapshots (owner_type, owner_key, lang, word_count, content) "
+        "VALUES (:ot, :ok, :l, :n, :c)",
+        {"ot": ctx["owner_type"], "ok": ctx["owner_key"], "l": lang, "n": len(rows), "c": content},
+    )
+    return success({"id": new_id, "word_count": len(rows)})
+
+
+def list_mistake_snapshots(request: Request, body: dict, lang: str):
+    lang = _clean_dict_lang(lang)
+    ctx = owner_context(request)
+    rows = db.fetch_all(
+        "SELECT id, word_count, created_at FROM dictionary_mistake_snapshots "
+        "WHERE owner_type = :ot AND owner_key = :ok AND lang = :l ORDER BY created_at DESC",
+        {"ot": ctx["owner_type"], "ok": ctx["owner_key"], "l": lang},
+    )
+    return success({"snapshots": [
+        {"id": int(r["id"]), "word_count": int(r["word_count"]), "created_at": str(r["created_at"])} for r in rows
+    ]})
+
+
+def get_mistake_snapshot(request: Request, body: dict, snapshot_id: int):
+    ctx = owner_context(request)
+    row = db.fetch_one(
+        "SELECT id, lang, word_count, content, created_at FROM dictionary_mistake_snapshots "
+        "WHERE id = :id AND owner_type = :ot AND owner_key = :ok",
+        {"id": snapshot_id, "ot": ctx["owner_type"], "ok": ctx["owner_key"]},
+    )
+    if not row:
+        raise ApiError("Versiya topilmadi.", 404)
+    try:
+        words = json.loads(row["content"])
+    except (ValueError, TypeError):
+        words = []
+    return success({
+        "id": int(row["id"]), "lang": row["lang"], "word_count": int(row["word_count"]),
+        "created_at": str(row["created_at"]), "words": words,
+    })
+
+
+def delete_mistake_snapshot(request: Request, body: dict):
+    snapshot_id = to_int(body.get("id"))
+    if snapshot_id <= 0:
+        raise ApiError("Versiya ID kelmadi.", 422)
+    ctx = owner_context(request)
+    db.execute(
+        "DELETE FROM dictionary_mistake_snapshots WHERE id = :id AND owner_type = :ot AND owner_key = :ok",
+        {"id": snapshot_id, "ot": ctx["owner_type"], "ok": ctx["owner_key"]},
     )
     return success()
 

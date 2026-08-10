@@ -1205,12 +1205,18 @@
       var lang = params.lang === 'russian' ? 'russian' : 'english', cat = params.cat;
 
       // Xatolar rejimi: kategoriya emas, to'plangan xato so'zlar bilan mashq
-      if (params.src === 'mistakes') {
+      // `src=snapshot` — SAQLANGAN versiyadagi so'zlar (o'shanda xato bo'lganlar).
+      if (params.src === 'mistakes' || params.src === 'snapshot') {
+        var isSnap = params.src === 'snapshot';
         page.innerHTML = '<div class="load-wrap"><div class="spinner"></div></div>';
-        loadMistakes(lang).then(function (list) {
-          if (!list.length) { App.toast('Xato so\'zlar yo\'q'); App.go('vocab_mistakes', { lang: lang }); return; }
+        var load = isSnap
+          ? App.call('get_mistake_snapshot', null, { query: 'id=' + encodeURIComponent(params.id) })
+              .then(function (j) { return j.words || []; })
+          : loadMistakes(lang);
+        load.then(function (list) {
+          if (!list.length) { App.toast('So\'z yo\'q'); App.go('vocab_mistakes', { lang: lang }); return; }
           FC = {
-            lang: lang, cat: null, src: 'mistakes', list: list.slice(), idx: 0, flipped: false,
+            lang: lang, cat: null, src: params.src, list: list.slice(), idx: 0, flipped: false,
             good: 0, bad: 0, mistakes: [], mode: 'l1', muted: ls('vocab_muted', '0') === '1',
             startedAt: Date.now(), logged: false
           };
@@ -1287,6 +1293,10 @@
   /* ---------- Xatolar ustida ishlash ---------- */
   var MIS = { lang: 'english', list: [] };
 
+  /* Flashcard qaysi manbadan ochilgan bo'lsa o'shanga qaytadi. Xatolar va
+     saqlangan versiya — ikkalasi ham "Xatolar" sahifasidan keladi. */
+  function isMistakeSrc(src) { return src === 'mistakes' || src === 'snapshot'; }
+
   function loadMistakes(lang) {
     return App.call('get_mistakes', null, { query: 'lang=' + lang }).then(function (j) {
       MIS.lang = lang;
@@ -1301,7 +1311,12 @@
     nav: 'languages',
     render: function (page, params) {
       var lang = params.lang === 'russian' ? 'russian' : 'english';
-      page.innerHTML = topbar('Xatolar', 'vocab', { lang: lang }) +
+      var rightHtml =
+        '<button class="icon-btn ghost" data-act="misVersions" data-arg=\'' + App.arg({ lang: lang }) + '\' ' +
+        'aria-label="Versiyalar" title="Versiyalar"><span data-icon="clock" data-icon-size="18"></span></button>' +
+        '<button class="icon-btn ghost" data-act="misDownload" data-arg=\'' + App.arg({ lang: lang }) + '\' ' +
+        'aria-label=".md yuklab olish" title=".md yuklab olish"><span data-icon="download" data-icon-size="18"></span></button>';
+      page.innerHTML = topbar('Xatolar', 'vocab', { lang: lang }, rightHtml) +
         '<div id="mis-body"><div class="load-wrap"><div class="spinner"></div></div></div>';
       App.icons(page);
       loadMistakes(lang).then(function () { renderMistakes(page, lang); })
@@ -1310,6 +1325,122 @@
         });
     }
   });
+
+  /* ---------- .md yuklab olish + GitHub'dagi kabi versiya tarixi ----------
+     Har "yuklab olish" bosilganda: (1) joriy ro'yxat .md fayl qilib beriladi,
+     (2) AYNI shu ro'yxat serverga versiya sifatida saqlanadi. So'z keyinroq
+     "o'rgandim" deb o'chirilsa ham, eski versiyada saqlanib qoladi — GitHub
+     commit kabi, istalgan eski versiyani ochib o'sha so'zlar bilan yana
+     mashq qilish mumkin. */
+  function misLabel(lang) { return lang === 'russian' ? 'Rus tili' : 'Ingliz tili'; }
+
+  function mistakesToMd(list, lang, whenLabel) {
+    var byCat = {};
+    list.forEach(function (w) { (byCat[w.cat] = byCat[w.cat] || []).push(w); });
+    var lines = ['# Xato so\'zlar — ' + misLabel(lang), '',
+      '_' + whenLabel + ' · ' + list.length + ' ta so\'z_', ''];
+    Object.keys(byCat).forEach(function (cat) {
+      lines.push('## ' + cat, '');
+      byCat[cat].forEach(function (w) { lines.push('- **' + w.ru + '** — ' + w.uz); });
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+
+  App.actions.misDownload = function (a) {
+    var lang = a.lang;
+    loadMistakes(lang).then(function (list) {
+      if (!list.length) { App.toast('⚠️ Xato so\'z yo\'q'); return; }
+      var today = new Date();
+      var dateLabel = today.getFullYear() + '-' + ('0' + (today.getMonth() + 1)).slice(-2) + '-' + ('0' + today.getDate()).slice(-2);
+      App.download('Xatolar — ' + misLabel(lang) + ' (' + dateLabel + ').md', mistakesToMd(list, lang, dateLabel));
+      App.call('save_mistake_snapshot', { lang: lang })
+        .then(function () { App.toast('✅ Yuklandi va versiya sifatida saqlandi'); })
+        .catch(function (e) { App.toast('⚠️ Yuklandi, lekin versiya saqlanmadi: ' + e.message); });
+    }).catch(function (e) { App.toast('⚠️ ' + e.message); });
+  };
+
+  function fmtSnapDate(iso) {
+    // "2026-08-10 14:32:05" -> "10-avg, 14:32"
+    var m = String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    if (!m) return iso || '';
+    var mon = ['yan', 'fev', 'mar', 'apr', 'may', 'iyn', 'iyl', 'avg', 'sen', 'okt', 'noy', 'dek'];
+    return (+m[3]) + '-' + mon[(+m[2]) - 1] + ', ' + m[4] + ':' + m[5];
+  }
+
+  App.actions.misVersions = function (a) {
+    var lang = a.lang;
+    var SHEET = App.sheet('<div id="mis-ver-body"><div class="load-wrap"><div class="spinner"></div></div></div>',
+      { title: 'Versiyalar — ' + misLabel(lang) });
+
+    function draw() {
+      App.call('list_mistake_snapshots', null, { query: 'lang=' + lang }).then(function (j) {
+        var body = SHEET.querySelector('#mis-ver-body'); if (!body) return;
+        var snaps = j.snapshots || [];
+        if (!snaps.length) {
+          body.innerHTML = App.empty({
+            icon: 'clock', title: 'Versiya yo\'q',
+            text: '"Xatolar" ro\'yxatini birinchi marta yuklab olganingizda shu yerda versiya paydo bo\'ladi.'
+          });
+          App.icons(body); return;
+        }
+        body.innerHTML = snaps.map(function (v) {
+          return '<div class="list-row">' +
+            '<button class="li-main" style="background:none;border:none;text-align:left;padding:0" ' +
+            'data-act="misVersionOpen" data-arg=\'' + App.arg({ lang: lang, id: v.id }) + '\'>' +
+            '<div class="li-title">' + fmtSnapDate(v.created_at) + '</div>' +
+            '<div class="li-sub">' + v.word_count + ' ta so\'z</div></button>' +
+            '<button class="icon-btn ghost" style="width:32px;height:32px;color:var(--danger)" ' +
+            'data-act="misVersionDelete" data-arg=\'' + App.arg({ lang: lang, id: v.id }) + '\' title="O\'chirish">' +
+            '<span data-icon="trash" data-icon-size="15"></span></button></div>';
+        }).join('');
+        App.icons(body);
+      });
+    }
+    draw();
+    SHEET._misVerRedraw = draw;
+  };
+
+  App.actions.misVersionDelete = function (a) {
+    App.confirm('Bu versiya butunlay o\'chiriladi.', function () {
+      App.call('delete_mistake_snapshot', { id: a.id }).then(function () {
+        App.toast('✅ O\'chirildi');
+        if (App._sheet && App._sheet.sh._misVerRedraw) App._sheet.sh._misVerRedraw();
+      }).catch(function (e) { App.toast('⚠️ ' + e.message); });
+    }, { danger: true, yes: 'O\'chirish' });
+  };
+
+  App.actions.misVersionOpen = function (a) {
+    var lang = a.lang, id = a.id;
+    var SHEET = App.sheet('<div id="mis-vo-body"><div class="load-wrap"><div class="spinner"></div></div></div>',
+      { title: 'Versiya' });
+    App.call('get_mistake_snapshot', null, { query: 'id=' + encodeURIComponent(id) }).then(function (j) {
+      var body = SHEET.querySelector('#mis-vo-body'); if (!body) return;
+      var words = j.words || [];
+      var dateLabel = fmtSnapDate(j.created_at);
+      body.innerHTML =
+        '<p class="muted" style="font-size:13px;margin:-6px 0 12px">' + dateLabel + ' · ' + words.length + ' ta so\'z</p>' +
+        '<button class="btn" id="mis-vo-play" style="margin-bottom:8px">' +
+        '<span data-icon="refresh" data-icon-size="16"></span>Flashcard bilan mashq qilish</button>' +
+        '<button class="btn sec" id="mis-vo-dl" style="margin-bottom:16px">' +
+        '<span data-icon="download" data-icon-size="16"></span>.md qilib yuklab olish</button>' +
+        words.map(function (w) {
+          return '<div class="list-row"><div class="li-main"><div class="li-title">' + App.esc(w.ru) + '</div>' +
+            '<div class="li-sub">' + App.esc(w.uz) + ' · <span class="muted">' + App.esc(w.cat) + '</span></div></div></div>';
+        }).join('');
+      App.icons(body);
+      body.querySelector('#mis-vo-play').onclick = function () {
+        App.closeSheet();
+        App.go('vocab_flash', { lang: lang, src: 'snapshot', id: id });
+      };
+      body.querySelector('#mis-vo-dl').onclick = function () {
+        App.download('Xatolar — ' + misLabel(lang) + ' (' + dateLabel + ').md', mistakesToMd(words, lang, dateLabel));
+      };
+    }).catch(function (e) {
+      var body = SHEET.querySelector('#mis-vo-body');
+      if (body) body.innerHTML = App.empty({ icon: 'alert', title: 'Xatolik', text: e.message });
+    });
+  };
 
   function renderMistakes(page, lang) {
     var box = App.el('mis-body'); if (!box) return;
@@ -1374,11 +1505,12 @@
     page.innerHTML =
       '<div class="topbar" style="margin:-16px -15px 12px">' +
       '<button class="icon-btn ghost" data-act="go" data-arg=\'' +
-      (FC.src === 'mistakes'
+      (isMistakeSrc(FC.src)
         ? App.arg({ v: 'vocab_mistakes', p: { lang: FC.lang } })
         : App.arg({ v: 'vocab_practice', p: { lang: FC.lang, cat: FC.cat } })) +
       '\'><span data-icon="arrowLeft" data-icon-size="20"></span></button>' +
-      '<h1>' + (FC.src === 'mistakes' ? 'Xatolar' : FC.src === 'due' ? 'Takrorlash' : 'Flashcardlar') + '</h1>' +
+      '<h1>' + (FC.src === 'snapshot' ? 'Saqlangan versiya'
+        : FC.src === 'mistakes' ? 'Xatolar' : FC.src === 'due' ? 'Takrorlash' : 'Flashcardlar') + '</h1>' +
       '<button class="icon-btn ghost" id="fc-mute" style="margin-left:auto"><span data-icon="volume" data-icon-size="18"></span></button>' +
       finishBtnHtml('vocabFlashFinish').replace('margin-left:auto', 'margin-left:4px') + '</div>' +
 
@@ -1559,7 +1691,9 @@
       FC.list = mistakes; FC.idx = 0; FC.good = 0; FC.bad = 0; FC.mistakes = []; FC.logged = false;
       renderFlashPage(page);
     };
-    App.el('fc-finish').onclick = function () { App.go('vocab_practice', { lang: FC.lang, cat: FC.cat }); };
+    App.el('fc-finish').onclick = function () {
+      App.go(isMistakeSrc(FC.src) ? 'vocab_mistakes' : 'vocab_practice', { lang: FC.lang, cat: FC.cat });
+    };
   }
 
   /* Topbardagi "Tugatish" — sessiya oxirigacha bormasdan chiqib ketish
@@ -1569,6 +1703,6 @@
       logVocabProgress(FC.lang, FC.cat || 'Xatolar', FC.good + FC.bad, 'flashcard', FC.startedAt, { good: FC.good, bad: FC.bad });
       FC.logged = true;
     }
-    App.go(FC.src === 'mistakes' ? 'vocab_mistakes' : 'vocab_practice', { lang: FC.lang, cat: FC.cat });
+    App.go(isMistakeSrc(FC.src) ? 'vocab_mistakes' : 'vocab_practice', { lang: FC.lang, cat: FC.cat });
   };
 })();

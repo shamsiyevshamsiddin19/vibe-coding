@@ -139,6 +139,12 @@ def _dispatch_query_action(request: Request, action: str, body: dict, q):
         "get_mistakes": lambda: dictionary.get_mistakes(request, body, q.get("lang", ""), q.get("category", "")),
         "add_mistake": lambda: dictionary.add_mistake(request, body),
         "remove_mistake": lambda: dictionary.remove_mistake(request, body),
+        "save_mistake_snapshot": lambda: dictionary.save_mistake_snapshot(request, body),
+        "list_mistake_snapshots": lambda: dictionary.list_mistake_snapshots(request, body, q.get("lang", "")),
+        "get_mistake_snapshot": lambda: dictionary.get_mistake_snapshot(
+            request, body, int(q.get("id") or 0) if str(q.get("id") or "").isdigit() else 0
+        ),
+        "delete_mistake_snapshot": lambda: dictionary.delete_mistake_snapshot(request, body),
         "get_eng_settings": lambda: dictionary.get_eng_settings(request, body),
         "save_eng_settings": lambda: dictionary.save_eng_settings(request, body),
         "get_rus_settings": lambda: dictionary.get_rus_settings(request, body),
