@@ -779,24 +779,51 @@
     }
   });
 
-  /* .md fayl qilib yuklab olish — mashq nomi, kategoriyasi, bugungi
-     maqsad (og'irlik/takror/vaqt/masofa), set soni, oshish qadami, boshlanish/
-     tugash vaqti va (bo'lsa) tavsifi bilan. Kategoriya bo'yicha guruhlangan. */
+  /* .md fayl qilib yuklab olish. Har mashq uchun HOZIRGI holat to'liq
+     yoziladi: bugungi maqsad (necha kg/ta/soniya/daqiqa/metrda turgani),
+     set soni, boshlang'ich qiymat va undan necha marta oshgani, oshish
+     qadami/rejimi, vaqt oynasi, bugun bajarilgan-bajarilmagani, tavsifi. */
   function mineToMd() {
     var list = mineList();
     var byCat = {};
     list.forEach(function (x) { (byCat[x.cat] = byCat[x.cat] || []).push(x); });
-    var lines = ['# Mening mashqlarim', ''];
+
+    var done = list.filter(function (x) { return loggedToday(x.id); }).length;
+    var lines = [
+      '# Mening mashqlarim',
+      '',
+      '_' + dstr(new Date()) + ' · ' + list.length + ' ta mashq · bugun bajarildi: ' +
+        done + '/' + list.length + '_',
+      ''
+    ];
+
     CATS.forEach(function (c) {
       var items = byCat[c.id];
       if (!items || !items.length) return;
       lines.push('## ' + c.n, '');
       items.forEach(function (x) {
         var e = x.ex;
-        lines.push('### ' + e.name);
-        var info = [exerciseSub(e)];
-        if (e.start_time && e.end_time) info.push('🕒 ' + e.start_time + ' - ' + e.end_time);
-        lines.push(info.filter(Boolean).join(' · '));
+        var t = PTYPE[effType(e)] || PTYPE.weight;
+        var tgt = todayTarget(e);
+        var steps = progressSteps(e);
+        var base = t.field === 'weight' ? (e.weight || 0) : (e.reps || 0);
+        var setWord = isTeamCat(e.category) ? 'seriya' : 'set';
+
+        lines.push('### ' + e.name + (loggedToday(e.id) ? ' ✅' : ''));
+        lines.push('- **Hozir:** ' + tgt.value + ' ' + tgt.unit +
+          (e.sets ? ' × ' + e.sets + ' ' + setWord : '') + ' — ' + t.n);
+        /* Oshish bo'lmasa boshlang'ich = hozirgi qiymat — takrorlamaymiz. */
+        if (steps && tgt.value !== base) {
+          lines.push('- **Boshlang\'ich:** ' + base + ' ' + tgt.unit +
+            ' → ' + steps + ' marta oshgan');
+        }
+        lines.push('- **Ortirish:** ' + (e.increase
+          ? '+' + e.increase + ' ' + tgt.unit + ' · ' + (PMODE[e.progress_mode] || '')
+          : 'yo\'q'));
+        if (e.start_date) lines.push('- **Boshlangan sana:** ' + e.start_date);
+        if (e.start_time && e.end_time) {
+          lines.push('- **Vaqt:** ' + e.start_time + ' - ' + e.end_time);
+        }
         if (e.desc && e.desc.trim()) lines.push('', e.desc.trim());
         lines.push('');
       });
