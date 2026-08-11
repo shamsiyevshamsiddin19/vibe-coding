@@ -389,9 +389,15 @@ button{ font-family:inherit; cursor:pointer; }
    Klassik dars jadvali: chapda 30 daqiqalik vaqt o'qi, o'ngda 7 kun ustuni.
    Mashg'ulot to'q rangli blok bo'lib o'z vaqtiga joylashadi; bir vaqtga
    to'g'ri kelganlar ustunni bo'lishib, yonma-yon turadi.
-   7 kun HAR DOIM ekranga sig'adi — gorizontal scroll yo'q. */
+   Desktopda (>=920px) 7 kun HAR DOIM ekranga sig'adi (`1fr` ustunlar,
+   scroll yo'q). Mobilda (JS: `gridColMetrics`) BITTA kun to'liq
+   kenglikda, keyingisi chekkadan bir siltim ko'rinadi — eski saytdagi
+   kabi chapga/o'ngga surib ko'riladi (7 tasini siqib yozuvni
+   o'qib bo'lmaydigan qilish o'rniga). VAQT o'qi gorizontal surishda
+   ham chekkada yopishib qoladi (`position:sticky`). */
 .kg2{
-  border:1px solid var(--border); border-radius:12px; overflow:hidden;
+  border:1px solid var(--border); border-radius:12px;
+  overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;
   background:var(--card); margin-bottom:12px;
 }
 
@@ -401,9 +407,11 @@ button{ font-family:inherit; cursor:pointer; }
   background:var(--card-2); border-bottom:1px solid var(--border);
 }
 .kgh-corner{
+  position:sticky; left:0; z-index:6;
   display:flex; align-items:center; justify-content:center;
   font-size:10px; font-weight:800; letter-spacing:.06em; color:var(--hint);
-  border-right:1px solid var(--border);
+  background:var(--card-2); border-right:1px solid var(--border);
+  box-shadow:2px 0 6px -2px rgba(0,0,0,.2);
 }
 .kgh{
   display:flex; flex-direction:column; align-items:center; gap:1px;
@@ -420,7 +428,11 @@ button{ font-family:inherit; cursor:pointer; }
 
 /* --- Tana: vaqt o'qi + ustunlar --- */
 .kg2-body{ position:relative; display:grid; grid-template-columns:46px 1fr; }
-.kg2-times{ position:relative; border-right:1px solid var(--border); }
+.kg2-times{
+  position:sticky; left:0; z-index:3;
+  background:var(--card); border-right:1px solid var(--border);
+  box-shadow:2px 0 6px -2px rgba(0,0,0,.2);
+}
 .kgt{
   position:absolute; right:6px; transform:translateY(-50%);
   font-size:9.5px; font-weight:600; color:var(--hint);
@@ -450,6 +462,10 @@ button{ font-family:inherit; cursor:pointer; }
 .kgi.past{ opacity:.45; }
 .kgi.live{ box-shadow:0 0 0 2px #fff inset, 0 0 0 2px var(--danger); }
 .kgi.done b{ text-decoration:line-through; opacity:.75; }
+/* 1/2-hafta almashinuvining HOZIR faol bo'lmagan varianti — ma'lumot
+   uchun xira ko'rinadi, bosilmaydi (shuning uchun <div>, <button> emas). */
+.kgi.otherweek{ opacity:.55; cursor:default; }
+.kgi em{ font-style:normal; display:block; font-size:8px; font-weight:600; opacity:.85; margin-top:1px; }
 
 /* Vaqti belgilanmagan ishlar — jadval ostida chip ko'rinishida */
 .kg-extra{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:10px; }
@@ -457,25 +473,6 @@ button{ font-family:inherit; cursor:pointer; }
 .kg-chip{
   padding:4px 8px; background:var(--card-2); border-left:3px solid var(--hint);
   border-radius:6px; font-size:11.5px; font-weight:600;
-}
-
-/* Tor ekran: 7 ustun baribir sig'sin — yozuvni ixchamlashtiramiz */
-@media (max-width:560px){
-  .kg2-head{ grid-template-columns:32px repeat(7, minmax(0,1fr)); }
-  .kg2-body{ grid-template-columns:32px 1fr; }
-  .kgh-corner{ font-size:8px; }
-  .kgh{ padding:5px 1px; }
-  .kgh b{ font-size:9.5px; }
-  .kgh i{ font-size:8px; }
-  .kgt{ font-size:8px; right:3px; }
-  .kgi{ padding:2px 3px; border-radius:3px; }
-  .kgi i{ display:none; }        /* vaqt chap ustunda ko'rinib turibdi */
-  .kgi b{ font-size:8.5px; line-height:1.15; }
-}
-@media (max-width:380px){
-  .kgh b{ font-size:8.5px; }
-  .kgh i{ font-size:7.5px; }
-  .kgi b{ font-size:8px; }
 }
 
 /* ---------- Forms ---------- */

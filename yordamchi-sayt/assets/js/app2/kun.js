@@ -149,7 +149,12 @@
      darslar soni — foydalanuvchiga eslatma ko'rsatish uchun. */
   var HIDDEN_DUP = 0;
 
-  function localItems(dateStr) {
+  /* `includeInactive` — JADVAL (grid) ko'rinishi uchun: 1/2-hafta almashinib
+     turadigan darsning HOZIR faol BO'LMAGAN varianti ham qaytariladi
+     (`inactiveWeek:true` bilan belgilanib) — eski saytdagi kabi ikkalasi
+     ham bir vaqt katagida, xira rangda ko'rinadi. Ro'yxat (list) rejimi
+     buni ATAYLAB ishlatmaydi — u yerda faqat HAQIQIY bugungi kun kerak. */
+  function localItems(dateStr, includeInactive) {
     ensureLoaded();
     var d = parseKey(dateStr); if (!d) return [];
     var dow = d.getDay(), out = [];
@@ -161,14 +166,16 @@
     var lmsOn = lmsConnected();
 
     (SCHEDULE[dow] || []).forEach(function (l, i) {
-      if (!isLessonActive(l)) return;             // 1/2-hafta almashinuvi
+      var active = isLessonActive(l);
+      if (!active && !includeInactive) return;     // 1/2-hafta almashinuvi
       var ki = kindInfo(l.kind);
       if (lmsOn && l.lmsDup) { HIDDEN_DUP++; return; }
       out.push({
         src: 'plan', day: dow, idx: i,
         start: l.start, end: l.end, title: l.subject, room: l.room || '',
         color: l.color || ki.c, emoji: ki.e, kindName: ki.n,
-        repeatNote: l.weekType ? (l.weekType === 'left' ? '1-hafta' : '2-hafta') : ''
+        repeatNote: l.weekType ? (l.weekType === 'left' ? '1-hafta' : '2-hafta') : '',
+        inactiveWeek: !active
       });
     });
     (EVENTS[dateStr] || []).forEach(function (l, i) {
@@ -496,7 +503,9 @@
       });
       if (window.BoostDay) BoostDay.ensureLoaded().then(renderBody).catch(function () {});
       if (window.SportBridge) SportBridge.ensureLoaded().then(renderBody).catch(function () {});
-    }
+      bindGridResize();
+    },
+    leave: function () { unbindGridResize(); }
   });
 
   App.actions.kunMode = function (a) {
@@ -770,16 +779,41 @@
     return (h ? h + ' soat' : '') + (r ? (h ? ' ' : '') + r + ' min' : '');
   }
 
+  /* Mobilda BITTA kun ustuni to'liq kenglikda, keyingisi chekkadan bir
+     siltim ko'rinib turadi (eski saytdagi kabi) — 7 tasini siqib
+     o'qib bo'lmaydigan qilib qo'yish o'rniga chapga/o'ngga surib
+     ko'riladi. Desktopda (>=920px) hammasi baribir sig'gani uchun
+     eski teng-ustunli (`1fr`) tartib saqlanadi — `null` shuni bildiradi. */
+  function gridColMetrics(box) {
+    if ((window.innerWidth || 1024) >= 920) return null;
+    var w = (box && box.clientWidth) || document.documentElement.clientWidth || 360;
+    var axis = w < 380 ? 34 : 40;
+    var peek = 26;                              // keyingi kun shu qadar ko'rinib tursin
+    var day = Math.max(200, Math.round(w - axis - peek));
+    return { axis: axis, day: day };
+  }
+
+  var GRID_RESIZE_T = null;
+  function onGridResize() {
+    clearTimeout(GRID_RESIZE_T);
+    GRID_RESIZE_T = setTimeout(function () { if (kunView() === 'grid') renderGrid(); }, 200);
+  }
+  function bindGridResize() { window.addEventListener('resize', onGridResize); }
+  function unbindGridResize() { window.removeEventListener('resize', onGridResize); clearTimeout(GRID_RESIZE_T); }
+
   function renderGrid() {
     var box = App.el('kun-list'); if (!box) return;
     var start = weekStartOf(SEL_DATE), tKey = todayKey();
+    var cm = gridColMetrics(box);
 
-    // Haftaning 7 kuni uchun ishlarni yig'amiz
+    // Haftaning 7 kuni uchun ishlarni yig'amiz. `true` — 1/2-hafta
+    // almashinuvining HOZIR FAOL BO'LMAGAN varianti ham qaytariladi
+    // (xira ko'rinishda, ma'lumot uchun — eski saytdagi kabi).
     var days = [];
     for (var i = 0; i < 7; i++) {
       var d = addDays(start, i), k = dkey(d);
       HIDDEN_DUP = 0;
-      var all = sortItems(localItems(k).concat(lmsItems(k), boostItems(k)));
+      var all = sortItems(localItems(k, true).concat(lmsItems(k), boostItems(k)));
       days.push({
         date: k, d: d,
         timed: all.filter(function (x) { return x.start; }),
@@ -839,20 +873,33 @@
         var st = statusOf(it, day.date === tKey);
         var meta = it.start + (it.end ? ' - ' + it.end : '') + (it.room ? ' · ' + it.room : '');
         var col = it.color || 'var(--accent)';
+        var style = 'top:' + topOf(s) + 'px;height:' + hgt + 'px;' +
+          'left:' + (it._lane * w) + '%;width:calc(' + w + '% - 2px);background:' + col;
+        var body = '<i>' + App.esc(meta) + '</i>' +
+          '<b>' + App.esc((it.emoji ? it.emoji + ' ' : '') + it.title) + '</b>' +
+          (it.inactiveWeek ? '<em>Keyingi hafta</em>' : '');
+
+        /* Almashinuvning HOZIR FAOL BO'LMAGAN varianti — faqat ma'lumot
+           uchun (xira), bosilmaydi: bosilsa o'sha kunning ro'yxatida
+           umuman ko'rinmaydi (list rejimi ularni chiqarmaydi), shuning
+           uchun tugma emas — oddiy <div>. */
+        if (it.inactiveWeek) {
+          return '<div class="kgi otherweek" style="' + style + '" title="' +
+            App.esc(meta + ' · ' + it.title + ' · keyingi hafta') + '">' + body + '</div>';
+        }
         return '<button class="kgi' + (st === 'past' ? ' past' : '') + (st === 'live' ? ' live' : '') +
-          (it.done ? ' done' : '') + '" style="top:' + topOf(s) + 'px;height:' + hgt + 'px;' +
-          'left:' + (it._lane * w) + '%;width:calc(' + w + '% - 2px);background:' + col + '" ' +
+          (it.done ? ' done' : '') + '" style="' + style + '" ' +
           'data-act="kunGridOpen" data-arg=\'' + App.arg({ date: day.date }) + '\' ' +
-          'title="' + App.esc(meta + ' · ' + it.title) + '">' +
-          '<i>' + App.esc(meta) + '</i>' +
-          '<b>' + App.esc((it.emoji ? it.emoji + ' ' : '') + it.title) + '</b></button>';
+          'title="' + App.esc(meta + ' · ' + it.title) + '">' + body + '</button>';
       }).join('');
 
       return '<div class="kgc' + (day.date === tKey ? ' is-today' : '') + '">' + items + '</div>';
     }).join('');
 
     var heads = days.map(function (day) {
-      var lbl = busyLabel(day.timed);
+      // Xulosa faqat HOZIR FAOL darslar bo'yicha — "keyingi hafta"gi
+      // variant vaqtni ikki marta hisoblamasin.
+      var lbl = busyLabel(day.timed.filter(function (x) { return !x.inactiveWeek; }));
       return '<button class="kgh' + (day.date === tKey ? ' is-today' : '') +
         (day.date === SEL_DATE ? ' is-sel' : '') + '" data-act="kunGo" data-arg=\'' +
         App.arg({ date: day.date }) + '\'>' +
@@ -872,14 +919,36 @@
         }).join('') + '</div>';
     });
 
+    /* Mobilda ustun kengligi JS'da hisoblangan (`cm`) — konteynerlarga
+       to'g'ridan-to'g'ri `grid-template-columns` beriladi (bolalarga
+       alohida `width` emas: grid o'z yo'lagi kengligini o'zi belgilaydi).
+       `width:max-content` FAQAT mobilda kerak — grid haqiqiy (7×kenglik)
+       o'lchamini olishi uchun, aks holda `.kg2` konteyner enига siqilib,
+       gorizontal scroll ishlamay qolardi. Desktopda (`cm===null`) bu
+       qo'shilmaydi — CSS'dagi teng-ustunli (`1fr`, konteyner eniga cho'zilgan)
+       qoida ishlayveradi. */
+    var mobileW = cm ? 'width:max-content;min-width:100%;' : '';
+    var headCols = cm ? ' style="' + mobileW + 'grid-template-columns:' + cm.axis + 'px repeat(7,' + cm.day + 'px)"' : '';
+    var bodyStyle = mobileW + 'height:' + height + 'px' + (cm ? ';grid-template-columns:' + cm.axis + 'px max-content' : '');
+    var colsStyle = cm ? ' style="grid-template-columns:repeat(7,' + cm.day + 'px)"' : '';
+
     box.innerHTML =
-      '<div class="kg2">' +
-      '<div class="kg2-head"><div class="kgh-corner">VAQT</div>' + heads + '</div>' +
-      '<div class="kg2-body" style="height:' + height + 'px">' +
+      '<div class="kg2" id="kg2-wrap">' +
+      '<div class="kg2-head"' + headCols + '><div class="kgh-corner">VAQT</div>' + heads + '</div>' +
+      '<div class="kg2-body" style="' + bodyStyle + '">' +
       '<div class="kg2-times">' + marks + '</div>' +
-      '<div class="kg2-cols">' + lines + nowLine + cols + '</div>' +
+      '<div class="kg2-cols"' + colsStyle + '>' + lines + nowLine + cols + '</div>' +
       '</div></div>' + extra;
     App.icons(box);
+
+    /* Tanlangan kun (SEL_DATE) darhol ko'rinsin — har doim haftaning
+       1-kunidan boshlab ochilmasin. */
+    if (cm) {
+      var wrap = box.querySelector('#kg2-wrap');
+      var idx = -1;
+      for (var di = 0; di < days.length; di++) if (days[di].date === SEL_DATE) { idx = di; break; }
+      if (wrap && idx > 0) wrap.scrollLeft = idx * cm.day;
+    }
   }
 
   /* Jadvaldagi mashg'ulotga bosilsa — o'sha kunning to'liq ro'yxatiga o'tadi */
