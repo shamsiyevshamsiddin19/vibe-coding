@@ -12,12 +12,13 @@
     { v: 'coding', n: 'Coding', ic: 'code' },
     { v: 'sport', n: 'Sport', ic: 'trophy' },
     { v: 'boost', n: 'Boostday', ic: 'message' },
-    { v: 'kun', n: 'Kun hisobi', ic: 'calendar' },
+    /* `bn` — pastki panel uchun QISQA nom (u yerda joy tor). Berilmasa `n` olinadi. */
+    { v: 'kun', n: 'Kun hisobi', bn: 'Kun', ic: 'calendar' },
     { v: 'arxiv', n: 'Arxiv', ic: 'archive' },
     { v: 'qoidalar', n: 'Qoidalar', ic: 'file' },
     { v: 'settings', n: 'Sozlamalar', ic: 'settings' }
   ];
-  var BOTTOM = ['home', 'fanlar', 'languages', 'sport', '__more__'];
+  var BOTTOM = ['home', 'kun', 'languages', 'sport', '__more__'];
 
   /* Foydalanuvchi yashirgan bo'limlar (Sozlamalardan boshqariladi).
      'home' va 'settings' hech qachon yashirilmaydi — aks holda qaytib bo'lmaydi. */
@@ -68,7 +69,7 @@
       }
       var i = NAV.find(function (x) { return x.v === v; });
       return '<a data-nav="' + v + '" data-act="go" data-arg=\'' + App.arg({ v: v }) + '\'>' +
-        '<span data-icon="' + i.ic + '" data-icon-size="21"></span>' + i.n + '</a>';
+        '<span data-icon="' + i.ic + '" data-icon-size="21"></span>' + (i.bn || i.n) + '</a>';
     }).join('');
     App.icons(el);
   }

@@ -383,6 +383,64 @@ button{ font-family:inherit; cursor:pointer; }
   .kun-days .chip-btn{ font-size:10px; }
 }
 
+/* ---------- Kun hisobi — HAFTALIK JADVAL ko'rinishi ----------
+   Klassik dars jadvali: 7 ustun × vaqt o'qi. Mashg'ulot o'z vaqtiga
+   qarab ustun ichida mutlaq joylashadi. Telefonda ustunlar torayadi,
+   juda tor ekranda gorizontal scroll bilan ko'riladi. */
+.kg-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; margin:0 -15px; padding:0 15px; }
+.kg{ min-width:520px; }
+.kg-head{ display:grid; grid-template-columns:44px repeat(7, minmax(0,1fr)); gap:3px; margin-bottom:6px; }
+.kg-corner{ }
+.kg-dh{
+  display:flex; flex-direction:column; align-items:center; gap:1px; padding:6px 2px;
+  background:var(--card-2); border:1px solid transparent; border-radius:9px;
+  color:var(--hint); font-size:11px; font-weight:700; cursor:pointer;
+}
+.kg-dh i{ font-style:normal; font-size:13px; font-weight:800; color:var(--text); }
+.kg-dh.is-today{ border-color:var(--accent); color:var(--accent); }
+.kg-dh.is-today i{ color:var(--accent); }
+.kg-dh.is-sel{ background:var(--accent-soft); }
+
+.kg-body{ position:relative; display:grid; grid-template-columns:44px 1fr; gap:3px; }
+.kg-times{ position:relative; }
+.kg-h{ position:absolute; left:0; right:0; height:0; }
+.kg-h span{
+  position:absolute; top:-7px; right:4px; font-size:10.5px; font-weight:600;
+  color:var(--hint); font-family:var(--mono); white-space:nowrap;
+}
+.kg-cols{ position:relative; display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:3px; }
+.kg-line{ position:absolute; left:0; right:0; height:0; border-top:1px solid var(--border-soft); pointer-events:none; }
+.kg-line span{ display:none; }
+.kg-now{ position:absolute; left:0; right:0; height:0; border-top:2px solid var(--danger); z-index:3; pointer-events:none; }
+.kg-col{ position:relative; border-radius:8px; }
+.kg-col.is-today{ background:color-mix(in srgb, var(--accent) 6%, transparent); }
+.kg-col.is-sel{ outline:1px solid var(--border); outline-offset:0; }
+
+.kg-item{
+  position:absolute; left:1px; right:1px; z-index:2; overflow:hidden;
+  display:flex; flex-direction:column; justify-content:flex-start; gap:1px;
+  padding:4px 5px; border:none; border-left:3px solid var(--accent);
+  border-radius:6px; text-align:left; cursor:pointer; color:var(--text);
+}
+.kg-item b{ font-size:10.5px; font-weight:700; line-height:1.25; overflow:hidden; }
+.kg-item i{ font-style:normal; font-size:9.5px; color:var(--hint); font-family:var(--mono); }
+.kg-item.past{ opacity:.5; }
+.kg-item.live{ box-shadow:0 0 0 2px var(--accent); }
+.kg-item.done b{ text-decoration:line-through; opacity:.7; }
+
+/* Vaqti belgilanmagan ishlar — jadval ostida chip ko'rinishida */
+.kg-extra{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:10px; }
+.kg-extra b{ font-size:11.5px; color:var(--hint); font-weight:700; min-width:46px; }
+.kg-chip{
+  padding:4px 8px; background:var(--card-2); border-left:3px solid var(--hint);
+  border-radius:6px; font-size:11.5px; font-weight:600;
+}
+
+@media (max-width:520px){
+  .kg{ min-width:480px; }
+  .kg-item b{ font-size:10px; }
+}
+
 /* ---------- Forms ---------- */
 label.field{ display:block; margin-bottom:12px; }
 label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-weight:600; margin-bottom:6px; }
