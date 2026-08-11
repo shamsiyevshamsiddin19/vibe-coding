@@ -498,7 +498,12 @@
     App.reload();
   };
 
-  /* ---------- Hafta chizig'i (haqiqiy sanalar bilan) ---------- */
+  /* ---------- Hafta chizig'i (haqiqiy sanalar bilan) ----------
+     JADVAL rejimida kun chiplari CHIZILMAYDI: jadvalning o'z ustun
+     sarlavhalari (`.kg-dh`) aynan shu vazifani bajaradi — ikkalasi
+     birga turganda bir xil sana ikki qator bo'lib takrorlanardi va
+     ortiqcha joy egallardi. Hafta almashtirish o'qlari ikkala rejimda
+     ham kerak, shuning uchun ular qoladi. */
   function renderWeek() {
     var box = App.el('kun-week'); if (!box) return;
     var sel = parseKey(SEL_DATE), tKey = todayKey();
@@ -506,6 +511,23 @@
     var start = addDays(sel, -(((sel.getDay() + 6) % 7)));
     var days = [];
     for (var i = 0; i < 7; i++) days.push(addDays(start, i));
+    var isGrid = kunView() === 'grid';
+
+    var chips = isGrid ? '' :
+      '<div class="kun-days">' +
+      days.map(function (d) {
+        var k = dkey(d), n = localItems(k).length + lmsItems(k).length + boostItems(k).length;
+        return '<button class="chip-btn' + (k === SEL_DATE ? ' active' : '') + (k === tKey ? ' is-today' : '') +
+          '" data-act="kunGo" data-arg=\'' + App.arg({ date: k }) + '\'>' +
+          '<b>' + DAY_SHORT[d.getDay()] + '</b><i>' + d.getDate() + '</i>' +
+          (n ? '<u></u>' : '') + '</button>';
+      }).join('') + '</div>';
+
+    /* Jadvalda "bugun" shu haftada bo'lsa yetarli — kun tanlash muhim emas.
+       Ro'yxatda esa aniq SANA tanlangani uchun bugundan chetlashsa ko'rsatamiz. */
+    var offToday = isGrid
+      ? !days.some(function (d) { return dkey(d) === tKey; })
+      : SEL_DATE !== tKey;
 
     box.innerHTML =
       '<div class="kun-wknav">' +
@@ -514,18 +536,11 @@
       '<span class="kun-wklabel">' + shortDate(days[0]) + ' — ' + shortDate(days[6]) + '</span>' +
       '<button class="hm-arrow" data-act="kunWeek" data-arg=\'' + App.arg({ n: 7 }) + '\' aria-label="Keyingi hafta">' +
       '<span data-icon="arrowLeft" data-icon-size="15" style="transform:rotate(180deg)"></span></button>' +
-      '</div>' +
-      '<div class="kun-days">' +
-      days.map(function (d) {
-        var k = dkey(d), n = localItems(k).length + lmsItems(k).length + boostItems(k).length;
-        return '<button class="chip-btn' + (k === SEL_DATE ? ' active' : '') + (k === tKey ? ' is-today' : '') +
-          '" data-act="kunGo" data-arg=\'' + App.arg({ date: k }) + '\'>' +
-          '<b>' + DAY_SHORT[d.getDay()] + '</b><i>' + d.getDate() + '</i>' +
-          (n ? '<u></u>' : '') + '</button>';
-      }).join('') + '</div>' +
-      (SEL_DATE !== tKey
-        ? '<div style="text-align:center;margin:-6px 0 12px"><button class="lnk" data-act="kunGo" data-arg=\'' +
-          App.arg({ date: tKey }) + '\'>↺ Bugunga qaytish</button></div>' : '');
+      '</div>' + chips +
+      (offToday
+        ? '<div style="text-align:center;margin:' + (isGrid ? '2px 0 12px' : '-6px 0 12px') + '">' +
+          '<button class="lnk" data-act="kunGo" data-arg=\'' + App.arg({ date: tKey }) + '\'>↺ ' +
+          (isGrid ? 'Bugungi haftaga qaytish' : 'Bugunga qaytish') + '</button></div>' : '');
     App.icons(box);
   }
 
