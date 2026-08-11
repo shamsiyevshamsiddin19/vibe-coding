@@ -43,12 +43,19 @@
      ishlatiladi (eski fayllar va qo'lda kiritilganlar ham rangli chiqsin).
      TARTIB MUHIM: aniqrog'i oldin tekshiriladi, aks holda "Rus tili darsi"
      "dars" deb topilib, rus tili rangini yo'qotardi. */
+  /* ⚠️ TARTIB va ANIQLIK muhim. Ilgari `sport` birinchi turgan va uning
+     ichida umumiy `mashq` so'zi bor edi — natijada "Rus tili MASHQlari" va
+     "Dasturlash MASHQlari" ham sport deb topilib, hammasi bir xil to'q
+     sariq rangda chiqardi. Endi: aniq mavzular (rus/dasturlash) OLDIN,
+     umumiy so'zlar esa umuman ishlatilmaydi.
+     So'z chegaralari (`\b`) ham qo'yildi — `tish` "o'rgaTISH" ichidan,
+     `o'qish` esa "yOQISH" ichidan topilib ketardi. */
   var CAT_HINTS = [
-    ['sport',      /sport|zal(ga|da)?\b|turnik|brus|press|ajimaniya|yugur|fitnes|mashq|futbol|basketbol|voleybol|badminton|suzish|velosiped/i],
     ['rus',        /rus\s*til|russian|русск|падеж|глагол/i],
-    ['dasturlash', /dasturlash|coding|\bkod\b|html|css|javascript|typescript|python|java\b|react|backend|frontend|algoritm|leetcode|\bpdp\b|sql|git\b/i],
-    ['hayot',      /ovqat|nonushta|tushlik|kechki|uyg['’]?on|uyqu|uxla|dam olish|yuvin|dush\b|cho['’]?mil|tish|shaxsiy|namoz|tozalash|kiyin|xarid/i],
-    ['kurs',       /dars|kurs|universitet|ma['’]?ruza|amaliyot|seminar|imtihon|\blms\b|tatu|o['’]?qish|lab\b|kollokvium/i]
+    ['dasturlash', /dasturlash|coding|\bkod\b|html|css|javascript|typescript|python|\bjava\b|react|backend|frontend|algoritm|leetcode|\bpdp\b|\bsql\b|\bgit\b/i],
+    ['sport',      /\bsport|zal(ga|da)?\b|turnik|brus|\bpress\b|ajimaniya|yugur|fitnes|futbol|basketbol|voleybol|badminton|suzish|velosiped/i],
+    ['hayot',      /ovqat|nonushta|tushlik|kechki|uyg['’]?on|uyqu|uxla|dam olish|yuvin|\bdush\b|cho['’]?mil|\btish|shaxsiy|namoz|tozalash|kiyin|xarid/i],
+    ['kurs',       /\bdars|\bkurs|universitet|ma['’]?ruza|amaliyot|seminar|imtihon|\blms\b|tatu|\bo['’]?qish|\blab\b|kollokvium/i]
   ];
   function guessCat(text) {
     var s = String(text || '');
@@ -447,7 +454,10 @@
         out.push({
           src: 'boost_group', planId: b.planId, groupName: g.name,
           start: r.start, end: r.end,
-          title: g.name || b.title, room: b.channelName || b.title,
+          /* `room` ATAYLAB bo'sh: ilgari bu yerga kanal nomi yozilardi va
+             jadvalda har blokda "My daily life" takrorlanib, vaqt satrini
+             siqib chiqarardi. Kanal nomi bo'lim haqida hech nima aytmaydi. */
+          title: g.name || b.title, room: '',
           cat: c, color: catColor(c), emoji: catInfo(c).e, kindName: 'Reja bo\'limi',
           tasks: g.tasks, total: g.tasks.length, doneCount: done,
           done: done === g.tasks.length && g.tasks.length > 0
@@ -945,11 +955,14 @@
       // Xulosa faqat HOZIR FAOL darslar bo'yicha — "keyingi hafta"gi
       // variant vaqtni ikki marta hisoblamasin.
       var lbl = busyLabel(day.timed.filter(function (x) { return !x.inactiveWeek; }));
+      /* SANA ham ko'rsatiladi: ilgari band vaqt yozuvi sanani butunlay
+         siqib chiqarardi va qaysi ustun qaysi kun ekanini bilib bo'lmasdi
+         (yuqoridagi "10 avg — 16 avg" faqat oraliqni aytadi). */
       return '<button class="kgh' + (day.date === tKey ? ' is-today' : '') +
         (day.date === SEL_DATE ? ' is-sel' : '') + '" data-act="kunGo" data-arg=\'' +
         App.arg({ date: day.date }) + '\'>' +
-        '<b>' + DAY_SHORT[day.d.getDay()].toUpperCase() + '</b>' +
-        '<i>' + (lbl || day.d.getDate() + '-kun') + '</i></button>';
+        '<b>' + DAY_SHORT[day.d.getDay()].toUpperCase() + ' ' + day.d.getDate() + '</b>' +
+        '<i>' + (lbl || '—') + '</i></button>';
     }).join('');
 
     /* Vaqti yo'q ishlar jadval ostida — vaqt o'qiga joylasha olmaydi,

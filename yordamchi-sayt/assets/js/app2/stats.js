@@ -151,12 +151,6 @@
      (`activityLog()` ga qarang). */
   var CHART_HISTORY_DAYS = 400;
 
-  /* Bugundan KEYIN ham bir necha kun chiziladi. Ikki sabab:
-       1. "Bugun" chizig'i eng o'ng chekkaga yopishib qolmaydi — yorlig'i
-          siqilib, ma'lumot ustiga tushib qolardi;
-       2. "Ertaga" va undan keyingi kunlar ko'rinadi. */
-  var CHART_FUTURE_DAYS = 3;
-
   function dayKey(d) {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
            String(d.getDate()).padStart(2, '0');
@@ -178,15 +172,22 @@
     var today = new Date(); today.setHours(0, 0, 0, 0);
 
     var HIST_DAYS = Math.max(days, CHART_HISTORY_DAYS);
-    var TOTAL = HIST_DAYS + CHART_FUTURE_DAYS;
     var perDay = (700 - L - R) / Math.max(1, days - 1);   // avvalgi zichlik saqlanadi
+    /* Bugundan KEYIN ham kunlar chiziladi — shuning uchun "Bugun"ni
+       ko'rinadigan oyna MARKAZIGA surish mumkin bo'ladi (`paintChart`).
+       Standart holatda `opts.futureDays` chaqiruvchidan keladi: u haqiqiy
+       konteyner kengligidan hisoblanadi (`fitFutureDays`), shu sabab har
+       qanday ekran o'lchamida markazlash aniq chiqadi. Berilmasa — kichik
+       standart qiymat (masalan konteyner hali o'lchanmagan bo'lsa). */
+    var FUTURE_DAYS = opts.futureDays || 3;
+    var TOTAL = HIST_DAYS + FUTURE_DAYS;
     var innerW = perDay * (TOTAL - 1);
     var W = L + R + innerW;
 
     /* Sanalar o'qi: o'tmish -> BUGUN -> bir necha kun kelajak.
        `todayIdx` — bugungi kunning ro'yxatdagi o'rni (oxirgisi EMAS). */
     var dates = [];
-    for (var i = HIST_DAYS - 1; i >= -CHART_FUTURE_DAYS; i--) {
+    for (var i = HIST_DAYS - 1; i >= -FUTURE_DAYS; i--) {
       var d = new Date(today); d.setDate(today.getDate() - i);
       dates.push(d);
     }
@@ -316,31 +317,92 @@
       }).join('');
     }
 
-    /* BUGUNGI KUN chizig'i. Endi jadval bugundan keyin ham davom etadi,
-       shuning uchun chiziq chekkaga yopishmaydi va o'z joyida BARQAROR
-       turadi. Tepadagi "Bugun" yozuvi OLIB TASHLANDI: u ma'lumot
-       chizig'ining ustiga tushib, grafikni to'sib qo'yardi — endi uning
-       o'rniga X o'qidagi "Bugun" yozuvi ajratib ko'rsatiladi. */
-    var tx = x(todayIdx);
-    var todayLine =
-      '<line x1="' + tx.toFixed(1) + '" y1="' + T + '" x2="' + tx.toFixed(1) + '" y2="' + (T + innerH) +
-      '" class="ch-today"/>';
-
-    return '<div class="ch-legend">' + legend + mkLegend + '</div>' +
-      '<div class="ch-scroll">' +
-      '<svg class="ch-svg" width="' + W.toFixed(1) + '" height="' + H + '" viewBox="0 0 ' + W.toFixed(1) + ' ' + H + '">' +
-      grid + todayLine + paths + mk + xlb + '</svg>' +
-      '</div>';
+    /* QO'ZG'ALMAS KO'RSATKICH (cursor). Foydalanuvchi so'ragan aynan shu:
+       vertikal uzuq-uzuq chiziq EKRANDA (ko'rinadigan oyna markazida)
+       QOTIB TURADI — grafik chapga/o'ngga surilganda sanalar uning
+       OSTIDAN o'tib ketadi, chiziqning o'zi joyidan qo'zg'almaydi. Shu
+       sabab endi SVG ICHIGA chizilmaydi (u bilan birga scroll qilib
+       ketardi) — buning o'rniga `paintChart` HTML/CSS bilan alohida
+       qatlam sifatida qo'yadi va scroll paytida qaysi kun ustida
+       turganini o'zi hisoblab, o'sha kunning barcha qiymatlarini
+       yozuvda ko'rsatadi. Kerakli hisob-kitob uchun (`x`, `perDay`,
+       `dates`, `todayIdx`, `series`) natija bilan birga qaytariladi. */
+    return {
+      html: '<div class="ch-legend">' + legend + mkLegend + '</div>' +
+        '<div class="ch-wrap">' +
+        '<div class="ch-scroll">' +
+        '<svg class="ch-svg" width="' + W.toFixed(1) + '" height="' + H + '" viewBox="0 0 ' + W.toFixed(1) + ' ' + H + '">' +
+        grid + paths + mk + xlb + '</svg>' +
+        '</div>' +
+        '<div class="ch-cursor"></div>' +
+        '<div class="ch-cursor-lb"></div>' +
+        '</div>',
+      meta: { L: L, perDay: perDay, dates: dates, todayIdx: todayIdx, series: series }
+    };
   }
 
-  /* `lineChart()` natijasini joylashtirib, darhol o'ng chetga (bugungi
-     kunga) suradi — aks holda skrollanadigan jadval eng chapdan (eng eski
-     kundan) boshlanib ko'rsatilardi. */
-  function paintChart(box, html) {
+  /* `lineChart()` natijasini joylashtiradi va QO'ZG'ALMAS ko'rsatkichni
+     ulaydi: boshlang'ich holatda "Bugun" ko'rinadigan oyna MARKAZIDA
+     turadi (shuning uchun uning o'ng tomonida "Ertaga" va yana bir necha
+     kun ko'rinib turadi), so'ng har scroll'da qaysi kun ko'rsatkich
+     ustida turganini hisoblab, sanasi va shu kungi qiymatlarni yozuvda
+     ko'rsatadi. Barcha so'rovlar `box` ICHIDA qidiriladi (global id emas)
+     — sahifada bir nechta grafik bir vaqtda turishi mumkin (asosiy
+     Dinamika + har bo'lim ichidagi alohida grafik). */
+  /* Ko'rsatkichni ANIQ markazlash uchun "bugundan keyin" nechta kun
+     zaxira kerakligini KONTEYNERNING HAQIQIY kengligidan hisoblaydi.
+     Standart 3 kun kichik ekranlarda yetarli edi, lekin kengroq
+     ekranda (yoki 90-kunlik zichlikda) yarim oyna kengligi zaxiradan
+     katta bo'lib, brauzer chetga tirmashib qolar, "Bugun" markazdan
+     bir necha kun CHAPDA ko'rinardi. Endi zaxira shunga yetarli:
+     `viewportPx/2` px'ni qamrab olguncha kun qo'shiladi (+2 kun
+     ehtiyot uchun — brauzer qirralari, scrollbar va h.k.). */
+  function fitFutureDays(viewportPx, perDay) {
+    var need = Math.ceil((viewportPx / 2) / Math.max(1, perDay)) + 2;
+    return Math.max(3, Math.min(200, need));
+  }
+
+  function paintChart(box, series, days, markers) {
     if (!box) return;
-    box.innerHTML = html;
+    var perDayPreview = (700 - 8 - 46) / Math.max(1, days - 1);
+    var futureDays = fitFutureDays(box.clientWidth || 700, perDayPreview);
+    var result = lineChart(series, days, markers, {
+      type: localStorage.getItem('chart_type') || 'line',
+      futureDays: futureDays
+    });
+
+    box.innerHTML = result.html;
     var sc = box.querySelector('.ch-scroll');
-    if (sc) sc.scrollLeft = sc.scrollWidth;
+    var lb = box.querySelector('.ch-cursor-lb');
+    if (!sc || !lb) return;
+
+    var m = result.meta;
+    function repaint() {
+      var centerX = sc.scrollLeft + sc.clientWidth / 2;
+      var idx = Math.round((centerX - m.L) / m.perDay);
+      idx = Math.max(0, Math.min(m.dates.length - 1, idx));
+      var d = m.dates[idx];
+      var key = dayKey(d);
+      var dateTxt = idx === m.todayIdx ? 'Bugun' : (d.getDate() + '-' + UZ_MON[d.getMonth()]);
+      var vals = m.series.map(function (s) {
+        var v = s.nuqtalar[key] || 0;
+        return v ? ('<i style="background:' + s.rang + '"></i>' + App.esc(s.nom) + ' ' + v) : '';
+      }).filter(Boolean).join('');
+      lb.innerHTML = '<b>' + App.esc(dateTxt) + '</b>' + (vals || '<span class="ch-cursor-empty">Bo\'sh kun</span>');
+    }
+
+    /* Boshlang'ich holat: "Bugun" ko'rsatkich ustida — ANIQ markazda
+       (endi `futureDays` konteyner kengligiga mos hisoblangani uchun
+       chetga tirmashib qolmaydi). */
+    var todayX = m.L + m.todayIdx * m.perDay;
+    sc.scrollLeft = Math.max(0, Math.min(sc.scrollWidth - sc.clientWidth, todayX - sc.clientWidth / 2));
+
+    var raf = null;
+    sc.addEventListener('scroll', function () {
+      if (raf) return;
+      raf = requestAnimationFrame(function () { raf = null; repaint(); });
+    }, { passive: true });
+    repaint();
   }
 
   /* Grafikni sichqoncha bilan bosib-tortib skroll qilish (desktop uchun —
@@ -481,7 +543,7 @@
           'Hali ma\'lumot yo\'q — test yeching yoki mashq belgilang.</p>';
         return;
       }
-      paintChart(box, lineChart(series, RANGE, markers));
+      paintChart(box, series, RANGE, markers);
     }).catch(function (e) { fail('st-chart', e); });
   }
 
@@ -623,7 +685,7 @@
     if (chartBox) {
       var map = {};
       nomlar.slice(0, 8).forEach(function (nom) { map[nom] = groups[nom].kunlar; });
-      paintChart(chartBox, lineChart(toSeries(map), RANGE));
+      paintChart(chartBox, toSeries(map), RANGE);
     }
   }
 
