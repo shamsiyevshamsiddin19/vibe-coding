@@ -263,6 +263,23 @@ _SCHEMA = [
         CONSTRAINT uq_habit_sent UNIQUE (habit_id, sent_date, offset_min)
     )
     """,
+
+    # Reja BO'LIMI eslatmalari (30/15/5/0 daqiqa qolganda).
+    # Bo'lim ID si yo'q — u reja ichidagi JSON, shuning uchun kalit
+    # `plan_id + bo'lim tartib raqami`. Bo'lim nomi o'zgarsa ham kalit
+    # buzilmaydi (nom bo'yicha kalitlash tahrirdan keyin takror
+    # yuborilishiga olib kelardi).
+    """
+    CREATE TABLE IF NOT EXISTS group_sent (
+        id BIGSERIAL PRIMARY KEY,
+        plan_id BIGINT NOT NULL,
+        group_index INT NOT NULL,
+        sent_date DATE NOT NULL,
+        offset_min INT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT uq_group_sent UNIQUE (plan_id, group_index, sent_date, offset_min)
+    )
+    """,
 ]
 
 

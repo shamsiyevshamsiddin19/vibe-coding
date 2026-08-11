@@ -5,6 +5,7 @@ from __future__ import annotations
 import calendar
 import json
 import logging
+import re
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
@@ -35,6 +36,7 @@ def run_all() -> None:
     run_challenge_plans(today, now_str)
     run_daily_todo_posts(today, now_str)
     run_habit_reminders(n)
+    run_group_reminders(n)
     run_habits_standalone_if_needed(n)
     run_calendar_posts(today, now_str)
     run_super_todo_alerts(now_str)
@@ -192,6 +194,113 @@ def run_daily_todo_posts(today: str, now_str: str) -> None:
                {"t": encode_task_groups(groups), "mid": message_id, "n": now_str,
                 "nra": next_daily_run_after(plan["time"], _parse(now_str)), "id": plan["id"]})
         add_sent_log(int(plan["id"]), now_str, "daily_todo")
+
+
+def run_group_reminders(n: datetime) -> None:
+    """Reja BO'LIMI boshlanishidan oldin telefonga ogohlantirish.
+
+    Vaqt bo'lim darajasida (`task_groups[].time`, masalan "18:00 - 19:30")
+    saqlangani uchun eslatma ham bo'lim bo'yicha yuboriladi. Bo'limning
+    BOSHLANISH vaqtidan 30/15/5/0 daqiqa oldin bitta xabar ketadi.
+
+    Yubormaslik shartlari:
+      · bo'limning barcha vazifalari allaqachon bajarilgan
+      · o'sha bo'lim uchun o'sha offset allaqachon yuborilgan (`group_sent`)
+
+    Odatlar (`run_habit_reminders`) bilan bir xil naqsh: avval telefon
+    bildirishnomasi (push), yetib bormasa Telegram zaxira sifatida.
+    """
+    if not db.table_exists("plans"):
+        return
+
+    today = n.strftime("%Y-%m-%d")
+    dow_ok_cache: dict[str, bool] = {}
+
+    plans = db.all_(
+        "SELECT id, owner_id, plan_type, week_mode, tasks, date, channel_name "
+        "FROM plans WHERE status = 'active' AND plan_type IN ('daily_todo', 'todo')")
+
+    for plan in plans:
+        # Bir martalik TO-DO faqat o'z sanasida; har kungi reja — hafta rejimiga ko'ra
+        if plan["plan_type"] == "todo":
+            if str(plan.get("date") or "")[:10] != today:
+                continue
+        else:
+            mode = plan.get("week_mode") or "everyday"
+            if mode not in dow_ok_cache:
+                dow_ok_cache[mode] = daily_mode_should_send(mode, n)
+            if not dow_ok_cache[mode]:
+                continue
+
+        try:
+            groups = decode_task_groups(plan["tasks"])
+        except Exception:  # noqa: BLE001
+            continue
+
+        for gi, g in enumerate(groups):
+            start = _group_start_time(g.get("time"))
+            if not start:
+                continue
+            tasks = g.get("tasks") or []
+            if not tasks:
+                continue
+            # Hammasi bajarilgan bo'lsa bezovta qilmaymiz
+            if all(int(t.get("status", 0) or 0) == 1 for t in tasks):
+                continue
+
+            try:
+                hh, mm = start.split(":")
+                target = n.replace(hour=int(hh), minute=int(mm), second=0, microsecond=0)
+            except (ValueError, TypeError):
+                continue
+
+            left = int((target - n).total_seconds() // 60)
+            if left not in (30, 15, 5, 0):
+                continue
+
+            pid = int(plan["id"])
+            already = db.one(
+                "SELECT id FROM group_sent WHERE plan_id=:p AND group_index=:g "
+                "AND sent_date=:d AND offset_min=:o",
+                {"p": pid, "g": gi, "d": today, "o": left})
+            if already:
+                continue
+
+            name = (g.get("name") or "").strip() or "Reja"
+            left_n = len([t for t in tasks if int(t.get("status", 0) or 0) != 1])
+            if left == 0:
+                title = f"⏰ {name}"
+                when = "Boshlandi!"
+            else:
+                title = f"🔔 {name}"
+                when = f"{left} daqiqa qoldi · {g.get('time')}"
+            body = f"{when}\n{left_n} ta vazifa"
+
+            try:
+                sent = push.send(int(plan.get("owner_id") or 0), title, body,
+                                 url="/#/kun", tag=f"group-{pid}-{gi}")
+                if sent == 0:
+                    send_user_message_by_id(
+                        int(plan.get("owner_id") or 0),
+                        f"<b>{title}</b>\n{body}" + (
+                            "\n\n<i>Bildirishnoma ulanmagan — Sozlamalardan yoqing.</i>"
+                            if left == 0 else ""))
+                db.run("INSERT INTO group_sent (plan_id, group_index, sent_date, offset_min) "
+                       "VALUES (:p,:g,:d,:o) ON CONFLICT DO NOTHING",
+                       {"p": pid, "g": gi, "d": today, "o": left})
+            except Exception:  # noqa: BLE001 — bittasi yiqilsa qolgani ketaversin
+                logger.exception("GROUP_REMINDER xato plan_id=%s group=%s", pid, gi)
+
+
+def _group_start_time(raw) -> str:
+    """"18:00 - 19:30" yoki "18:00" -> "18:00". Mos kelmasa ''."""
+    m = re.match(r"^\s*(\d{1,2}):(\d{2})", str(raw or ""))
+    if not m:
+        return ""
+    hh, mm = int(m.group(1)), int(m.group(2))
+    if hh > 23 or mm > 59:
+        return ""
+    return f"{hh:02d}:{mm:02d}"
 
 
 def run_habit_reminders(n: datetime) -> None:
