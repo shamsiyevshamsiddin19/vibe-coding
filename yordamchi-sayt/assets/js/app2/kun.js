@@ -19,24 +19,71 @@
   var DAY_FULL = ["Yakshanba", "Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba"];
   var MON_SHORT = ['yan', 'fev', 'mar', 'apr', 'may', 'iyn', 'iyl', 'avg', 'sen', 'okt', 'noy', 'dek'];
   var REF_WEEK_START = new Date('2026-03-17T00:00:00');
-  var COLORS = ['#3b82f6', '#22c55e', '#eab308', '#ef4444', '#a855f7', '#f97316', '#14b8a6'];
 
-  /* Mashg'ulot TURLARI — "kun hisobi faqat darslar joyi emas" degani shu:
-     har qanday ish (sport, ovqat, uyqu, shaxsiy) o'z belgisi va standart
-     rangi bilan qo'shiladi. Eski yozuvlarda `kind` yo'q — ular 'dars'. */
+  /* ---------- TURKUMLAR (rang guruhlari) ----------
+     Bir turkumdagi hamma ish BIR XIL rangda ko'rinadi — jadvalga qaraganda
+     "bu nima ish" darhol bilinadi. Rang mashg'ulotning O'ZIDA emas,
+     turkumida saqlanadi, shuning uchun butun guruhning rangini bir joydan
+     o'zgartirish mumkin. */
+  var CATS = [
+    { id: 'kurs',       n: 'Dars / kurs',       e: '📚', c: '#3b82f6' },
+    { id: 'rus',        n: 'Rus tili',          e: '🇷🇺', c: '#a855f7' },
+    { id: 'dasturlash', n: 'Dasturlash',        e: '💻', c: '#22c55e' },
+    { id: 'sport',      n: 'Sport',             e: '🏋', c: '#f97316' },
+    { id: 'hayot',      n: 'Kundalik hayot',    e: '🌿', c: '#14b8a6' },
+    { id: 'boshqa',     n: 'Boshqa',            e: '📌', c: '#64748b' }
+  ];
+  function catInfo(id) {
+    for (var i = 0; i < CATS.length; i++) if (CATS[i].id === id) return CATS[i];
+    return CATS[CATS.length - 1];        // 'boshqa'
+  }
+  function catColor(id) { return catInfo(id).c; }
+
+  /* Nomidan turkumni taxmin qilish — .md da turkum yozilmagan bo'lsa
+     ishlatiladi (eski fayllar va qo'lda kiritilganlar ham rangli chiqsin).
+     TARTIB MUHIM: aniqrog'i oldin tekshiriladi, aks holda "Rus tili darsi"
+     "dars" deb topilib, rus tili rangini yo'qotardi. */
+  var CAT_HINTS = [
+    ['sport',      /sport|zal(ga|da)?\b|turnik|brus|press|ajimaniya|yugur|fitnes|mashq|futbol|basketbol|voleybol|badminton|suzish|velosiped/i],
+    ['rus',        /rus\s*til|russian|русск|падеж|глагол/i],
+    ['dasturlash', /dasturlash|coding|\bkod\b|html|css|javascript|typescript|python|java\b|react|backend|frontend|algoritm|leetcode|\bpdp\b|sql|git\b/i],
+    ['hayot',      /ovqat|nonushta|tushlik|kechki|uyg['’]?on|uyqu|uxla|dam olish|yuvin|dush\b|cho['’]?mil|tish|shaxsiy|namoz|tozalash|kiyin|xarid/i],
+    ['kurs',       /dars|kurs|universitet|ma['’]?ruza|amaliyot|seminar|imtihon|\blms\b|tatu|o['’]?qish|lab\b|kollokvium/i]
+  ];
+  function guessCat(text) {
+    var s = String(text || '');
+    for (var i = 0; i < CAT_HINTS.length; i++) {
+      if (CAT_HINTS[i][1].test(s)) return CAT_HINTS[i][0];
+    }
+    return 'boshqa';
+  }
+
+  /* Mashg'ulot TURLARI (qo'lda qo'shish oynasida tanlanadi). Har turi
+     o'z TURKUMIGA tegishli — rangni turkum beradi. */
   var KINDS = [
-    { k: 'dars',    n: 'Dars',              e: '📚', c: '#3b82f6' },
-    { k: 'ish',     n: 'Ish / loyiha',      e: '💼', c: '#22c55e' },
-    { k: 'mustaqil',n: "Mustaqil o'qish",   e: '📖', c: '#a855f7' },
-    { k: 'sport',   n: 'Sport',             e: '🏋', c: '#f97316' },
-    { k: 'ovqat',   n: 'Ovqatlanish',       e: '🍽', c: '#eab308' },
-    { k: 'yol',     n: "Yo'l / safar",      e: '🚌', c: '#14b8a6' },
-    { k: 'shaxsiy', n: 'Shaxsiy',           e: '🌿', c: '#10b981' },
-    { k: 'uyqu',    n: 'Uyqu / dam',        e: '😴', c: '#6366f1' }
+    { k: 'dars',       n: 'Dars',              e: '📚', cat: 'kurs' },
+    { k: 'kurs',       n: 'Kurs (majburiy)',   e: '🎓', cat: 'kurs' },
+    { k: 'mustaqil',   n: "Mustaqil o'qish",   e: '📖', cat: 'kurs' },
+    { k: 'rus',        n: 'Rus tili',          e: '🇷🇺', cat: 'rus' },
+    { k: 'dasturlash', n: 'Dasturlash',        e: '💻', cat: 'dasturlash' },
+    { k: 'sport',      n: 'Sport',             e: '🏋', cat: 'sport' },
+    { k: 'ovqat',      n: 'Ovqatlanish',       e: '🍽', cat: 'hayot' },
+    { k: 'uyqu',       n: 'Uyqu / uyg\'onish', e: '😴', cat: 'hayot' },
+    { k: 'shaxsiy',    n: 'Shaxsiy',           e: '🌿', cat: 'hayot' },
+    { k: 'yol',        n: "Yo'l / safar",      e: '🚌', cat: 'hayot' },
+    { k: 'ish',        n: 'Ish / loyiha',      e: '💼', cat: 'boshqa' },
+    { k: 'boshqa',     n: 'Boshqa',            e: '📌', cat: 'boshqa' }
   ];
   function kindInfo(k) {
     for (var i = 0; i < KINDS.length; i++) if (KINDS[i].k === k) return KINDS[i];
     return KINDS[0];
+  }
+  /* Turi bo'yicha rang. Eski yozuvlarda `kind` yo'q yoki olib tashlangan
+     tur bo'lishi mumkin — unda nomidan taxmin qilamiz. */
+  function kindColor(kind, title) {
+    var ki = null;
+    for (var i = 0; i < KINDS.length; i++) if (KINDS[i].k === kind) ki = KINDS[i];
+    return catColor(ki ? ki.cat : guessCat(title || kind));
   }
 
   /* --- Sana yordamchilari (hammasi mahalliy vaqt bo'yicha) --- */
@@ -168,26 +215,36 @@
     (SCHEDULE[dow] || []).forEach(function (l, i) {
       var active = isLessonActive(l);
       if (!active && !includeInactive) return;     // 1/2-hafta almashinuvi
-      var ki = kindInfo(l.kind);
+      var ki = kindInfo(l.kind), c = lessonCat(l);
       if (lmsOn && l.lmsDup) { HIDDEN_DUP++; return; }
       out.push({
         src: 'plan', day: dow, idx: i,
         start: l.start, end: l.end, title: l.subject, room: l.room || '',
-        color: l.color || ki.c, emoji: ki.e, kindName: ki.n,
+        cat: c, color: catColor(c), emoji: ki.e, kindName: ki.n,
         repeatNote: l.weekType ? (l.weekType === 'left' ? '1-hafta' : '2-hafta') : '',
         inactiveWeek: !active
       });
     });
     (EVENTS[dateStr] || []).forEach(function (l, i) {
-      var ki = kindInfo(l.kind);
+      var ki = kindInfo(l.kind), c = lessonCat(l);
       out.push({
         src: 'event', date: dateStr, idx: i,
         start: l.start, end: l.end, title: l.subject, room: l.room || '',
-        color: l.color || ki.c, emoji: ki.e, kindName: ki.n, done: !!l.done,
+        cat: c, color: catColor(c), emoji: ki.e, kindName: ki.n, done: !!l.done,
         repeatNote: 'bir martalik'
       });
     });
     return out;
+  }
+
+  /* Yozuvning turkumi: aniq berilgan `cat` -> turi orqali -> nomidan taxmin.
+     Rang ATAYLAB yozuvda saqlanmaydi (eski `l.color` endi ishlatilmaydi):
+     bir turkumdagi hamma narsa bir xil rangda bo'lishi kerak, alohida
+     saqlangan rang esa buni buzardi. */
+  function lessonCat(l) {
+    if (l.cat) return l.cat;
+    for (var i = 0; i < KINDS.length; i++) if (KINDS[i].k === l.kind) return KINDS[i].cat;
+    return guessCat(l.subject || '');
   }
 
   /* =========================================================
@@ -346,18 +403,19 @@
     }).catch(function () {});
   }
 
-  var LESSON_COLOR = { "Ma'ruza": '#3b82f6', 'Amaliyot': '#22c55e', 'Laboratoriya': '#a855f7', 'Seminar': '#eab308' };
-
   function lmsItems(dateStr) {
     var d = parseKey(dateStr);
     // LMS yozgi ta'tilda (Iyul - 6, Avgust - 7) ham adashib dars qaytarsa, ularni to'sib qolamiz.
     if (d && (d.getMonth() === 6 || d.getMonth() === 7)) return [];
 
+    /* LMS darslari — hammasi "Dars / kurs" turkumida. Ilgari dars TURIGA
+       (ma'ruza/amaliyot/laboratoriya) qarab turli rang berilardi; endi
+       majburiy darslar bitta rangda, turi matnda ko'rsatiladi. */
     return LmsDay.day(dateStr).map(function (l) {
       return {
         src: 'lms', start: l.start, end: l.end,
         title: l.subject, room: [l.room, l.stream].filter(Boolean).join(' · '),
-        color: LESSON_COLOR[l.type_name] || '#3b82f6', emoji: '📚',
+        cat: 'kurs', color: catColor('kurs'), emoji: '📚',
         kindName: l.type_name || 'Dars', repeatNote: l.type_name || ''
       };
     });
@@ -383,11 +441,14 @@
         var r = splitRange(g.time);
         if (!r) { untimed.push(g); return; }
         var done = g.tasks.filter(function (t) { return t.status === 1; }).length;
+        /* Turkum: .md dan kelgan aniq `cat`, bo'lmasa bo'lim nomidan
+           (va ichidagi vazifalardan) taxmin qilinadi. */
+        var c = g.cat || guessCat(g.name + ' ' + g.tasks.map(function (t) { return t.text; }).join(' '));
         out.push({
           src: 'boost_group', planId: b.planId, groupName: g.name,
           start: r.start, end: r.end,
           title: g.name || b.title, room: b.channelName || b.title,
-          color: b.color, emoji: '⚡', kindName: 'Reja bo\'limi',
+          cat: c, color: catColor(c), emoji: catInfo(c).e, kindName: 'Reja bo\'limi',
           tasks: g.tasks, total: g.tasks.length, doneCount: done,
           done: done === g.tasks.length && g.tasks.length > 0
         });
@@ -580,19 +641,9 @@
     var timed = items.filter(function (x) { return x.start; });
     if (!timed.length) { box.innerHTML = ''; return; }
 
-    var busy = busyMins(timed);
     var first = Math.min.apply(null, timed.map(function (x) { return toMins(x.start); }));
     var last = Math.max.apply(null, timed.map(function (x) { return toMins(x.end || x.start); }));
     var span = Math.max(0, last - first);
-    var free = Math.max(0, span - busy);
-
-    // Bajarilganlik: Boostday vazifalari + belgilangan bir martalik voqealar
-    var tt = 0, td = 0;
-    items.forEach(function (x) {
-      if (x.src === 'boost') { tt += x.total || 0; td += x.doneCount || 0; }
-      else if (x.src === 'event') { tt += 1; td += x.done ? 1 : 0; }
-    });
-    var pct = tt ? Math.round(td * 100 / tt) : 0;
 
     // Kun qay darajada o'tgani (faqat bugun uchun)
     var passed = isToday ? Math.max(0, Math.min(100, Math.round((nowMins() - first) * 100 / (span || 1)))) : 0;
@@ -638,12 +689,6 @@
     }
 
     box.innerHTML =
-      '<div class="stat-strip" style="margin:0 0 10px">' +
-      '<div class="s"><div class="n">' + timed.length + '</div><div class="l">Ish</div></div>' +
-      '<div class="s"><div class="n" style="color:var(--accent)">' + durShort(busy) + '</div><div class="l">Band</div></div>' +
-      '<div class="s"><div class="n" style="color:var(--success)">' + durShort(free) + '</div><div class="l">Bo\'sh</div></div>' +
-      (tt ? '<div class="s"><div class="n" style="color:var(--warn)">' + pct + '%</div><div class="l">' + td + '/' + tt + '</div></div>' : '') +
-      '</div>' +
       nextFreeHtml +
       '<div class="kun-band"><span>' + fmtHM(first) + '</span>' +
       '<div class="kun-track">' + (isToday ? '<i style="width:' + passed + '%"></i>' : '') + '</div>' +
@@ -1125,16 +1170,20 @@
         return '<option value="' + d + '"' + (d === baseDow ? ' selected' : '') + '>' + DAY_FULL[d] + '</option>';
       }).join('') + '</select></label>' +
       '<label class="field" id="k-datew"><span>Sana</span><input class="input" type="date" id="k-date" value="' + App.esc(baseDate) + '"></label>' +
-      '<div class="list-label" style="margin-top:4px">Rang</div>' +
-      '<div class="flex" id="k-colors" style="gap:8px;flex-wrap:wrap;margin-bottom:14px">' +
-      COLORS.map(function (c) {
-        return '<button type="button" class="k-col' + (c === l.color ? ' sel' : '') + '" data-c="' + c + '" style="background:' + c + '"></button>';
-      }).join('') + '</div>' +
+      /* Rang endi ERKIN tanlanmaydi — u TURKUMdan keladi, shunda bir
+         toifadagi hamma ish jadvalda bir xil rangda ko'rinadi. */
+      '<label class="field"><span>Turkum (rangni shu belgilaydi)</span><select class="input" id="k-cat">' +
+      CATS.map(function (c) {
+        return '<option value="' + c.id + '"' + (lessonCat(l) === c.id ? ' selected' : '') + '>' +
+          c.e + ' ' + c.n + '</option>';
+      }).join('') + '</select></label>' +
+      '<div class="flex" id="k-catprev" style="gap:8px;align-items:center;margin:-6px 0 14px">' +
+      '<span style="width:22px;height:12px;border-radius:4px;background:' + catColor(lessonCat(l)) + '"></span>' +
+      '<span class="muted" style="font-size:12px">Shu turkumdagi hamma ish shu rangda</span></div>' +
       (isNew ? '<button class="btn" id="k-save">Qo\'shish</button>'
         : '<div class="btn-row"><button class="btn danger" id="k-del">O\'chirish</button><button class="btn" id="k-save">Saqlash</button></div>');
 
     var sh = App.sheet(html, { title: isNew ? 'Yangi mashg\'ulot' : 'Tahrirlash' });
-    var color = l.color || '';
 
     function syncRepeat() {
       var once = sh.querySelector('#k-rep').value === 'once';
@@ -1143,17 +1192,17 @@
     }
     sh.querySelector('#k-rep').onchange = syncRepeat; syncRepeat();
 
-    sh.querySelectorAll('#k-colors .k-col').forEach(function (b) {
-      b.onclick = function () {
-        sh.querySelectorAll('#k-colors .k-col').forEach(function (x) { x.classList.remove('sel'); });
-        b.classList.add('sel'); color = b.getAttribute('data-c');
-      };
-    });
-    // Rang tanlanmagan bo'lsa — tur o'zgarganda turning standart rangi olinadi
+    /* Rang namunasini jonli yangilab turamiz */
+    function syncCatPreview() {
+      var sw = sh.querySelector('#k-catprev span');
+      if (sw) sw.style.background = catColor(sh.querySelector('#k-cat').value);
+    }
+    sh.querySelector('#k-cat').onchange = syncCatPreview;
+    /* Tur o'zgarganda turkum ham o'sha turning turkumiga o'tadi
+       (foydalanuvchi keyin xohlasa qo'lda boshqasini tanlaydi). */
     sh.querySelector('#k-kind').onchange = function () {
-      if (color) return;
-      var c = kindInfo(sh.querySelector('#k-kind').value).c;
-      sh.querySelectorAll('#k-colors .k-col').forEach(function (x) { x.classList.toggle('sel', x.getAttribute('data-c') === c); });
+      sh.querySelector('#k-cat').value = kindInfo(this.value).cat;
+      syncCatPreview();
     };
 
     function removeOld() {
@@ -1173,7 +1222,7 @@
         room: sh.querySelector('#k-room').value.trim(),
         subject: subject,
         kind: kind,
-        color: color || kindInfo(kind).c
+        cat: sh.querySelector('#k-cat').value
       };
       if (item.start > item.end) return App.toast('Tugash vaqti boshlanishdan keyin bo\'lsin');
 
@@ -1368,7 +1417,6 @@
   function parseScheduleMd(text) {
     var lines = String(text || '').replace(/\r/g, '').split('\n');
     var out = {}, cur = null, curWT = '', stats = { days: {}, total: 0, dated: 0, skipped: 0 };
-    var colorOf = {}, ci = 0;
 
     /* `###` dan boshlanadigan bo'lak — REJA bo'limi (parsePlanMd o'qiydi),
        dars emas. Uni o'tkazib yubormasak, "### 07:00 - 07:40 | Ertalabki
@@ -1403,8 +1451,10 @@
       // Jadval sarlavhasini ("Vaqt | Xona | Fan") o'tkazib yuboramiz
       if (/^(vaqt|time|soat)$/i.test(les.room) || /^(fan|dars|subject|mavzu)$/i.test(les.subject)) return;
 
-      if (!colorOf[les.subject]) { colorOf[les.subject] = COLORS[ci % COLORS.length]; ci++; }
-      les.color = colorOf[les.subject];
+      /* Ilgari har fanga navbatdagi rang berilardi (COLORS aylanasi) —
+         natijada bir xil toifadagi ishlar turli rangda chiqardi. Endi
+         rang TURKUMdan keladi, jadvalga esa turkum yoziladi. */
+      les.cat = guessCat(les.subject + ' ' + (les.room || ''));
       if (!les.weekType) delete les.weekType;
 
       out[cur].push(les);
@@ -1432,10 +1482,33 @@
      ========================================================= */
 
   /* "08:00-09:00 | Nom" | "Nom | 08:00-09:00" | "08:00 Nom" -> {time, name} */
+  /* Turkum nomining turli yozilishlari -> ichki id. AI yoki foydalanuvchi
+     qaysi shaklda yozsa ham tushunilsin. */
+  var CAT_ALIAS = {
+    kurs: 'kurs', dars: 'kurs', lesson: 'kurs', universitet: 'kurs', majburiy: 'kurs',
+    rus: 'rus', 'rus tili': 'rus', russian: 'rus',
+    dasturlash: 'dasturlash', coding: 'dasturlash', code: 'dasturlash', programming: 'dasturlash', it: 'dasturlash',
+    sport: 'sport', fitness: 'sport', jismoniy: 'sport',
+    hayot: 'hayot', kundalik: 'hayot', shaxsiy: 'hayot', life: 'hayot', ovqat: 'hayot', uyqu: 'hayot',
+    boshqa: 'boshqa', other: 'boshqa'
+  };
+  function normCat(raw) {
+    var k = String(raw || '').trim().toLowerCase();
+    return CAT_ALIAS[k] || '';
+  }
+
   function parseGroupHeader(line) {
     var s = String(line).replace(/^#{1,6}\s*/, '').replace(/^\*\*(.*)\*\*$/, '$1').trim();
     if (!s) return null;
-    var time = '', name = s;
+    var time = '', name = s, cat = '';
+
+    /* Turkum belgisi: "### 18:00 - 19:30 | Sport [sport]".
+       Qavs ichidagi so'z nomdan olib tashlanadi — sarlavhada ko'rinmaydi. */
+    var tag = s.match(/\[([^\]]+)\]/);
+    if (tag) {
+      var c = normCat(tag[1]);
+      if (c) { cat = c; s = s.replace(tag[0], ' '); name = s; }
+    }
 
     var rng = s.match(/(\d{1,2}[:.]\d{2})\s*[-–—]\s*(\d{1,2}[:.]\d{2})/);
     if (rng) {
@@ -1447,7 +1520,7 @@
     }
     name = name.replace(/\|/g, ' ').replace(/\s+/g, ' ').replace(/^[-–—·:]+|[-–—·:]+$/g, '').trim();
     if (!time && !name) return null;
-    return { time: time, name: name };
+    return { time: time, name: name, cat: cat };
   }
 
   function parsePlanMd(text) {
@@ -1482,7 +1555,12 @@
       /* ### (yoki undan chuqurroq) — BO'LIM sarlavhasi */
       if (hLevel >= 3 && cur) {
         var g = parseGroupHeader(line);
-        if (g) { curGroup = { name: g.name, time: g.time, tasks: [] }; cur.groups.push(curGroup); stats.groups++; }
+        if (g) {
+          /* Turkum yozilmagan bo'lsa nomidan taxmin qilamiz — eski
+             fayllar ham rangli chiqsin. */
+          curGroup = { name: g.name, time: g.time, cat: g.cat || guessCat(g.name), tasks: [] };
+          cur.groups.push(curGroup); stats.groups++;
+        }
         return;
       }
 
@@ -1513,7 +1591,7 @@
       if (!task) return;
       if (!curGroup) {
         /* Bo'limsiz vazifa — nomsiz, vaqtsiz bo'limga tushadi */
-        curGroup = { name: '', time: '', tasks: [] };
+        curGroup = { name: '', time: '', cat: '', tasks: [] };
         cur.groups.push(curGroup); stats.groups++;
       }
       curGroup.tasks.push({ text: task });
@@ -1710,6 +1788,9 @@
       '<label class="field"><span>Turi</span><select id="k-add-kind" class="input">' +
         KINDS.map(function(k) { return '<option value="' + k.k + '">' + k.e + ' ' + k.n + '</option>'; }).join('') +
       '</select></label>' +
+      '<label class="field"><span>Turkum (rangni shu belgilaydi)</span><select id="k-add-cat" class="input">' +
+        CATS.map(function(c) { return '<option value="' + c.id + '">' + c.e + ' ' + c.n + '</option>'; }).join('') +
+      '</select></label>' +
       '<label class="field"><span>Xona yoki Manzil (ixtiyoriy)</span><input type="text" id="k-add-room" class="input"></label>' +
       '<label class="field"><span>Takrorlanish</span><select id="k-add-rep" class="input">' +
         '<option value="plan">Haftalik (' + DAY_FULL[d.getDay()] + ' kunlari takrorlanadi)</option>' +
@@ -1718,7 +1799,12 @@
       '<button class="btn" id="k-add-save" style="margin-top:10px">Saqlash</button>';
       
     var sh = App.sheet(html, { title: 'Mashg\'ulot qo\'shish' });
-    
+
+    // Tur tanlanganda turkum ham o'sha turnikiga o'tadi
+    sh.querySelector('#k-add-kind').onchange = function () {
+      sh.querySelector('#k-add-cat').value = kindInfo(this.value).cat;
+    };
+
     sh.querySelector('#k-add-save').onclick = function () {
       var t = sh.querySelector('#k-add-title').value.trim();
       var st = sh.querySelector('#k-add-start').value;
@@ -1726,11 +1812,11 @@
       var ki = sh.querySelector('#k-add-kind').value;
       var rm = sh.querySelector('#k-add-room').value.trim();
       var rep = sh.querySelector('#k-add-rep').value;
-      
+
       if (!t) return App.toast('Sarlavha yozish majburiy');
       if (!st) return App.toast('Boshlanish vaqtini kiriting');
-      
-      var obj = { subject: t, kind: ki, room: rm };
+
+      var obj = { subject: t, kind: ki, cat: sh.querySelector('#k-add-cat').value, room: rm };
       if (st) obj.start = st;
       if (en) obj.end = en;
       

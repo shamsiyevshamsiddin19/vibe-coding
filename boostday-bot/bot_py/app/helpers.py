@@ -266,13 +266,13 @@ def starts_with(haystack: str, needle: str) -> bool:
 
 def decode_task_groups(raw) -> list:
     if not raw:
-        return [{"name": "", "tasks": []}]
+        return [{"name": "", "time": "", "cat": "", "tasks": []}]
     try:
         v = json.loads(raw)
     except (ValueError, TypeError):
-        return [{"name": "", "tasks": []}]
+        return [{"name": "", "time": "", "cat": "", "tasks": []}]
     if isinstance(v, list):
-        return [{"name": "", "time": "", "tasks": v}]
+        return [{"name": "", "time": "", "cat": "", "tasks": v}]
     if isinstance(v, dict) and isinstance(v.get("groups"), list):
         out = []
         for g in v["groups"]:
@@ -284,10 +284,14 @@ def decode_task_groups(raw) -> list:
                     # turardi; endi bo'lim darajasida, chunki amalda bir
                     # bo'limdagi ishlar bitta oraliqda bajariladi.
                     "time": str(g.get("time") or ""),
+                    # `cat` — TURKUM (sport/rus/dasturlash/kurs/hayot/boshqa).
+                    # Sayt Kun hisobida bo'lim RANGI shundan olinadi, shuning
+                    # uchun bot uni o'zgartirmasdan olib yuradi.
+                    "cat": str(g.get("cat") or ""),
                     "tasks": g["tasks"] if isinstance(g.get("tasks"), list) else [],
                 })
-        return out or [{"name": "", "time": "", "tasks": []}]
-    return [{"name": "", "time": "", "tasks": []}]
+        return out or [{"name": "", "time": "", "cat": "", "tasks": []}]
+    return [{"name": "", "time": "", "cat": "", "tasks": []}]
 
 
 def flatten_task_groups(groups: list) -> list:
@@ -303,13 +307,15 @@ def encode_task_groups(groups: list) -> str:
     # qo'yilgan holat aynan shunday edi).
     def has_meta(g):
         return (str(g.get("name") or "").strip() != ""
-                or str(g.get("time") or "").strip() != "")
+                or str(g.get("time") or "").strip() != ""
+                or str(g.get("cat") or "").strip() != "")
 
     is_grouped = len(groups) > 1 or (len(groups) == 1 and has_meta(groups[0]))
     if is_grouped:
         clean = [{
             "name": str(g.get("name") or ""),
             "time": str(g.get("time") or ""),
+            "cat": str(g.get("cat") or ""),
             "tasks": g.get("tasks") or [],
         } for g in groups]
         return json.dumps({"groups": clean}, ensure_ascii=False)

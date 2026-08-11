@@ -151,6 +151,12 @@
      (`activityLog()` ga qarang). */
   var CHART_HISTORY_DAYS = 400;
 
+  /* Bugundan KEYIN ham bir necha kun chiziladi. Ikki sabab:
+       1. "Bugun" chizig'i eng o'ng chekkaga yopishib qolmaydi — yorlig'i
+          siqilib, ma'lumot ustiga tushib qolardi;
+       2. "Ertaga" va undan keyingi kunlar ko'rinadi. */
+  var CHART_FUTURE_DAYS = 3;
+
   function dayKey(d) {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' +
            String(d.getDate()).padStart(2, '0');
@@ -172,16 +178,19 @@
     var today = new Date(); today.setHours(0, 0, 0, 0);
 
     var HIST_DAYS = Math.max(days, CHART_HISTORY_DAYS);
+    var TOTAL = HIST_DAYS + CHART_FUTURE_DAYS;
     var perDay = (700 - L - R) / Math.max(1, days - 1);   // avvalgi zichlik saqlanadi
-    var innerW = perDay * (HIST_DAYS - 1);
+    var innerW = perDay * (TOTAL - 1);
     var W = L + R + innerW;
 
-    // Sanalar o'qi — HAR DOIM bugun bilan tugaydi
+    /* Sanalar o'qi: o'tmish -> BUGUN -> bir necha kun kelajak.
+       `todayIdx` — bugungi kunning ro'yxatdagi o'rni (oxirgisi EMAS). */
     var dates = [];
-    for (var i = HIST_DAYS - 1; i >= 0; i--) {
+    for (var i = HIST_DAYS - 1; i >= -CHART_FUTURE_DAYS; i--) {
       var d = new Date(today); d.setDate(today.getDate() - i);
       dates.push(d);
     }
+    var todayIdx = HIST_DAYS - 1;
 
     // Eng katta qiymat -> Y masshtabi (0 bo'lsa ham grafik ko'rinsin)
     var max = 0;

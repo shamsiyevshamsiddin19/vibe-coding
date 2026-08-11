@@ -1079,7 +1079,10 @@
     var p = page._plan;
     var groups = page._groups.map(function (g) {
       return {
-        name: g.name || '', time: g.time || '',
+        /* `cat` — Kun hisobidagi rang turkumi. Tahrirlagichda ko'rinmaydi,
+           lekin bu yerda ko'chirilmasa saqlashda YO'QOLARDI va bo'lim
+           rangi "boshqa"ga tushib qolardi. */
+        name: g.name || '', time: g.time || '', cat: g.cat || '',
         tasks: (g.tasks || []).filter(function (t) { return (t.text || '').trim(); })
       };
     }).filter(function (g) { return g.tasks.length || g.name; });
@@ -1943,18 +1946,19 @@
           if (mode === 'merge' && existing) {
             finalGroups = (existing.task_groups && existing.task_groups.length)
               ? JSON.parse(JSON.stringify(existing.task_groups))
-              : [{ name: '', time: '', tasks: (existing.tasks || []).slice() }];
+              : [{ name: '', time: '', cat: '', tasks: (existing.tasks || []).slice() }];
             groups.forEach(function (ng) {
               var name = (ng.name || '').trim();
               var g = finalGroups.find(function (x) { return (x.name || '').trim() === name; });
               if (!g) {
-                g = { name: name, time: ng.time || '', tasks: [] };
+                g = { name: name, time: ng.time || '', cat: ng.cat || '', tasks: [] };
                 var emptyIdx = finalGroups.findIndex(function (x) {
                   return !(x.name || '').trim() && !(x.time || '').trim() && !(x.tasks || []).length;
                 });
                 if (emptyIdx >= 0) finalGroups[emptyIdx] = g; else finalGroups.push(g);
               }
               if (ng.time) g.time = ng.time;
+              if (ng.cat) g.cat = ng.cat;
               var have = {};
               (g.tasks || []).forEach(function (t) { have[App.taskKey(t.text)] = true; });
               (ng.tasks || []).forEach(function (t) {
@@ -1982,6 +1986,7 @@
               return {
                 name: (g.name || '').trim(),
                 time: (g.time || '').trim(),
+                cat: (g.cat || '').trim(),      // turkum (rang) — Kun hisobi uchun
                 tasks: (g.tasks || []).map(function (t) {
                   return { text: t.text, status: prevStatus[App.taskKey(t.text)] ? 1 : 0 };
                 })
