@@ -366,42 +366,48 @@ button{ font-family:inherit; cursor:pointer; }
 .chip-btn.active{ background:var(--card-2); color:var(--text); border-color:var(--border); }
 .chip-btn.sect{ padding:5px 10px; border-radius:6px; font-size:11.5px; font-weight:600; }
 
-/* Kun hisobi — hafta kunlari qatori. Ilgari yonma-yon (overflow-x) edi va
-   telefonda hammasi sig'masdi. Endi 7 ta teng ustunli grid: ekran kengligiga
-   qarab shrift/padding kichrayadi, gorizontal scroll umuman yo'q. */
-.kun-days{ display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:5px; margin-bottom:16px; }
+/* Kun hisobi — hafta kunlari qatori. 7 ta teng ustunli grid: 7 kun HAR DOIM
+   to'liq sig'adi (telefonda ham, kompyuterda ham), gorizontal scroll yo'q.
+   Shakli — to'g'ri to'rtburchak (`.chip-btn` dagi 999px "tabletka" radiusi
+   shu yerda bekor qilinadi). */
+.kun-days{ display:grid; grid-template-columns:repeat(7, minmax(0, 1fr)); gap:6px; margin-bottom:16px; }
 .kun-days .chip-btn{
-  display:block; width:100%; padding:8px 2px; text-align:center;
-  font-size:12.5px; white-space:nowrap; overflow:hidden;
+  display:block; width:100%; padding:7px 2px; text-align:center;
+  border-radius:10px; font-size:12.5px; white-space:nowrap; overflow:hidden;
 }
 .kun-days .chip-btn.is-today:not(.active){ border-color:var(--accent); color:var(--accent); }
 @media (max-width:420px){
   .kun-days{ gap:4px; }
-  .kun-days .chip-btn{ font-size:11px; padding:7px 1px; }
+  .kun-days .chip-btn{ font-size:11px; padding:6px 1px; border-radius:8px; }
 }
 @media (max-width:340px){
-  .kun-days .chip-btn{ font-size:10px; }
+  .kun-days{ gap:3px; }
+  .kun-days .chip-btn{ font-size:10px; border-radius:7px; }
 }
 
 /* ---------- Kun hisobi — HAFTALIK JADVAL ko'rinishi ----------
    Klassik dars jadvali: 7 ustun × vaqt o'qi. Mashg'ulot o'z vaqtiga
    qarab ustun ichida mutlaq joylashadi. Telefonda ustunlar torayadi,
    juda tor ekranda gorizontal scroll bilan ko'riladi. */
-.kg-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; margin:0 -15px; padding:0 15px; }
-.kg{ min-width:520px; }
-.kg-head{ display:grid; grid-template-columns:44px repeat(7, minmax(0,1fr)); gap:3px; margin-bottom:6px; }
+/* 7 kun HAR DOIM to'liq sig'adi — gorizontal scroll yo'q. Tor ekranda
+   ustunlar torayadi va mashg'ulot yozuvi ixchamlashadi (vaqt satri
+   yashiriladi, nom ikki qatorga tushadi). */
+.kg-wrap{ margin:0; }
+.kg{ width:100%; }
+.kg-head{ display:grid; grid-template-columns:36px repeat(7, minmax(0,1fr)); gap:3px; margin-bottom:6px; }
 .kg-corner{ }
 .kg-dh{
   display:flex; flex-direction:column; align-items:center; gap:1px; padding:6px 2px;
-  background:var(--card-2); border:1px solid transparent; border-radius:9px;
+  background:var(--card-2); border:1px solid transparent; border-radius:10px;
   color:var(--hint); font-size:11px; font-weight:700; cursor:pointer;
+  min-width:0; overflow:hidden;
 }
 .kg-dh i{ font-style:normal; font-size:13px; font-weight:800; color:var(--text); }
 .kg-dh.is-today{ border-color:var(--accent); color:var(--accent); }
 .kg-dh.is-today i{ color:var(--accent); }
 .kg-dh.is-sel{ background:var(--accent-soft); }
 
-.kg-body{ position:relative; display:grid; grid-template-columns:44px 1fr; gap:3px; }
+.kg-body{ position:relative; display:grid; grid-template-columns:36px 1fr; gap:3px; }
 .kg-times{ position:relative; }
 .kg-h{ position:absolute; left:0; right:0; height:0; }
 .kg-h span{
@@ -422,7 +428,7 @@ button{ font-family:inherit; cursor:pointer; }
   padding:4px 5px; border:none; border-left:3px solid var(--accent);
   border-radius:6px; text-align:left; cursor:pointer; color:var(--text);
 }
-.kg-item b{ font-size:10.5px; font-weight:700; line-height:1.25; overflow:hidden; }
+.kg-item b{ font-size:10.5px; font-weight:700; line-height:1.25; overflow:hidden; overflow-wrap:anywhere; }
 .kg-item i{ font-style:normal; font-size:9.5px; color:var(--hint); font-family:var(--mono); }
 .kg-item.past{ opacity:.5; }
 .kg-item.live{ box-shadow:0 0 0 2px var(--accent); }
@@ -436,9 +442,22 @@ button{ font-family:inherit; cursor:pointer; }
   border-radius:6px; font-size:11.5px; font-weight:600;
 }
 
-@media (max-width:520px){
-  .kg{ min-width:480px; }
-  .kg-item b{ font-size:10px; }
+/* Tor ekran: 7 ustun baribir sig'sin — yozuvni ixchamlashtiramiz */
+@media (max-width:560px){
+  .kg-head{ grid-template-columns:28px repeat(7, minmax(0,1fr)); gap:2px; }
+  .kg-body{ grid-template-columns:28px 1fr; }
+  .kg-cols{ gap:2px; }
+  .kg-dh{ font-size:9.5px; padding:5px 1px; border-radius:8px; }
+  .kg-dh i{ font-size:11.5px; }
+  .kg-h span{ font-size:9px; right:2px; }
+  .kg-item{ padding:3px 3px; border-left-width:2px; border-radius:5px; }
+  .kg-item b{ font-size:9px; line-height:1.15; }
+  .kg-item i{ display:none; }   /* vaqt sarlavhada allaqachon bor */
+}
+@media (max-width:380px){
+  .kg-dh{ font-size:8.5px; }
+  .kg-dh i{ font-size:10.5px; }
+  .kg-item b{ font-size:8px; }
 }
 
 /* ---------- Forms ---------- */
