@@ -1020,14 +1020,14 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
 .hm-mo{ flex:0 0 auto; }
 .hm-mo-grid{ display:grid; grid-auto-flow:column; }
 /* Katak rangi — kunlik Boostday vazifa foizi bo'yicha 4 daraja (home.js
-   `heatLevel`): 50-69% miltillovchi ko'k, 70-79% ko'kimtir, 80-99% ko'k,
-   100% ko'm-ko'k. Har daraja ANIQ farqlansin deb to'q-och zanjiri emas,
-   alohida rang tanlangan — "bir qarashda" ajratish uchun. */
+   `heatLevel`): 50-69% miltillovchi yashil, 70-79% ochroq yashil, 80-99%
+   yashil, 100% to'q yashil. Har daraja ANIQ farqlansin deb to'q-och
+   zanjiri emas, alohida rang tanlangan — "bir qarashda" ajratish uchun. */
 .hm-mo-grid i{ width:100%; height:100%; border-radius:2.5px; background:var(--card-2); display:block; }
-.hm-mo-grid i[data-l="1"]{ background:#7dd3fc; }               /* 50% — miltillovchi ko'k */
-.hm-mo-grid i[data-l="2"]{ background:#60a5fa; }                /* 70% — ko'kimtir */
-.hm-mo-grid i[data-l="3"]{ background:#2563eb; }                /* 80% — ko'k */
-.hm-mo-grid i[data-l="4"]{ background:#1e3a8a; }                /* 100% — ko'm-ko'k */
+.hm-mo-grid i[data-l="1"]{ background:#86efac; }               /* 50% — miltillovchi yashil */
+.hm-mo-grid i[data-l="2"]{ background:#4ade80; }                /* 70% — ochroq yashil */
+.hm-mo-grid i[data-l="3"]{ background:#16a34a; }                /* 80% — yashil */
+.hm-mo-grid i[data-l="4"]{ background:#14532d; }                /* 100% — to'q yashil */
 /* MUHIM: faqat `opacity` animatsiyalanadi, `box-shadow` EMAS — aks holda
    bugungi kun halqasi (`.now`, box-shadow bilan) miltillash paytida
    yo'qolib-paydo bo'lib qolardi (ikkalasi bir xil xususiyatga ega bo'lsa,
