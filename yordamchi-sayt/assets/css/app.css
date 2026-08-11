@@ -1019,8 +1019,21 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
 .hm-row{ display:flex; align-items:flex-start; gap:6px; }
 .hm-mo{ flex:0 0 auto; }
 .hm-mo-grid{ display:grid; grid-auto-flow:column; }
+/* Katak rangi — kunlik Boostday vazifa foizi bo'yicha 4 daraja (home.js
+   `heatLevel`): 50-69% miltillovchi ko'k, 70-79% ko'kimtir, 80-99% ko'k,
+   100% ko'm-ko'k. Har daraja ANIQ farqlansin deb to'q-och zanjiri emas,
+   alohida rang tanlangan — "bir qarashda" ajratish uchun. */
 .hm-mo-grid i{ width:100%; height:100%; border-radius:2.5px; background:var(--card-2); display:block; }
-.hm-mo-grid i[data-l="4"]{ background:var(--success); }
+.hm-mo-grid i[data-l="1"]{ background:#7dd3fc; }               /* 50% — miltillovchi ko'k */
+.hm-mo-grid i[data-l="2"]{ background:#60a5fa; }                /* 70% — ko'kimtir */
+.hm-mo-grid i[data-l="3"]{ background:#2563eb; }                /* 80% — ko'k */
+.hm-mo-grid i[data-l="4"]{ background:#1e3a8a; }                /* 100% — ko'm-ko'k */
+/* MUHIM: faqat `opacity` animatsiyalanadi, `box-shadow` EMAS — aks holda
+   bugungi kun halqasi (`.now`, box-shadow bilan) miltillash paytida
+   yo'qolib-paydo bo'lib qolardi (ikkalasi bir xil xususiyatga ega bo'lsa,
+   animatsiya statik qiymatni bekor qiladi). */
+.hm-mo-grid i.blink{ animation:hm-blink 1.3s ease-in-out infinite; }
+@keyframes hm-blink{ 0%,100%{ opacity:1; } 50%{ opacity:.45; } }
 .hm-mo-grid i.pad,.hm-mo-grid i.fut{ background:transparent; }
 .hm-mo-grid i.now{ box-shadow:0 0 0 1.5px var(--accent); }
 .hm-mo-lb{ text-align:center; font-size:11px; color:var(--hint); font-weight:600; margin-top:6px; }
@@ -1136,6 +1149,9 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
 .ch-grid{ stroke:var(--border-soft); stroke-width:1; }
 .ch-ylb{ fill:var(--hint); font-size:10px; font-weight:600; }
 .ch-xlb{ fill:var(--hint); font-size:10px; font-weight:600; text-anchor:middle; }
+/* "Bugun" — X o'qida ajratib ko'rsatiladi (tepadagi yozuv olib tashlandi,
+   u ma'lumot chizig'ini to'sib qo'yardi) */
+.ch-xlb-today{ fill:var(--accent); font-weight:800; }
 /* Bugungi kun ko'rsatkichi — grafikda vertikal punktir chiziq */
 .ch-today{ stroke:var(--accent); stroke-width:1.5; stroke-dasharray:4 4; opacity:.75; }
 .ch-today-lb{ fill:var(--accent); font-size:10px; font-weight:800; letter-spacing:.2px; }

@@ -219,13 +219,40 @@
               (val >= 1000 ? (val / 1000) + 'k' : Math.round(val)) + '</text>';
     }
 
-    // X yozuvlari — har ko'rinadigan oyna bo'yicha ~4 ta nuqta, butun tarix bo'ylab takrorlanadi
+    /* X yozuvlari.
+       Ilgari butun oyna uchun atigi ~4 ta yozuv chiqardi — surilganda
+       qayerdaligini bilish qiyin edi. Endi joy yetgancha ZICH: qadam
+       yozuvlar bir-biriga tegmaydigan eng kichik qiymatdan olinadi.
+
+       Qadam BUGUNDAN sanaladi, shuning uchun bugungi kun HAR DOIM
+       yozuvli bo'ladi va uning atrofi "Kecha / Bugun / Ertaga" deb
+       o'qiladi — sana raqamini qidirib o'tirmaysiz. */
     var xlb = '';
-    var stepX = Math.max(1, Math.floor((days - 1) / 3) || 1);
-    for (var xi = 0; xi < dates.length; xi += stepX) {
+    var GAP = 30;                                   // yozuvlar orasidagi eng kichik masofa (px)
+    var stepX = Math.max(1, Math.ceil(GAP / perDay));
+    // So'z-yozuvlar ("Kecha"/"Ertaga") raqamdan kengroq — joy tor bo'lsa ishlatilmaydi
+    var wordsFit = perDay * stepX >= 38 && perDay >= 18;
+
+    /* Avval "Bugun" atrofi: qadam bir necha kunlik bo'lsa ham, Kecha/
+       Bugun/Ertaga UCHALASI ham alohida ko'rsatiladi — muntazam qadam
+       ularni chetlab o'tishi mumkin edi. */
+    var used = {};
+    function put(xi, txt, extraCls) {
+      if (xi < 0 || xi >= dates.length || used[xi]) return;
+      used[xi] = true;
+      xlb += '<text x="' + x(xi).toFixed(1) + '" y="' + (H - 8) + '" class="ch-xlb' +
+             (extraCls || '') + '">' + App.esc(txt) + '</text>';
+    }
+    put(todayIdx, 'Bugun', ' ch-xlb-today');
+    if (wordsFit) { put(todayIdx - 1, 'Kecha'); put(todayIdx + 1, 'Ertaga'); }
+
+    /* Qolgan o'q — muntazam qadam, "Bugun" atrofidagilar bilan
+       to'qnashmasligi uchun band qilingan o'rinlar o'tkazib yuboriladi. */
+    for (var xi = todayIdx % stepX; xi < dates.length; xi += stepX) {
+      if (used[xi]) continue;
       var dd = dates[xi];
-      xlb += '<text x="' + x(xi).toFixed(1) + '" y="' + (H - 8) + '" class="ch-xlb">' +
-             dd.getDate() + '-' + UZ_MON[dd.getMonth()] + '</text>';
+      var txt = (dd.getDate() === 1) ? UZ_MON[dd.getMonth()] : String(dd.getDate());
+      put(xi, txt);
     }
 
     // Chiziqlar yoxud ustunlar (Bar)
@@ -289,14 +316,15 @@
       }).join('');
     }
 
-    /* BUGUNGI KUN chizig'i — jadval doim bugun bilan tugaydi, shuning
-       uchun eng o'ngda turadi; yozuv chetdan chiqib ketmasligi uchun
-       oxiriga tekislanadi. */
-    var tx = x(dates.length - 1);
+    /* BUGUNGI KUN chizig'i. Endi jadval bugundan keyin ham davom etadi,
+       shuning uchun chiziq chekkaga yopishmaydi va o'z joyida BARQAROR
+       turadi. Tepadagi "Bugun" yozuvi OLIB TASHLANDI: u ma'lumot
+       chizig'ining ustiga tushib, grafikni to'sib qo'yardi — endi uning
+       o'rniga X o'qidagi "Bugun" yozuvi ajratib ko'rsatiladi. */
+    var tx = x(todayIdx);
     var todayLine =
       '<line x1="' + tx.toFixed(1) + '" y1="' + T + '" x2="' + tx.toFixed(1) + '" y2="' + (T + innerH) +
-      '" class="ch-today"/>' +
-      '<text x="' + (tx - 4).toFixed(1) + '" y="' + (T + 9) + '" class="ch-today-lb" text-anchor="end">Bugun</text>';
+      '" class="ch-today"/>';
 
     return '<div class="ch-legend">' + legend + mkLegend + '</div>' +
       '<div class="ch-scroll">' +

@@ -368,8 +368,34 @@
   /* ---------- Faollik heatmap: bitta qator (LeetCode uslubi) ----------
      Oylar ALOHIDA bloklar — oralarida bo'shliq, oy nomi blok ostida.
      Katak o'lchami JS'da hisoblanadi (CSS `1fr` emas): ko'rsatilayotgan
-     oylar soni mavjud enga qarab tanlangani uchun hammasi doim sig'adi. */
+     oylar soni mavjud enga qarab tanlangani uchun hammasi doim sig'adi.
+
+     Katak RANGI Boostday kunlik vazifalar foizidan (`Activity.dailyStats`)
+     keladi — "faol kunmi" (streak/umumiy son) esa hamon eski
+     `activity_days_v1`dan (istalgan bo'limdagi ish, Boostday'ga bog'liq
+     emas). Ikkalasi ATAYLAB alohida: rang darajasi FAQAT foydalanuvchi
+     so'ragan "vazifalar necha % bajarildi" ma'nosini bersin. */
   function renderHeatmap() {
+    var wrap = App.el('hm-wrap'); if (!wrap) return;
+    Activity.dailyStats().then(function (statsMap) {
+      if (App.el('hm-wrap')) paintHeatmap(statsMap || {});
+    });
+  }
+
+  /* 0-70% orasi rang bermaydi (yopiq/neytral), 50% dan boshlab 4 daraja:
+       50-69%  — miltillovchi ko'k (e'tibor tortish uchun)
+       70-79%  — ko'kimtir (och ko'k)
+       80-99%  — ko'k
+       100%    — ko'm-ko'k (eng to'q) */
+  function heatLevel(pct) {
+    if (pct >= 100) return 4;
+    if (pct >= 80) return 3;
+    if (pct >= 70) return 2;
+    if (pct >= 50) return 1;
+    return 0;
+  }
+
+  function paintHeatmap(statsMap) {
     var wrap = App.el('hm-wrap'); if (!wrap) return;
     var set = {};
     try {
@@ -439,9 +465,17 @@
         if (!d) return '<i class="pad"></i>';
         var k = key(d);
         if (d > today) return '<i class="fut"></i>';
-        var on = !!set[k];
-        return '<i data-l="' + (on ? 4 : 0) + '"' + (k === todayKey ? ' class="now"' : '') +
-               ' title="' + k + '" style="cursor:pointer" data-act="go" data-arg=\'' + App.arg({ v: 'tarix_day', p: { date: k } }) + '\'></i>';
+        var st = statsMap[k];
+        var pct = st ? st.percent : 0;
+        var lvl = heatLevel(pct);
+        var cls = [];
+        if (k === todayKey) cls.push('now');
+        if (lvl === 1) cls.push('blink');
+        var title = st && st.total
+          ? k + ' — ' + pct + '% (' + st.completed + '/' + st.total + ')'
+          : k;
+        return '<i data-l="' + lvl + '"' + (cls.length ? ' class="' + cls.join(' ') + '"' : '') +
+               ' title="' + App.esc(title) + '" style="cursor:pointer" data-act="go" data-arg=\'' + App.arg({ v: 'tarix_day', p: { date: k } }) + '\'></i>';
       }).join('');
 
       return '<div class="hm-mo">' +

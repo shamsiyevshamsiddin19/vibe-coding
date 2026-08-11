@@ -68,7 +68,7 @@
      shunda kam vazifa qiladigan kunlarda ham farq ko'rinadi (GitHub ham
      foydalanuvchi taqsimotiga moslashadi). */
 
-  var boostCache = null; // {at: ms, map: {date: completed}}
+  var boostCache = null; // {at: ms, map: {date: {total, completed, percent}}}
   var BOOST_TTL = 60000;
 
   function boostSeries() {
@@ -79,7 +79,10 @@
     return App.call('boost_stats', {}).then(function (j) {
       var map = {};
       (j && j.daily_series || []).forEach(function (d) {
-        if (d && d.date) map[d.date] = +d.completed_tasks || 0;
+        if (!d || !d.date) return;
+        var total = +d.total_tasks || 0, completed = +d.completed_tasks || 0;
+        map[d.date] = { total: total, completed: completed,
+          percent: total ? Math.round(completed * 100 / total) : 0 };
       });
       boostCache = { at: Date.now(), map: map };
       return map;
@@ -109,12 +112,12 @@
       for (var i = 6; i >= 0; i--) {
         var d = new Date(now);
         d.setDate(now.getDate() - i);
-        counts.push(map[todayKey(d)] || 0);
+        counts.push((map[todayKey(d)] || {}).completed || 0);
       }
       // Darajani oxirgi 14 kunning eng kattasiga nisbatan beramiz — bir hafta
       // sust bo'lsa ham masshtab sakrab ketmasin.
       var max = 0;
-      Object.keys(map).forEach(function (k) { if (map[k] > max) max = map[k]; });
+      Object.keys(map).forEach(function (k) { if (map[k].completed > max) max = map[k].completed; });
       return base.map(function (d, i) {
         d.count = counts[i];
         d.level = levelOf(counts[i], max);
@@ -126,6 +129,9 @@
 
   window.Activity = {
     mark: mark, streak: streak, lastWeek: lastWeek, totalDays: totalDays,
-    lastWeekBoost: lastWeekBoost
+    lastWeekBoost: lastWeekBoost,
+    /* Kun bo'yicha Boostday vazifa foizi: {date: {total, completed, percent}}.
+       Bosh sahifadagi faollik heatmap kataklarining rangi shundan olinadi. */
+    dailyStats: boostSeries
   };
 })();
