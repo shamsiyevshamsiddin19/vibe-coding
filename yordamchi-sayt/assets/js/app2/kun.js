@@ -59,11 +59,15 @@
     try {
       var raw = localStorage.getItem(STORE_KEY);
       if (raw) {
-        // Eski standart (hardcoded) jadval qolib ketgan bo'lsa, tozalaymiz
-        if (raw.indexOf('Differensial') !== -1) {
-          localStorage.removeItem(STORE_KEY);
-          return JSON.parse(JSON.stringify(DEFAULT_SCHEDULE));
-        }
+        /* ⚠️ BU YERDA MA'LUMOT YO'QOTADIGAN TEKSHIRUV BOR EDI:
+           `raw.indexOf('Differensial') !== -1` bo'lsa BUTUN jadval
+           o'chirilardi. U eski hardcoded demo jadvalni tozalash uchun
+           yozilgan, lekin HAR yuklashda ishlardi — natijada matnida shu
+           so'z bo'lgan HAQIQIY jadval ham yo'q qilinardi. Foydalanuvchining
+           darsi aynan "Differensial tenglamalar" deb ataladi, ya'ni u o'z
+           jadvalini kiritsa har safar yo'qotardi.
+           Demo jadval allaqachon hammada tozalangan (bu kod uzoq vaqtdan
+           beri jonli), shuning uchun tekshiruv butunlay olib tashlandi. */
         var v = JSON.parse(raw);
         if (v && typeof v === 'object') return v;
       }
@@ -469,10 +473,13 @@
         '<div style="flex:1"></div>' +
         '<button class="icon-btn ghost" data-act="kunImport" aria-label="Fayldan yuklash" title="Fayldan yuklash"><span data-icon="upload" data-icon-size="19"></span></button>' +
         '<button class="icon-btn ghost" data-act="kunAdd" aria-label="Qo\'shish"><span data-icon="plus" data-icon-size="20"></span></button></div>' +
-        '<div class="seg" id="kun-modes" style="margin-bottom:12px">' +
+        /* Bitta ixcham qator: chapda hafta o'qlari, o'ngda rejim tanlagichi */
+        '<div class="kun-bar">' +
+        '<div id="kun-nav"></div>' +
+        '<div class="seg seg-sm" id="kun-modes">' +
         '<button class="' + (mode === 'list' ? 'active' : '') + '" data-act="kunMode" data-arg=\'{"m":"list"}\'>Kun</button>' +
         '<button class="' + (mode === 'grid' ? 'active' : '') + '" data-act="kunMode" data-arg=\'{"m":"grid"}\'>Jadval</button>' +
-        '</div>' +
+        '</div></div>' +
         '<div id="kun-week"></div>' +
         '<div id="kun-sum"></div>' +
         '<div id="kun-list"><div class="load-wrap"><div class="spinner"></div></div></div>';
@@ -506,6 +513,7 @@
      ham kerak, shuning uchun ular qoladi. */
   function renderWeek() {
     var box = App.el('kun-week'); if (!box) return;
+    var navBox = App.el('kun-nav');
     var sel = parseKey(SEL_DATE), tKey = todayKey();
     // Hafta dushanbadan boshlanadi
     var start = addDays(sel, -(((sel.getDay() + 6) % 7)));
@@ -529,16 +537,22 @@
       ? !days.some(function (d) { return dkey(d) === tKey; })
       : SEL_DATE !== tKey;
 
-    box.innerHTML =
-      '<div class="kun-wknav">' +
-      '<button class="hm-arrow" data-act="kunWeek" data-arg=\'' + App.arg({ n: -7 }) + '\' aria-label="Oldingi hafta">' +
-      '<span data-icon="arrowLeft" data-icon-size="15"></span></button>' +
-      '<span class="kun-wklabel">' + shortDate(days[0]) + ' — ' + shortDate(days[6]) + '</span>' +
-      '<button class="hm-arrow" data-act="kunWeek" data-arg=\'' + App.arg({ n: 7 }) + '\' aria-label="Keyingi hafta">' +
-      '<span data-icon="arrowLeft" data-icon-size="15" style="transform:rotate(180deg)"></span></button>' +
-      '</div>' + chips +
+    /* Hafta o'qlari — yuqoridagi ixcham qatorda (rejim tanlagichi yonida) */
+    if (navBox) {
+      navBox.innerHTML =
+        '<div class="kun-wknav">' +
+        '<button class="hm-arrow" data-act="kunWeek" data-arg=\'' + App.arg({ n: -7 }) + '\' aria-label="Oldingi hafta">' +
+        '<span data-icon="arrowLeft" data-icon-size="13"></span></button>' +
+        '<span class="kun-wklabel">' + shortDate(days[0]) + ' — ' + shortDate(days[6]) + '</span>' +
+        '<button class="hm-arrow" data-act="kunWeek" data-arg=\'' + App.arg({ n: 7 }) + '\' aria-label="Keyingi hafta">' +
+        '<span data-icon="arrowLeft" data-icon-size="13" style="transform:rotate(180deg)"></span></button>' +
+        '</div>';
+      App.icons(navBox);
+    }
+
+    box.innerHTML = chips +
       (offToday
-        ? '<div style="text-align:center;margin:' + (isGrid ? '2px 0 12px' : '-6px 0 12px') + '">' +
+        ? '<div style="text-align:center;margin:' + (isGrid ? '0 0 10px' : '-6px 0 10px') + '">' +
           '<button class="lnk" data-act="kunGo" data-arg=\'' + App.arg({ date: tKey }) + '\'>↺ ' +
           (isGrid ? 'Bugungi haftaga qaytish' : 'Bugunga qaytish') + '</button></div>' : '');
     App.icons(box);
@@ -697,12 +711,61 @@
      vaqtiga qarab ustun ichida joylashadi (mutlaq joylashuv), shuning uchun
      bir vaqtga to'g'ri kelganlar yonma-yon ko'rinadi.
      ========================================================= */
-  var GRID_PX_PER_MIN = 1.05;   // 1 daqiqa = shuncha piksel (60 daq ≈ 63px)
-  var GRID_MIN_H = 26;          // juda qisqa mashg'ulot ham o'qilsin
+  var GRID_SLOT = 30;           // vaqt o'qi qadami (daqiqa)
+  var GRID_SLOT_PX = 27;        // bitta 30 daqiqalik qatorning balandligi
+  var GRID_PX_PER_MIN = GRID_SLOT_PX / GRID_SLOT;
+  var GRID_MIN_H = 22;          // juda qisqa mashg'ulot ham o'qilsin
 
   function weekStartOf(dateStr) {
     var d = parseKey(dateStr) || new Date();
     return addDays(d, -(((d.getDay() + 6) % 7)));   // dushanbadan
+  }
+
+  /* Bir vaqtga to'g'ri kelgan mashg'ulotlarni YONMA-YON joylashtirish.
+
+     Avval o'zaro kesishadigan ishlar bitta "to'da"ga yig'iladi, keyin
+     to'da ichida har biri bo'sh "yo'lak"ka tushadi. Natijada ustun
+     kengligi yo'laklar soniga bo'linadi — hech biri ikkinchisini
+     bekitmaydi (jadvalda bir vaqtda ikki dars bo'lishi odatiy hol). */
+  function layoutLanes(items) {
+    var sorted = items.slice().sort(function (a, b) {
+      var d = toMins(a.start) - toMins(b.start);
+      return d || (endMins(a) - endMins(b));
+    });
+    var out = [], cluster = [], clusterEnd = -1;
+
+    function flush() {
+      if (!cluster.length) return;
+      var lanes = [];                      // lanes[i] = shu yo'lakning tugash vaqti
+      cluster.forEach(function (it) {
+        var s = toMins(it.start), e = endMins(it), placed = -1;
+        for (var i = 0; i < lanes.length; i++) {
+          if (lanes[i] <= s) { lanes[i] = e; placed = i; break; }
+        }
+        if (placed < 0) { lanes.push(e); placed = lanes.length - 1; }
+        it._lane = placed;
+      });
+      cluster.forEach(function (it) { it._lanes = lanes.length; out.push(it); });
+      cluster = []; clusterEnd = -1;
+    }
+
+    sorted.forEach(function (it) {
+      var s = toMins(it.start);
+      if (cluster.length && s >= clusterEnd) flush();
+      cluster.push(it);
+      clusterEnd = Math.max(clusterEnd, endMins(it));
+    });
+    flush();
+    return out;
+  }
+  function endMins(it) { return it.end ? toMins(it.end) : toMins(it.start) + 60; }
+
+  /* "7 soat 30 min" — kun sarlavhasidagi umumiy band vaqt */
+  function busyLabel(items) {
+    var m = busyMins(items);
+    if (!m) return '';
+    var h = Math.floor(m / 60), r = m % 60;
+    return (h ? h + ' soat' : '') + (r ? (h ? ' ' : '') + r + ' min' : '');
   }
 
   function renderGrid() {
@@ -732,65 +795,71 @@
       return;
     }
 
-    // Vaqt oralig'i — eng erta boshlanish va eng kech tugashga qarab (soatga yaxlitlab)
+    // Vaqt oralig'i — eng erta boshlanish va eng kech tugashga qarab
     var minM = 24 * 60, maxM = 0;
     days.forEach(function (day) {
       day.timed.forEach(function (it) {
-        var s = toMins(it.start), e = it.end ? toMins(it.end) : s + 60;
+        var s = toMins(it.start), e = endMins(it);
         if (s < minM) minM = s;
         if (e > maxM) maxM = e;
       });
     });
     if (minM > maxM) { minM = 8 * 60; maxM = 18 * 60; }
-    minM = Math.floor(minM / 60) * 60;
-    maxM = Math.ceil(maxM / 60) * 60;
-    if (maxM - minM < 120) maxM = minM + 120;
+    minM = Math.floor(minM / GRID_SLOT) * GRID_SLOT;
+    maxM = Math.ceil(maxM / GRID_SLOT) * GRID_SLOT;
+    if (maxM - minM < 4 * GRID_SLOT) maxM = minM + 4 * GRID_SLOT;
 
     var height = Math.round((maxM - minM) * GRID_PX_PER_MIN);
     function topOf(m) { return Math.round((m - minM) * GRID_PX_PER_MIN); }
 
-    // Soat chiziqlari
-    var hours = '';
-    for (var h = minM; h <= maxM; h += 60) {
-      hours += '<div class="kg-h" style="top:' + topOf(h) + 'px"><span>' + fmtHM(h) + '</span></div>';
+    /* Chap ustun: har 30 daqiqada belgi. Yonidagi chiziq to'liq soatda
+       to'q, yarim soatda punktir — jadval o'qilishi osonlashadi. */
+    var marks = '', lines = '';
+    for (var t = minM; t <= maxM; t += GRID_SLOT) {
+      var full = (t % 60) === 0;
+      marks += '<div class="kgt' + (full ? ' full' : '') + '" style="top:' + topOf(t) + 'px">' +
+        fmtHM(t) + '</div>';
+      lines += '<div class="kgl' + (full ? ' full' : '') + '" style="top:' + topOf(t) + 'px"></div>';
     }
 
     var isThisWeek = days.some(function (x) { return x.date === tKey; });
     var nowLine = '';
     if (isThisWeek) {
       var nm = nowMins();
-      if (nm >= minM && nm <= maxM) {
-        nowLine = '<div class="kg-now" style="top:' + topOf(nm) + 'px"></div>';
-      }
+      if (nm >= minM && nm <= maxM) nowLine = '<div class="kg-now" style="top:' + topOf(nm) + 'px"></div>';
     }
 
     var cols = days.map(function (day) {
-      var items = day.timed.map(function (it) {
-        var s = toMins(it.start), e = it.end ? toMins(it.end) : s + 60;
-        var top = topOf(s);
+      var items = layoutLanes(day.timed).map(function (it) {
+        var s = toMins(it.start), e = endMins(it);
         var hgt = Math.max(GRID_MIN_H, Math.round((e - s) * GRID_PX_PER_MIN) - 2);
+        var w = 100 / (it._lanes || 1);
         var st = statusOf(it, day.date === tKey);
-        return '<button class="kg-item' + (st === 'past' ? ' past' : '') + (st === 'live' ? ' live' : '') +
-          (it.done ? ' done' : '') + '" style="top:' + top + 'px;height:' + hgt + 'px;' +
-          'background:' + (it.color || 'var(--accent)') + '22;border-left-color:' + (it.color || 'var(--accent)') + '" ' +
+        var meta = it.start + (it.end ? ' - ' + it.end : '') + (it.room ? ' · ' + it.room : '');
+        var col = it.color || 'var(--accent)';
+        return '<button class="kgi' + (st === 'past' ? ' past' : '') + (st === 'live' ? ' live' : '') +
+          (it.done ? ' done' : '') + '" style="top:' + topOf(s) + 'px;height:' + hgt + 'px;' +
+          'left:' + (it._lane * w) + '%;width:calc(' + w + '% - 2px);background:' + col + '" ' +
           'data-act="kunGridOpen" data-arg=\'' + App.arg({ date: day.date }) + '\' ' +
-          'title="' + App.esc(it.start + (it.end ? '-' + it.end : '') + ' · ' + it.title) + '">' +
-          '<b>' + App.esc((it.emoji ? it.emoji + ' ' : '') + it.title) + '</b>' +
-          '<i>' + App.esc(it.start + (it.end ? '-' + it.end : '')) + '</i></button>';
+          'title="' + App.esc(meta + ' · ' + it.title) + '">' +
+          '<i>' + App.esc(meta) + '</i>' +
+          '<b>' + App.esc((it.emoji ? it.emoji + ' ' : '') + it.title) + '</b></button>';
       }).join('');
 
-      return '<div class="kg-col' + (day.date === tKey ? ' is-today' : '') +
-        (day.date === SEL_DATE ? ' is-sel' : '') + '">' + items + '</div>';
+      return '<div class="kgc' + (day.date === tKey ? ' is-today' : '') + '">' + items + '</div>';
     }).join('');
 
     var heads = days.map(function (day) {
-      return '<button class="kg-dh' + (day.date === tKey ? ' is-today' : '') +
+      var lbl = busyLabel(day.timed);
+      return '<button class="kgh' + (day.date === tKey ? ' is-today' : '') +
         (day.date === SEL_DATE ? ' is-sel' : '') + '" data-act="kunGo" data-arg=\'' +
-        App.arg({ date: day.date }) + '\'><b>' + DAY_SHORT[day.d.getDay()] + '</b><i>' + day.d.getDate() + '</i></button>';
+        App.arg({ date: day.date }) + '\'>' +
+        '<b>' + DAY_SHORT[day.d.getDay()].toUpperCase() + '</b>' +
+        '<i>' + (lbl || day.d.getDate() + '-kun') + '</i></button>';
     }).join('');
 
-    /* Vaqti yo'q ishlar (sport mashqlari kabi) jadval ostida —
-       ular vaqt o'qiga joylasha olmaydi, lekin yo'qolib ham ketmasligi kerak. */
+    /* Vaqti yo'q ishlar jadval ostida — vaqt o'qiga joylasha olmaydi,
+       lekin yo'qolib ham ketmasligi kerak. */
     var extra = '';
     days.forEach(function (day) {
       if (!day.untimed.length) return;
@@ -802,12 +871,12 @@
     });
 
     box.innerHTML =
-      '<div class="kg-wrap"><div class="kg">' +
-      '<div class="kg-head"><div class="kg-corner"></div>' + heads + '</div>' +
-      '<div class="kg-body" style="height:' + height + 'px">' +
-      '<div class="kg-times">' + hours + '</div>' +
-      '<div class="kg-cols">' + hours.replace(/kg-h/g, 'kg-line') + nowLine + cols + '</div>' +
-      '</div></div></div>' + extra;
+      '<div class="kg2">' +
+      '<div class="kg2-head"><div class="kgh-corner">VAQT</div>' + heads + '</div>' +
+      '<div class="kg2-body" style="height:' + height + 'px">' +
+      '<div class="kg2-times">' + marks + '</div>' +
+      '<div class="kg2-cols">' + lines + nowLine + cols + '</div>' +
+      '</div></div>' + extra;
     App.icons(box);
   }
 
