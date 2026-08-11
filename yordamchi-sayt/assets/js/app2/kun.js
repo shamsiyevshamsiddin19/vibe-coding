@@ -537,7 +537,9 @@
       ? !days.some(function (d) { return dkey(d) === tKey; })
       : SEL_DATE !== tKey;
 
-    /* Hafta o'qlari — yuqoridagi ixcham qatorda (rejim tanlagichi yonida) */
+    /* Hafta o'qlari + "bugunga qaytish" — hammasi yuqoridagi ixcham
+       qatorda (rejim tanlagichi yonida). Qaytish tugmasi faqat bugundan
+       (jadvalda — bugungi haftadan) chetlashganda paydo bo'ladi. */
     if (navBox) {
       navBox.innerHTML =
         '<div class="kun-wknav">' +
@@ -546,15 +548,15 @@
         '<span class="kun-wklabel">' + shortDate(days[0]) + ' — ' + shortDate(days[6]) + '</span>' +
         '<button class="hm-arrow" data-act="kunWeek" data-arg=\'' + App.arg({ n: 7 }) + '\' aria-label="Keyingi hafta">' +
         '<span data-icon="arrowLeft" data-icon-size="13" style="transform:rotate(180deg)"></span></button>' +
+        (offToday
+          ? '<button class="kun-todaybtn" data-act="kunGo" data-arg=\'' + App.arg({ date: tKey }) + '\' ' +
+            'title="' + (isGrid ? 'Bugungi haftaga qaytish' : 'Bugunga qaytish') + '">↺ Bugun</button>'
+          : '') +
         '</div>';
       App.icons(navBox);
     }
 
-    box.innerHTML = chips +
-      (offToday
-        ? '<div style="text-align:center;margin:' + (isGrid ? '0 0 10px' : '-6px 0 10px') + '">' +
-          '<button class="lnk" data-act="kunGo" data-arg=\'' + App.arg({ date: tKey }) + '\'>↺ ' +
-          (isGrid ? 'Bugungi haftaga qaytish' : 'Bugunga qaytish') + '</button></div>' : '');
+    box.innerHTML = chips;
     App.icons(box);
   }
 

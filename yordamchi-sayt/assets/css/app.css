@@ -852,12 +852,27 @@ label.field > span{ display:block; font-size:12.5px; color:var(--hint); font-wei
 .kun-wknav{ display:flex; align-items:center; gap:6px; margin:0; }
 .kun-wklabel{ font-size:12px; font-weight:700; color:var(--text-2); min-width:104px; text-align:center; }
 .kun-wknav .hm-arrow{ width:24px; height:24px; border-radius:7px; }
+/* "↺ Bugun" — faqat bugundan chetlashganda chiqadi, o'qlar yonida */
+.kun-todaybtn{
+  padding:4px 9px; border-radius:7px; white-space:nowrap;
+  background:var(--accent-soft); border:1px solid transparent; color:var(--accent);
+  font-size:11px; font-weight:700; cursor:pointer;
+}
 
 @media (max-width:400px){
   .kun-bar{ gap:6px; }
   .kun-wklabel{ font-size:11px; min-width:88px; }
   .kun-wknav{ gap:4px; }
   .kun-wknav .hm-arrow{ width:22px; height:22px; }
+  .kun-todaybtn{ padding:3px 7px; font-size:10px; }
+}
+/* Juda tor ekran: "↺ Bugun" matni sig'masdi va tanlagichni qatordan
+   chiqarib yuborardi — endi faqat belgi qoladi (ma'nosi tushunarli). */
+@media (max-width:365px){
+  .kun-wknav{ min-width:0; }
+  .kun-wklabel{ min-width:0; }
+  .kun-todaybtn{ font-size:0; padding:3px 6px; line-height:1; }
+  .kun-todaybtn::before{ content:'↺'; font-size:13px; font-weight:700; }
 }
 .kun-days .chip-btn b{ display:block; font-size:10.5px; font-weight:600; color:var(--hint); }
 .kun-days .chip-btn i{ display:block; font-style:normal; font-size:14px; font-weight:700; margin-top:1px; }
