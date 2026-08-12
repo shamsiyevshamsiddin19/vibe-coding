@@ -777,14 +777,64 @@
      vaqtiga qarab ustun ichida joylashadi (mutlaq joylashuv), shuning uchun
      bir vaqtga to'g'ri kelganlar yonma-yon ko'rinadi.
      ========================================================= */
-  var GRID_SLOT = 30;           // vaqt o'qi qadami (daqiqa)
-  var GRID_SLOT_PX = 27;        // bitta 30 daqiqalik qatorning balandligi
-  var GRID_PX_PER_MIN = GRID_SLOT_PX / GRID_SLOT;
+  var GRID_SLOT = 30;           // vaqt o'qidagi belgi qadami (daqiqa)
   var GRID_MIN_H = 22;          // juda qisqa mashg'ulot ham o'qilsin
 
   function weekStartOf(dateStr) {
     var d = parseKey(dateStr) || new Date();
     return addDays(d, -(((d.getDay() + 6) % 7)));   // dushanbadan
+  }
+
+  /* ---------- Vaqt o'qi: CHIZIQLI EMAS, NISBIY ----------
+     Muammo: 7 soatlik "Kurs" kabi uzun blok ekranning yarmini band qilib,
+     30 daqiqalik "Tushlik" kabi qisqa ishlarni deyarli ko'rinmas qilib
+     qo'yardi (chiziqli shkalada balandlik = daqiqa soni × doimiy son).
+
+     Yechim: haftadagi barcha mashg'ulotlarning boshlanish/tugash
+     nuqtalari yig'ib olinadi, ular orasidagi HAR BIR oraliq alohida
+     KVADRAT ILDIZ bilan siqiladi, so'ng ketma-ket qo'shib chiqiladi.
+     Ildiz olish qisqa oraliqni deyarli o'zgartirmaydi, uzunini esa
+     sezilarli qisqartiradi: 30 daqiqa -> √30≈5.5, 450 daqiqa (7.5 soat)
+     -> √450≈21.2 — xom holda 15 marta farq bo'lsa, ekranda atigi ~4 marta
+     farq qoladi. Natija: uzun blok siqiladi, qisqa ishlar o'qib bo'ladigan
+     bo'ladi, umumiy balandlik ham qisqarib scroll kamayadi.
+
+     Bitta umumiy o'q BUTUN HAFTAGA (barcha 7 ustunga) tegishli, shuning
+     uchun nuqtalar barcha kunlar bo'yicha birlashtiriladi. */
+  var GRID_POWER = 0.6;         // 1 = chiziqli, kichikroq = kuchliroq siqish
+  /* Kalibrlash: 30 daqiqalik (GRID_SLOT) oraliq AVVALGI chiziqli o'lcham
+     bilan BIR XIL (27px) qolsin — faqat undan UZUNROQ narsalar siqiladi.
+     Shunda "qisqa ish avvalgidek, uzun ish kichikroq" so'zma-so'z bajariladi
+     (kalibrlash bo'lmasa — masalan doim 15px/birlik desak — natija AKSINCHA
+     avvalgidan ancha KATTA chiqib qolishi mumkin, sinovda shunday bo'lgan). */
+  var GRID_PX_PER_UNIT = 27 / Math.pow(GRID_SLOT, GRID_POWER);
+
+  function buildTimeScale(days, minM, maxM) {
+    var bounds = {}; bounds[minM] = 1; bounds[maxM] = 1;
+    days.forEach(function (day) {
+      day.timed.forEach(function (it) {
+        var s = toMins(it.start), e = endMins(it);
+        if (s >= minM && s <= maxM) bounds[s] = 1;
+        if (e >= minM && e <= maxM) bounds[e] = 1;
+      });
+    });
+    var pts = Object.keys(bounds).map(Number).sort(function (a, b) { return a - b; });
+    var y = [0];
+    for (var i = 1; i < pts.length; i++) {
+      y.push(y[i - 1] + Math.pow(pts[i] - pts[i - 1], GRID_POWER) * GRID_PX_PER_UNIT);
+    }
+    function topOf(m) {
+      if (m <= pts[0]) return Math.round(y[0]);
+      if (m >= pts[pts.length - 1]) return Math.round(y[y.length - 1]);
+      var lo = 0, hi = pts.length - 1;             // ikkilik qidiruv
+      while (hi - lo > 1) {
+        var mid = (lo + hi) >> 1;
+        if (pts[mid] <= m) lo = mid; else hi = mid;
+      }
+      var frac = (m - pts[lo]) / (pts[hi] - pts[lo]);
+      return Math.round(y[lo] + frac * (y[hi] - y[lo]));
+    }
+    return { topOf: topOf, height: Math.round(y[y.length - 1]) };
   }
 
   /* Bir vaqtga to'g'ri kelgan mashg'ulotlarni YONMA-YON joylashtirish.
@@ -900,8 +950,9 @@
     maxM = Math.ceil(maxM / GRID_SLOT) * GRID_SLOT;
     if (maxM - minM < 4 * GRID_SLOT) maxM = minM + 4 * GRID_SLOT;
 
-    var height = Math.round((maxM - minM) * GRID_PX_PER_MIN);
-    function topOf(m) { return Math.round((m - minM) * GRID_PX_PER_MIN); }
+    var scale = buildTimeScale(days, minM, maxM);
+    var height = scale.height;
+    var topOf = scale.topOf;
 
     /* Chap ustun: har 30 daqiqada belgi. Yonidagi chiziq to'liq soatda
        to'q, yarim soatda punktir — jadval o'qilishi osonlashadi. */
@@ -923,7 +974,7 @@
     var cols = days.map(function (day) {
       var items = layoutLanes(day.timed).map(function (it) {
         var s = toMins(it.start), e = endMins(it);
-        var hgt = Math.max(GRID_MIN_H, Math.round((e - s) * GRID_PX_PER_MIN) - 2);
+        var hgt = Math.max(GRID_MIN_H, (topOf(e) - topOf(s)) - 2);
         var w = 100 / (it._lanes || 1);
         var st = statusOf(it, day.date === tKey);
         var meta = it.start + (it.end ? ' - ' + it.end : '') + (it.room ? ' · ' + it.room : '');

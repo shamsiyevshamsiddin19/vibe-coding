@@ -397,10 +397,16 @@
     var todayX = m.L + m.todayIdx * m.perDay;
     sc.scrollLeft = Math.max(0, Math.min(sc.scrollWidth - sc.clientWidth, todayX - sc.clientWidth / 2));
 
-    var raf = null;
+    /* `setTimeout` bilan cheklaymiz, `requestAnimationFrame` BILAN EMAS:
+       rAF sahifa/pane ko'rinmay qolganda (fonga o'tganda) ushlanib
+       qolishi mumkin, ya'ni yorliq scroll paytida yangilanmay qolardi.
+       `repaint()` juda arzon (bir necha o'nlab qiymatni solishtirish),
+       shuning uchun 16ms chegarasi (~60fps) yetarlicha silliq. */
+    var pending = false;
     sc.addEventListener('scroll', function () {
-      if (raf) return;
-      raf = requestAnimationFrame(function () { raf = null; repaint(); });
+      if (pending) return;
+      pending = true;
+      setTimeout(function () { pending = false; repaint(); }, 16);
     }, { passive: true });
     repaint();
   }

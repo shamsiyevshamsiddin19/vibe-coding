@@ -500,6 +500,19 @@ def run_super_todo_alerts(now_str: str) -> None:
 
 
 def run_daily_reports_if_needed(n: datetime) -> None:
+    """Har kuni 23:59 da bugungi TO-DO/Super TO-DO uchun qisqa hisobot.
+
+    ESLATMA (foydalanuvchi so'rovi bilan o'chirilgan xatti-harakat):
+    ilgari shu yerda bajarilmagan vazifalar "-> " prefiksi bilan ERTANGI
+    kunga YANGI reja qilib avtomatik ko'chirilardi — ya'ni kecha
+    qilinmagan TO-DO ishlar bugun QAYTA paydo bo'lardi. Foydalanuvchi
+    buni aniq xohlamadi ("kecha qilinmagan vazifalar bugunga yana
+    kelyapti — kelmaydigan qil"), shuning uchun ko'chirish butunlay olib
+    tashlandi: TO-DO faqat O'Z sanasida yashaydi, o'sha kun tugasa
+    bajarilmagan qismi shunchaki tarixda "bajarilmagan" bo'lib qoladi.
+    Hisobot xabari (statistika) esa saqlanib qoldi — bu foydali va
+    shikoyat qilinmagan.
+    """
     if n.strftime("%H:%M") != "23:59":
         return
     today = n.strftime("%Y-%m-%d")
@@ -511,22 +524,6 @@ def run_daily_reports_if_needed(n: datetime) -> None:
         tasks = flatten_task_groups(groups)
         total = len(tasks)
         completed = sum(1 for t in tasks if int(t.get("status", 0) or 0) == 1)
-        remaining_groups = []
-        for g in groups:
-            remaining_tasks = []
-            for task in g.get("tasks") or []:
-                if int(task.get("status", 0) or 0) == 1:
-                    continue
-                t = dict(task)
-                t["text"] = "-> " + str(task.get("text", ""))
-                t["status"] = 0
-                if plan["plan_type"] == "super_todo":
-                    t["started_at"] = None
-                    t["finished_at"] = None
-                    t["alerts"] = []
-                remaining_tasks.append(t)
-            if remaining_tasks:
-                remaining_groups.append({"name": g.get("name", ""), "tasks": remaining_tasks})
         percent = round((completed / total) * 100, 1) if total > 0 else 0
         report = ("<b>Kunlik hisobot</b>\n\n"
                   f"Sana: <code>{today}</code>\nJami vazifalar: <b>{total}</b>\n"
@@ -534,16 +531,6 @@ def run_daily_reports_if_needed(n: datetime) -> None:
                   f"Natija: <b>{percent}%</b>")
         send_message(plan["channel_id"], report)
         upsert_history(int(plan["owner_id"]), str(plan["channel_id"]), today, total, completed)
-
-        if remaining_groups:
-            tomorrow = (_parse(f"{today} 00:00:00") + timedelta(days=1)).strftime("%Y-%m-%d")
-            db.run(
-                "INSERT INTO plans (owner_id, channel_id, channel_name, plan_type, tasks, date, time, next_run_at, "
-                "created_at, updated_at) VALUES (:owner, :cid, :cname, :pt, :tasks, :date, :time, :nra, :ca, :ua)",
-                {"owner": plan["owner_id"], "cid": plan["channel_id"], "cname": plan["channel_name"],
-                 "pt": plan["plan_type"], "tasks": encode_task_groups(remaining_groups), "date": tomorrow,
-                 "time": plan["time"], "nra": f"{tomorrow} {plan['time']}:00",
-                 "ca": f"{today} 23:59:00", "ua": f"{today} 23:59:00"})
 
         db.run("UPDATE plans SET report_sent = 1, updated_at = :n WHERE id = :id",
                {"n": n.strftime(DT_FMT), "id": plan["id"]})
