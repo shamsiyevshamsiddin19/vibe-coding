@@ -778,7 +778,6 @@
      bir vaqtga to'g'ri kelganlar yonma-yon ko'rinadi.
      ========================================================= */
   var GRID_SLOT = 30;           // vaqt o'qidagi belgi qadami (daqiqa)
-  var GRID_MIN_H = 22;          // juda qisqa mashg'ulot ham o'qilsin
 
   function weekStartOf(dateStr) {
     var d = parseKey(dateStr) || new Date();
@@ -811,12 +810,31 @@
      vaqt band" degan tuyg'u deyarli yo'qolardi — shuning uchun undan
      TO'XTALDI, kub ildiz bilan chegaralandi. */
   var GRID_POWER = 1 / 3;       // 1 = chiziqli, kichikroq = kuchliroq siqish
+  /* GRID_SCALE — foydalanuvchi so'roviga ko'ra qo'shildi: nisbatlarni
+     BUZMASDAN hammasini bab-baravar kattalashtiradi ("chiqqan qiymatni
+     hammasiga ko'paytirsang nisbat saqlanadi"). Matematik jihatdan bu
+     to'g'ri — GRID_PX_PER_UNIT chiziqli koeffitsiyent bo'lgani uchun uni
+     ko'paytirish har bir segmentni BIR XIL nisbatda kattalashtiradi,
+     ikkita segment orasidagi nisbat (masalan 2.6x) o'zgarmaydi.
+     1.5 tanlandi (2 emas): 30 daq blok 27px->40px (bosish uchun qulayroq),
+     umumiy balandlik esa (sinov ma'lumotida) 368px->552px — hali ham eski
+     chiziqli holatdan (918px) sezilarli qisqaroq. 2x qilinsa 736px chiqib,
+     "juda uzun sahifa" muammosiga qaytardi. */
+  var GRID_SCALE = 1.5;
   /* Kalibrlash: 30 daqiqalik (GRID_SLOT) oraliq AVVALGI chiziqli o'lcham
      bilan BIR XIL (27px) qolsin — faqat undan UZUNROQ narsalar siqiladi.
      Shunda "qisqa ish avvalgidek, uzun ish kichikroq" so'zma-so'z bajariladi
      (kalibrlash bo'lmasa — masalan doim 15px/birlik desak — natija AKSINCHA
-     avvalgidan ancha KATTA chiqib qolishi mumkin, sinovda shunday bo'lgan). */
-  var GRID_PX_PER_UNIT = 27 / Math.pow(GRID_SLOT, GRID_POWER);
+     avvalgidan ancha KATTA chiqib qolishi mumkin, sinovda shunday bo'lgan).
+     GRID_SCALE shu 27px'ning o'ziga qo'llanadi — shuning uchun kattalashtirish
+     ANCHOR nuqtasidan boshlab BUTUN egri chiziqqa proporsional tarqaladi. */
+  var GRID_PX_PER_UNIT = (27 * GRID_SCALE) / Math.pow(GRID_SLOT, GRID_POWER);
+  var GRID_MIN_H = Math.round(22 * GRID_SCALE);   // BITTA mashg'ulot uchun eng kam balandlik
+  /* BUTUN jadval uchun eng kam balandlik. Siqish kuchli bo'lgani uchun
+     kunda 1-2 ta qisqa ish bo'lsa (masalan hafta oxiri bo'sh bo'lsa),
+     hisoblangan balandlik juda kichik (~60-100px) chiqib, jadval singan/
+     "buzilgan" ko'rinishga kelishi mumkin edi — bu shunga qarshi pol. */
+  var GRID_MIN_TOTAL_H = 300;
 
   function buildTimeScale(days, minM, maxM) {
     var bounds = {}; bounds[minM] = 1; bounds[maxM] = 1;
@@ -960,7 +978,7 @@
     if (maxM - minM < 4 * GRID_SLOT) maxM = minM + 4 * GRID_SLOT;
 
     var scale = buildTimeScale(days, minM, maxM);
-    var height = scale.height;
+    var height = Math.max(scale.height, GRID_MIN_TOTAL_H);
     var topOf = scale.topOf;
 
     /* Chap ustun: har 30 daqiqada belgi. Yonidagi chiziq to'liq soatda
