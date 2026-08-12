@@ -800,16 +800,16 @@
 
      Bitta umumiy o'q BUTUN HAFTAGA (barcha 7 ustunga) tegishli, shuning
      uchun nuqtalar barcha kunlar bo'yicha birlashtiriladi. */
-  /* 1/3 — KUB ILDIZ. Foydalanuvchi so'roviga ko'ra oldingi darajadan
-     (0.6, deyarli kvadrat ildiz) kuchliroq siqishga o'tkazildi.
-     O'lchangan natija (30 daq "Tushlik" / 7.5 soat "Kurs" nisbati):
-       chiziqli (eski)      — 15x  (xom vaqt bilan bir xil)
-       kvadrat ildizga yaqin (0.6) — 5.4x
-       kub ildiz (hozirgi, 1/3)    — 2.6x
-     4-darajali ildiz (0.25) sinalganda bu nisbat ~2x ga tushib, "qancha
-     vaqt band" degan tuyg'u deyarli yo'qolardi — shuning uchun undan
-     TO'XTALDI, kub ildiz bilan chegaralandi. */
-  var GRID_POWER = 1 / 3;       // 1 = chiziqli, kichikroq = kuchliroq siqish
+  /* 1/2 — KVADRAT ILDIZ. Foydalanuvchi so'roviga ko'ra kub ildizdan (1/3)
+     qaytarildi. O'lchangan natija (30 daq "Tushlik" / 7.5 soat "Kurs"
+     nisbati, GRID_SCALE=1.5 bilan birga):
+       chiziqli (eski)         — 15x   (xom vaqt bilan bir xil)
+       kub ildiz (1/3, o'tgan) — 2.6x
+       kvadrat ildiz (hozirgi, 1/2) — 4.1x
+     Kvadrat ildiz kub ildizdan KAMROQ siqadi (daraja kattaroq bo'lgani
+     uchun) — uzun ish (Kurs) qisqasiga nisbatan yana bir oz kattaroq
+     ko'rinadi, lekin hamon chiziqlidan ancha yumshoq. */
+  var GRID_POWER = 1 / 2;       // 1 = chiziqli, kichikroq = kuchliroq siqish
   /* GRID_SCALE — foydalanuvchi so'roviga ko'ra qo'shildi: nisbatlarni
      BUZMASDAN hammasini bab-baravar kattalashtiradi ("chiqqan qiymatni
      hammasiga ko'paytirsang nisbat saqlanadi"). Matematik jihatdan bu
