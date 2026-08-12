@@ -757,15 +757,6 @@
         untimed.map(function (it) { return rowHtml(it, ''); }).join('');
     }
 
-    /* Bugungi bajarilmagan sport mashqlari — bosib belgilash uchun */
-    if (isToday) {
-      var sp = safeSport();
-      if (sp.length) {
-        html += '<div class="list-label" style="margin-top:16px">Sport mashqlari</div>' +
-          sp.map(sportRowHtml).join('');
-      }
-    }
-
     box.innerHTML = html;
     App.icons(box);
   }
@@ -1093,10 +1084,6 @@
     App.go('kun', { date: a.date });
   };
 
-  function safeSport() {
-    try { return SportBridge.todayPending() || []; } catch (e) { return []; }
-  }
-
   function nowRowHtml(n) {
     return '<div class="kun-now"><span>' + fmtHM(n) + '</span><i></i></div>';
   }
@@ -1156,14 +1143,6 @@
     return body;
   }
 
-  function sportRowHtml(s) {
-    return '<div class="les" data-act="kunSportDone" data-arg=\'' + App.arg({ cat: s.cat, id: s.id }) + '\' role="button" tabindex="0">' +
-      '<div class="les-t"><span style="opacity:.55">—</span></div>' +
-      '<div class="les-bar" style="background:#f97316"></div>' +
-      '<div class="les-m"><b>🏋 ' + App.esc(s.name) + '</b><span>' + App.esc(s.catName) + ' · bosib belgilang</span></div>' +
-      '<button class="kun-tick" aria-label="Bajarildi">✓</button></div>';
-  }
-
   /* ---------- Vaqt chizig'idagi amallar ---------- */
   App.actions.kunOpenPlan = function (a) {
     var key = String(a.key);
@@ -1185,12 +1164,6 @@
     renderDay();
     if (it.done && window.Activity) Activity.mark();
   };
-  App.actions.kunSportDone = function (a) {
-    if (!window.SportBridge) return;
-    SportBridge.toggle(a.cat, a.id);
-    renderDay();
-  };
-
   /* LMS bilan takrorlanadigan QO'LDA kiritilgan darslarni butunlay o'chiradi.
      Faqat "dars" turidagilar va faqat LMS'da mos vaqt topilganlari o'chadi —
      sport/ish/uyqu kabi yozuvlarga tegilmaydi. */

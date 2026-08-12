@@ -29,6 +29,7 @@ nusxa qo'shmaydi, faqat yetishmayotganini qo'shadi.
 | `press_rolik.py` | "Rolik (ab wheel)" mashqi + rasm va video |
 | `press_media.py` | 12 ta press mashqiga YouTube darsligi va old ko'rinish rasmi |
 | `squat_bodyweight.py` | Prisedaniye (squat) — shtangadan O'Z VAZNI bilan takrorga o'tkazish |
+| `aiogram_lessons.py` | Learn > Dasturlash > "Aiogram" papkasiga 18 ta dars (manba: mahalliy `.md` fayllar, `sys.argv[1]` bilan yo'l beriladi) |
 
 ## Eslatma — mashq NOMINI o'zgartirmang
 
