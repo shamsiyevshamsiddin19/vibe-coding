@@ -801,7 +801,16 @@
 
      Bitta umumiy o'q BUTUN HAFTAGA (barcha 7 ustunga) tegishli, shuning
      uchun nuqtalar barcha kunlar bo'yicha birlashtiriladi. */
-  var GRID_POWER = 0.6;         // 1 = chiziqli, kichikroq = kuchliroq siqish
+  /* 1/3 — KUB ILDIZ. Foydalanuvchi so'roviga ko'ra oldingi darajadan
+     (0.6, deyarli kvadrat ildiz) kuchliroq siqishga o'tkazildi.
+     O'lchangan natija (30 daq "Tushlik" / 7.5 soat "Kurs" nisbati):
+       chiziqli (eski)      — 15x  (xom vaqt bilan bir xil)
+       kvadrat ildizga yaqin (0.6) — 5.4x
+       kub ildiz (hozirgi, 1/3)    — 2.6x
+     4-darajali ildiz (0.25) sinalganda bu nisbat ~2x ga tushib, "qancha
+     vaqt band" degan tuyg'u deyarli yo'qolardi — shuning uchun undan
+     TO'XTALDI, kub ildiz bilan chegaralandi. */
+  var GRID_POWER = 1 / 3;       // 1 = chiziqli, kichikroq = kuchliroq siqish
   /* Kalibrlash: 30 daqiqalik (GRID_SLOT) oraliq AVVALGI chiziqli o'lcham
      bilan BIR XIL (27px) qolsin — faqat undan UZUNROQ narsalar siqiladi.
      Shunda "qisqa ish avvalgidek, uzun ish kichikroq" so'zma-so'z bajariladi
